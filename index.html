@@ -1467,7 +1467,7 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       let brokeNow = false;
       if(target.toughness<=0 && !target.broken){
         target.broken = true; target.gauge = 0; brokeNow = true;
-        state.breakPoints += (target.toughnessMax>=15?3:1);
+        state.breakPoints = Math.min(3, state.breakPoints + (target.toughnessMax>=15?3:1));
         brokeAny = true;
       }
 
@@ -1902,7 +1902,7 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
     target.broken = true;
     target.gauge = 0;
     brokeNow = true;
-    state.breakPoints += (target.toughnessMax>=15 ? 3 : 1);
+    state.breakPoints = Math.min(3, state.breakPoints + (target.toughnessMax>=15 ? 3 : 1));
   }
 
   const gimmickResult = checkGaugeOnHitGimmick(target);
@@ -2031,7 +2031,7 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded){
     let brokeNow = false;
     if(target.toughness<=0 && !target.broken){
       target.broken = true; target.gauge = 0; brokeNow = true;
-      state.breakPoints += (target.toughnessMax>=15?3:1);
+      state.breakPoints = Math.min(3, state.breakPoints + (target.toughnessMax>=15?3:1));
       brokeAny = true;
     }
 
@@ -2266,7 +2266,7 @@ function renderPointDots(elId, current, visualMax, groupSize, color, showMaxLabe
 function renderBattle(){
   document.getElementById("actionCountDisplay").textContent = state.actionCount;
   document.getElementById("turnCountDisplay").textContent = Math.max(0, 50 - state.turnCount);
-  renderPointDots("breakPointDots", state.breakPoints, 9, 3, "#f2c46d", false);
+  renderPointDots("breakPointDots", state.breakPoints, 3, 3, "#f2c46d", true);
   renderPointDots("burstPointDots", state.teamBurst, 12, 4, "#6ee7d8", true);
   const bsStatusEl = document.getElementById("breakSkillStatusDisplay");
   if(bsStatusEl){
