@@ -115,6 +115,19 @@ th{ color:var(--text-dim); font-weight:normal; font-size:11px;}
 .logwrap{ max-height:340px; overflow:auto; }
 .empty{ color:var(--text-dim); font-size:12px; padding:12px 0; text-align:center;}
 .topbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;}
+.topbar-wrap{ margin-bottom:14px; }
+.statusRow{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+.toolSection{
+  background:var(--bg-panel); border:1px solid var(--line); border-radius:10px;
+  padding:8px 10px; margin-bottom:8px; display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+}
+.toolSection .sectionLabel{ font-size:11px; color:var(--text-dim); font-weight:700; white-space:nowrap; margin-right:2px; }
+.toolSection select, .toolSection input[type="number"]{ font-size:11px; padding:3px 5px; }
+.miniField{ display:flex; align-items:center; gap:3px; font-size:11px; color:var(--text-dim); white-space:nowrap; }
+.miniField input{ width:40px; }
+.toolbarGroup{ display:flex; flex-wrap:wrap; align-items:center; gap:5px; }
+.toolbarGroup .groupLabel{ font-size:10px; color:var(--text-dim); margin-right:2px; }
+.toolDivider{ width:1px; align-self:stretch; background:var(--line); margin:0 4px; }
 .pill{ font-size:11px; padding:4px 10px; border-radius:100px; background:var(--bg-panel-2); border:1px solid var(--line); color:var(--text-dim);}
 .badge-grid{ display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 10px; }
 .attr-badge{
@@ -184,27 +197,45 @@ select{ background:#0d1024; color:var(--text); border:1px solid var(--line); bor
   </div>
 
   <div id="battleArea">
-    <div class="topbar">
-      <div class="pill">基準速度B：<b id="baselineDisplay">-</b></div>
-      <div class="pill">ターン数：<b id="turnCountDisplay">0</b></div>
-      <div class="pill">行動数：<b id="actionCountDisplay">0</b></div>
-      <div class="pill">ブレイクポイント：<b id="breakPointDisplay">0</b></div>
-      <div class="pill">バーストポイント：<b id="teamBurstDisplay">0</b>/12</div>
-      <div class="pill" id="breakSkillStatusPill">ブレイクスキル：<b id="breakSkillStatusDisplay">未発動</b></div>
-      <div style="display:flex; align-items:center; gap:6px; font-size:11px;">
-        持続<input type="number" id="breakSkillDurationInput" value="5" min="1" style="width:44px" onchange="state.breakSkillDurationTurns=Number(this.value)">T／
-        CT<input type="number" id="breakSkillCooldownInput" value="8" min="1" style="width:44px" onchange="state.breakSkillCooldownTurns=Number(this.value)">T
-        <button class="btn-secondary btn-small" id="breakSkillActivateBtn" onclick="activateBreakSkill()">ブレイクスキル発動（3pt消費）</button>
+    <div class="topbar-wrap">
+      <div class="statusRow">
+        <div class="pill">残りターン数：<b id="turnCountDisplay">50</b></div>
+        <div class="pill">行動数：<b id="actionCountDisplay">0</b></div>
+        <div class="pill" id="breakPointPill">ブレイクPT：<span id="breakPointDots"></span></div>
+        <div class="pill" id="burstPointPill">バーストPT：<span id="burstPointDots"></span></div>
       </div>
-      <div>
-        <button class="btn-secondary btn-small" onclick="openBuffForm()">バフ/デバフ手動付与</button>
-        <button class="btn-secondary btn-small" onclick="openAllyToughnessDamageForm()">味方に強靭ダメージを記録</button>
-        <button class="btn-secondary btn-small" onclick="openExtraTurn()">追加ターン付与</button>
-        <button class="btn-secondary btn-small" onclick="undoLastTurn()">1ターン戻る</button>
-        <button class="btn-secondary btn-small" onclick="exportChart()">💾 チャートを保存</button>
-        <button class="btn-secondary btn-small" onclick="triggerImportChart()">📂 チャートを読み込む</button>
-        <button class="btn-danger btn-small" onclick="resetAll()">最初からやり直す</button>
-        <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importChart(event)">
+
+      <div class="toolSection">
+        <span class="sectionLabel">🔥 ブレイクスキル</span>
+        <select id="breakSkillTypeSelect" onchange="state.breakSkillType=this.value; syncBreakSkillTypeDefaults();" title="種類ごとの詳細は選択後に発動パネルに表示されます">
+          <option value="tokuiten">特異点の観測</option>
+          <option value="starpiercer">スターピアサー</option>
+          <option value="cubeoverload">キューブオーバーロード</option>
+          <option value="jigenkyoshu">次元強襲</option>
+          <option value="wakuseijoka" selected>惑星の浄化</option>
+        </select>
+        <span class="miniField">持続<input type="number" id="breakSkillDurationInput" value="5" min="1" onchange="state.breakSkillDurationTurns=Number(this.value)">T</span>
+        <span class="miniField">CT<input type="number" id="breakSkillCooldownInput" value="8" min="1" onchange="state.breakSkillCooldownTurns=Number(this.value)">T</span>
+        <button class="btn-secondary btn-small" id="breakSkillActivateBtn" onclick="activateBreakSkill()">発動（3pt消費）</button>
+        <span class="pill" id="breakSkillStatusPill">状態：<b id="breakSkillStatusDisplay">未発動</b></span>
+      </div>
+
+      <div class="toolSection">
+        <div class="toolbarGroup">
+          <span class="groupLabel">記録</span>
+          <button class="btn-secondary btn-small" onclick="openBuffForm()">バフ/デバフ付与</button>
+          <button class="btn-secondary btn-small" onclick="openAllyToughnessDamageForm()">強靭ダメージ記録</button>
+          <button class="btn-secondary btn-small" onclick="openExtraTurn()">追加ターン付与</button>
+          <button class="btn-secondary btn-small" onclick="undoLastTurn()">1ターン戻る</button>
+        </div>
+        <div class="toolDivider"></div>
+        <div class="toolbarGroup">
+          <span class="groupLabel">チャート</span>
+          <button class="btn-secondary btn-small" onclick="exportChart()">💾 保存</button>
+          <button class="btn-secondary btn-small" onclick="triggerImportChart()">📂 読み込む</button>
+          <button class="btn-danger btn-small" onclick="resetAll()">最初からやり直す</button>
+          <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importChart(event)">
+        </div>
       </div>
     </div>
 
@@ -243,6 +274,7 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
   //   selfBuffManualOnly: true の場合、selfBuffは通常発動時のみ付与され、トリガー発動時は付与されない（例：ティリアの速度アップ）
   //   selfStackGain: 自身の属性スタック（点火/冷却/跳躍/洞察/激動）が増える数（通常は基本スキルで+1）
   //   selfStackConsumeAll: true の場合、スキル使用後に自身の属性スタックを全て消費する（最大スタック時に強化効果を持つ究極スキル等）
+  //   consumeAllTargetDebuffName: 指定した名前のデバフを、対象の敵からスキル使用後に全て消費（削除）する（例：ティリアの特殊が惨劇の棘を全消費）
   //   target: "all" の場合、味方スキルが敵全体を対象にする（デフォルトは"single"）
   //   enemyGaugeReductionPct: 対象の敵の行動ゲージを減らす基礎%（burstEnemyGaugeReductionAddはバースト時のみ追加、
   //     enemyGaugeReductionPerStackは自身の属性スタック数×この値だけ追加で減らす）
@@ -263,6 +295,7 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
     selfBuff: extraEffects.selfBuff || null, targetEffect: extraEffects.targetEffect || null,
     selfBuffManualOnly: !!extraEffects.selfBuffManualOnly,
     selfStackGain: extraEffects.selfStackGain || 0, selfStackConsumeAll: !!extraEffects.selfStackConsumeAll,
+    consumeAllTargetDebuffName: extraEffects.consumeAllTargetDebuffName || null,
     target: extraEffects.target || "single",
     enemyGaugeReductionPct: extraEffects.enemyGaugeReductionPct || 0,
     burstEnemyGaugeReductionAdd: extraEffects.burstEnemyGaugeReductionAdd || 0,
@@ -558,10 +591,10 @@ function allyPreset(key){
       basic: defaultAllySkill("暁の誘い", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1 }),
       special: defaultAllySkill("導きの暁闇", 3, 0, 1, 1, false, "afterOwn", "oncePerTurn", 0, 0, false, false, false, { targetEffect:{name:"強化不可", turns:2}, selfStackGain:1 }),
       ultimate: defaultAllySkill("乖離解放", 4, 0, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, target:"all" }) },
-    "clarissa": { name:"クラリッサ", speed:100, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"レンジャー", turnStartStackGain:true, passiveNote:"ターン開始時、100%で跳躍スタック+1(基本スキルとは別に自動加算)。跳躍スタック段階効果：2で与ダメ+15%,3で命中+50%,4で自ゲージ+15%,5で敵ゲージ-15%(ダメージ・命中面は本ツールでは未計算。ゲージ効果は要手動判断)",
-      basic: defaultAllySkill("少し離れて", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1 }),
-      special: defaultAllySkill("感じるままに射撃", 3, 0, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { targetEffect:{name:"速度ダウン（-20%）", turns:1, speedModPct:-20}, burstEnemyGaugeReductionAdd:15 }),
-      ultimate: defaultAllySkill("銃はこうやって撃つんだよ", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"速度アップ（+20%）", turns:2, speedModPct:20}, selfStackGain:2, enemyGaugeReductionPct:20 }) },
+    "clarissa": { name:"クラリッサ", speed:100, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"レンジャー", turnStartStackGain:true, passiveNote:"絡みつく風道：会心率+15%(3凸)。ターン開始時、100%で跳躍スタック+1(基本スキルとは別に自動加算)。攻撃を受けた後、自身の跳躍スタックをすべて消去(本ツール未実装)。跳躍スタック段階効果：2で与ダメ+15%,3で命中+50%,4で自ゲージ+15%,5で敵ゲージ-15%(ダメージ・命中面は本ツールでは未計算。ゲージ効果は要手動判断)。特殊・究極は対象が月属性ならダメ+20%(本ツール未実装)。本ツールは会心発生前提のため、会心時効果(特殊の自ゲージ+15%・究極の敵ゲージ-20%)は常時適用として実装",
+      basic: defaultAllySkill("少し離れて", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, atkPct:65 }),
+      special: defaultAllySkill("感じるままに射撃", 3, 1, 1, 1, false, "none", "hasCT", 40, 0, false, false, false, { targetEffect:{name:"速度ダウン（-20%）", turns:1, speedModPct:-20}, burstEnemyGaugeReductionAdd:15, atkPct:90 }),
+      ultimate: defaultAllySkill("銃はこうやって撃つんだよ", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"速度アップ（+20%）", turns:2, speedModPct:20}, selfStackGain:2, enemyGaugeReductionPct:20, atkPct:115 }) },
     "smile": { name:"スマイル", speed:100, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"レンジャー", passiveNote:"基本スキル使用後、自身の跳躍スタックが最大(5)の場合のみ特殊(猫のタップダンス)が自動トリガー候補として提示される(特殊・究極使用後は対象外)",
       basic: defaultAllySkill("射撃座標確認", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1 }),
       special: defaultAllySkill("猫のタップダンス", 1, 0, 1, 1, false, "afterOwn", "hasCT", 0, 0, false, false, false, { targetEffect:{name:"燃焼", turns:1, dot:true}, target:"all", triggerRequiresSelfStackMax:true }),
@@ -576,9 +609,9 @@ function allyPreset(key){
       special: defaultAllySkill("第7型大地震", 4, 0, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { targetEffect:[{name:"凍結", turns:2, dot:true}, {name:"孤立", turns:2}], target:"all" }),
       ultimate: defaultAllySkill("第21型刀風", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"西部の風（速度+25%）", turns:3, speedModPct:25}, targetEffect:{name:"気絶", turns:1}, selfStackConsumeAll:true, enemyGaugeReductionPct:20, enemyGaugeReductionPerStack:10 }) },
     "tyria": { name:"ティリア", speed:100, toughnessMax:3, evasionRatePct:0, attribute:"太陽", role:"ストライカー", passiveNote:"基本スキル後100%で敵に惨劇の棘を1スタック付与（本ツールでは敵デバフとして蓄積・表示）。敵の棘が3スタック以上の状態で基本スキルを使用すると特殊(惨劇のレクイエム)が自動トリガー候補として提示される（基本スキル使用後のみ判定。特殊・究極使用後は対象外）。トリガー発動時は速度アップが付かず、CTにも入らない(通常発動時のみ速度+20%・CT4)",
-      basic: defaultAllySkill("終焉のプレリュード", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, targetEffect:{name:"惨劇の棘", turns:99, dot:true} }),
+      basic: defaultAllySkill("終焉のプレリュード", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, targetEffect:{name:"惨劇の棘", turns:99, dot:true, ignoresImmune:true} }),
       special: defaultAllySkill("惨劇のレクイエム", 4, 0, 1, 1, false, "afterOwn", "oncePerTurn", 0, 0, false, false, false,
-        { selfBuff:{name:"速度アップ（+20%）", turns:3, speedModPct:20}, selfBuffManualOnly:true, selfStackConsumeAll:true, triggerRequiresEnemyStackName:"惨劇の棘", triggerRequiresEnemyStackCount:3 }),
+        { selfBuff:{name:"速度アップ（+20%）", turns:3, speedModPct:20}, selfBuffManualOnly:true, selfStackConsumeAll:true, triggerRequiresEnemyStackName:"惨劇の棘", triggerRequiresEnemyStackCount:3, consumeAllTargetDebuffName:"惨劇の棘" }),
       ultimate: defaultAllySkill("悲嘆のクレッシェンド", 5, 0, 1, 1, true, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"破砕（ATK+10%）", turns:2}, selfStackGain:2, target:"all" }) },
     "bunny_clare": { name:"バニークレア", speed:104, toughnessMax:3, evasionRatePct:0, attribute:"月", role:"ストライカー", passiveNote:"ターン開始時、会心率+10%スタック(最大3)。基本スキル使用後、自身の冷却スタックが最大(5)の場合のみ特殊(どこを見ているのですか？)が自動トリガー候補として提示される(特殊・究極使用後は対象外)",
       basic: defaultAllySkill("目にも止まらぬ動き", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1 }),
@@ -691,8 +724,25 @@ let allies = [
   { ...allyPreset("tyria"), speed:186 }
 ];
 
-function defaultEnemySkill(name, ct, note, target){
-  return {name, ct, note: note||"", target: target || "single"}; // target: "single" | "all"
+// ===================== ブレイクスキル種類ごとの性質（appmedia解説記事に基づく） =====================
+const BREAK_SKILL_TYPES = {
+  tokuiten:     { hasHitJudgement:true,  hasToughnessBonus:false, label:"特異点の観測", note:"攻撃力+防御力20%（防御力は未反映）" },
+  starpiercer:  { hasHitJudgement:true,  hasToughnessBonus:false, label:"スターピアサー", note:"会心ダメ+10%（ストライカー/レンジャーは+20%）" },
+  cubeoverload: { hasHitJudgement:false, hasToughnessBonus:false, label:"キューブオーバーロード", note:"速度+10%（ディフェンダー/サポーターは+20%）／即時2T攻撃力+15%" },
+  jigenkyoshu:  { hasHitJudgement:true,  hasToughnessBonus:true,  label:"次元強襲", note:"攻撃力+15%／強靭+1" },
+  wakuseijoka:  { hasHitJudgement:true,  hasToughnessBonus:true,  label:"惑星の浄化", note:"強靭+1のみ（ステータスバフなし）" }
+};
+function syncBreakSkillTypeDefaults(){
+  renderBattle();
+}
+function isBreakSkillToughnessBonusActive(){
+  if(!state || state.breakSkillTurnsLeft<=0) return false;
+  const typeInfo = BREAK_SKILL_TYPES[state.breakSkillType] || BREAK_SKILL_TYPES.wakuseijoka;
+  return !!typeInfo.hasToughnessBonus;
+}
+
+function defaultEnemySkill(name, ct, note, target, selfGaugeGainPct){
+  return {name, ct, note: note||"", target: target || "single", selfGaugeGainPct: selfGaugeGainPct||0}; // target: "single" | "all"
 }
 
 let enemies = [
@@ -708,10 +758,10 @@ function bossPreset(key){
       basic: defaultEnemySkill("燃え盛る災厄", 0, "強靭削り1／自身に果てしない幕", "single"),
       special: defaultEnemySkill("崩壊の波動", 4, "強靭削り1／敵全体に防御DOWN2T／幕4+で強化解除", "all"),
       ultimate: defaultEnemySkill("審判の黄昏", 4, "強靭削り2／幕3で+20%,5で+40%", "all") },
-    "demoraigis_beta": { name:"デモライギス：ベータ", speed:150, toughnessMax:15, breakDmgPct:15, attribute:"混沌", role:"レンジャー",
+    "demoraigis_beta": { name:"デモライギス：ベータ", speed:150, toughnessMax:15, breakDmgPct:15, attribute:"混沌", role:"レンジャー", specialTriggerHitCount:5,
       starImmunityTurns:0, starSpeedBonusPct:0, starDamageReductionPct:0,
       basic: defaultEnemySkill("深刻な災厄", 0, "強靭削り1／前衛優先攻撃／染み入る恐怖状態ならダメ+30%", "single"),
-      special: defaultEnemySkill("裂けゆく光明", 4, "強靭削り1／自身ゲージ+25%／敵全体に染み入る恐怖3T", "all"),
+      special: defaultEnemySkill("裂けゆく光明", 4, "強靭削り1／自身ゲージ+25%／敵全体に染み入る恐怖3T", "all", 25),
       ultimate: defaultEnemySkill("エネルギー発散", 4, "強靭削り2／敵の強化1つ解除／敵の弱体化数に応じて与ダメ+5%ずつ", "all") },
     "ortros": { name:"オルトロス", speed:180, toughnessMax:15, breakDmgPct:15, attribute:"混沌", role:"ストライカー",
       starImmunityTurns:0, starSpeedBonusPct:0, starDamageReductionPct:0,
@@ -1112,6 +1162,8 @@ function startBattle(){
       buffs: [],
       starSpeedBonusPct: e.starSpeedBonusPct||0,
       starDamageReductionPct: e.starDamageReductionPct||0,
+      hitCounter: 0,
+      specialTriggerHitCount: e.specialTriggerHitCount||0,
       envSpeedBonusPct: envBonus,
       attribute: e.attribute || "太陽",
       role: e.role || "ディフェンダー",
@@ -1131,6 +1183,7 @@ function startBattle(){
     breakPoints: 0,
     breakSkillDurationTurns: Number((document.getElementById("breakSkillDurationInput")||{}).value) || 5,
     breakSkillCooldownTurns: Number((document.getElementById("breakSkillCooldownInput")||{}).value) || 8,
+    breakSkillType: (document.getElementById("breakSkillTypeSelect")||{}).value || "wakuseijoka",
     breakSkillTurnsLeft: 0,
     breakSkillCooldownLeft: 0,
     actionCount: 0,
@@ -1150,7 +1203,6 @@ function startBattle(){
 
   document.getElementById("setupArea").classList.add("hidden");
   document.getElementById("battleArea").style.display = "block";
-  document.getElementById("baselineDisplay").textContent = baseline;
   renderBattle();
 }
 
@@ -1206,7 +1258,6 @@ function importChart(event){
         state = data.state;
         document.getElementById("setupArea").classList.add("hidden");
         document.getElementById("battleArea").style.display = "block";
-        document.getElementById("baselineDisplay").textContent = state.baseline;
         if(state.breakSkillDurationTurns!=null) document.getElementById("breakSkillDurationInput").value = state.breakSkillDurationTurns;
         if(state.breakSkillCooldownTurns!=null) document.getElementById("breakSkillCooldownInput").value = state.breakSkillCooldownTurns;
         renderBattle();
@@ -1290,6 +1341,10 @@ function openActionFor(unitId, arrivalType){
   }
   // ターン開始処理：CT概念なし系トリガー（1ターン1回制限）の使用済みフラグをリセット
   if(u.onceUsed){ Object.keys(u.onceUsed).forEach(k=>{ u.onceUsed[k]=false; }); }
+  // ドレスアセラ等の挟撃：1ターンに1回までの制限フラグをリセット（EXの誘発カウントとは別枠）
+  // ※挟撃は他キャラの行動に反応するため、挟撃キャラ自身の番でなく「新しい行動（ターン）が始まるたび」に
+  //   全ユニット分をリセットする（挟撃キャラの手番が来るまで持ち越されるのを防ぐ）
+  state.units.forEach(x=>{ x.pincerUsedThisTurn = false; });
 
   // 敵がブレイク中なら「本来のターン開始」で強靭度全回復＆解除（行動そのものはキャンセルせず、通常通り行動する）
   if(u.kind==="enemy" && u.broken){
@@ -1403,9 +1458,10 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       const hasAdvantage = !isEvaded && hasElementAdvantage(u.attribute, target.attribute);
       if(hasAdvantage) hasAdvantageAny = true;
       const advantageBonus = hasAdvantage ? 1 : 0;
-      const breakSkillBonus = (!isEvaded && state.breakSkillTurnsLeft>0) ? 1 : 0;
+      const breakSkillBonus = (!isEvaded && isBreakSkillToughnessBonusActive()) ? 1 : 0;
       const toughnessDmg = isEvaded ? 0 : (s.toughness + (burstOn?s.burstAdd:0) + advantageBonus + breakSkillBonus);
       target.toughness = Math.max(0, target.toughness - toughnessDmg);
+      if(!isEvaded){ target.hitCounter = (target.hitCounter||0) + 1; }
       toughnessDmgSum += toughnessDmg;
 
       let brokeNow = false;
@@ -1432,10 +1488,17 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       if(autoApplyBuffs !== false && !isEvaded){
         targetEffectList.forEach(eff=>{
           if(s.burstOnlyTargetEffect && !burstOn) return;
-          if(target.immune){ effText += `／${eff.name}は免疫中のため付与できず`; return; }
+          if(target.immune && !eff.ignoresImmune){ effText += `／${eff.name}は免疫中のため付与できず`; return; }
           if(eff.dot){ target.buffs.push({name:eff.name, turns:eff.turns, type:"debuff", speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, dot:true}); effText += `／${eff.name}を追加スタック付与`; }
           else { const applied = applyBuffWithMaxDuration(target.buffs, {name:eff.name, turns:eff.turns, type:"debuff", speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0}); effText += `／${eff.name}(残${applied.turns}T)付与`; }
         });
+      }
+      if(s.consumeAllTargetDebuffName){
+        const before = target.buffs.filter(b=>b.name===s.consumeAllTargetDebuffName).length;
+        if(before>0){
+          target.buffs = target.buffs.filter(b=>b.name!==s.consumeAllTargetDebuffName);
+          effText += `／対象の${s.consumeAllTargetDebuffName}を全消費(${before}→0)`;
+        }
       }
 
       // ギミック判定
@@ -1517,8 +1580,6 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
   if(skillKey==="basic" && !isEvaded){
     if(u.relics && u.relics.GX && targetEnemyId){
       checkGxProc(unitId, targetEnemyId, extra);
-    } else if(u.relics && u.relics.EX){
-      checkExProc(unitId, extra);
     } else {
       checkPincerProc(unitId, extra);
     }
@@ -1540,6 +1601,7 @@ function useEnemySkill(unitId, skillKey){
   logAction(u, state.pendingArrivalType, skillCategoryLabel(skillKey) + "：" + s.name, "-", false, s.note || "");
 
   u.gauge = 0;
+  if(s.selfGaugeGainPct){ u.gauge = Math.min(100, u.gauge + s.selfGaugeGainPct); }
   state.pendingActor = null;
   if(u.immuneRemaining > 0){
     u.immuneRemaining--;
@@ -1644,6 +1706,14 @@ function computeOffers(targetType, ctx){
   return offers;
 }
 
+function finalizeActionChain(unitId, extraTurnFlag){
+  if(extraTurnFlag){
+    openActionFor(unitId, "追加ターン(誘発)");
+  } else {
+    renderBattle();
+  }
+}
+
 function afterOwnCheck(unitId, extraTurnFlag){
   const offers = computeOffers("afterOwn", {hitAllyId:unitId});
   if(offers.length>0){
@@ -1651,10 +1721,13 @@ function afterOwnCheck(unitId, extraTurnFlag){
     state.pendingTriggerContext = { targetType:"afterOwn", hitAllyId:unitId,
       sourceLabel: (u?u.name:"") + "のスキル使用後", thenExtraTurn: !!extraTurnFlag };
     renderBattle();
-  } else if(extraTurnFlag){
-    openActionFor(unitId, "追加ターン(誘発)");
   } else {
-    renderBattle();
+    const u = state.units.find(x=>x.id===unitId);
+    if(u && u.relics && u.relics.EX){
+      checkExProc(unitId, extraTurnFlag);
+    } else {
+      finalizeActionChain(unitId, extraTurnFlag);
+    }
   }
 }
 
@@ -1665,12 +1738,7 @@ function checkGxProc(unitId, targetEnemyId, extraTurnFlag){
   renderBattle();
 }
 function continueAfterGx(sourceUnitId, extraTurnFlag){
-  const u = state.units.find(x=>x.id===sourceUnitId);
-  if(u && u.relics && u.relics.EX){
-    checkExProc(sourceUnitId, extraTurnFlag);
-  } else {
-    checkPincerProc(sourceUnitId, extraTurnFlag);
-  }
+  checkPincerProc(sourceUnitId, extraTurnFlag);
 }
 function confirmGxProc(){
   const ctx = state.pendingGxCheck;
@@ -1696,13 +1764,16 @@ function dismissGxCheck(){
 }
 
 function checkExProc(unitId, extraTurnFlag){
-  state.pendingExCheck = { sourceUnitId: unitId, thenExtra: !!extraTurnFlag };
+  state.pendingExCheck = { sourceUnitId: unitId, thenExtra: !!extraTurnFlag, confirmed: false };
   renderBattle();
+}
+function confirmExActivated(){
+  if(state.pendingExCheck){ state.pendingExCheck.confirmed = true; renderBattle(); }
 }
 
 // ===================== ドレスアセラ型「挟撃」（味方の通常スキル使用後、自身の属性スタック数×◯%で発動） =====================
 function computePincerCandidates(){
-  return state.units.filter(x=>x.kind==="ally" && x.alive && x.hasPincerAttack && !x.broken).map(x=>{
+  return state.units.filter(x=>x.kind==="ally" && x.alive && x.hasPincerAttack && !x.broken && !x.pincerUsedThisTurn).map(x=>{
     const chancePct = Math.min(100, (x.elementStack||0) * (x.pincerStackPct||0));
     return { id:x.id, name:x.name, chancePct };
   }).filter(c=>c.chancePct > 0);
@@ -1718,10 +1789,38 @@ function checkPincerProc(unitId, extraTurnFlag){
   renderBattle();
 }
 
+// ===================== ボス被弾カウントトリガー（例：デモライギスベータ、被弾5回で特殊トリガー候補） =====================
+function computeBossHitTriggerCandidates(){
+  return state.units.filter(x=>x.kind==="enemy" && x.alive && (x.specialTriggerHitCount||0)>0 && (x.hitCounter||0) >= x.specialTriggerHitCount);
+}
+function checkBossHitTrigger(unitId, extraTurnFlag){
+  const candidates = computeBossHitTriggerCandidates();
+  if(candidates.length===0){ afterOwnCheck(unitId, extraTurnFlag); return; }
+  state.pendingBossHitTrigger = { sourceUnitId: unitId, thenExtra: !!extraTurnFlag, candidates: candidates.map(c=>c.id) };
+  renderBattle();
+}
+function confirmBossHitTrigger(enemyId){
+  const ctx = state.pendingBossHitTrigger;
+  state.pendingBossHitTrigger = null;
+  const enemy = state.units.find(x=>x.id===enemyId);
+  if(enemy){ enemy.hitCounter = Math.max(0, (enemy.hitCounter||0) - (enemy.specialTriggerHitCount||0)); }
+  // 実際の発動は手動でボス側の行動パネルから特殊を選んで記録する運用とし、ここではカウンターの持ち越し処理とログのみ行う
+  if(enemy){ logAction(enemy, "被弾トリガー", "🚨 特殊トリガー発動（被弾" + (enemy.specialTriggerHitCount||0) + "回）", "-", false, "被弾カウントが" + (enemy.specialTriggerHitCount||0) + "回に達したため、特殊スキルが割り込みで発動。閾値分を差し引き、残りカウント" + enemy.hitCounter + "は次に持ち越し。実際の効果はボスの行動パネルから記録してください"); }
+  if(ctx && ctx.sourceUnitId){ afterOwnCheck(ctx.sourceUnitId, ctx.thenExtra); }
+  else { renderBattle(); }
+}
+function dismissBossHitTrigger(enemyId){
+  const ctx = state.pendingBossHitTrigger;
+  state.pendingBossHitTrigger = null;
+  // 発動しなかった場合はカウントを変更しない（次の被弾チェック時にも引き続き候補として提示される）
+  if(ctx && ctx.sourceUnitId){ afterOwnCheck(ctx.sourceUnitId, ctx.thenExtra); }
+  else { renderBattle(); }
+}
+
 function dismissPincerCheck(){
   const ctx = state.pendingPincerCheck;
   state.pendingPincerCheck = null;
-  if(ctx){ afterOwnCheck(ctx.sourceUnitId, ctx.thenExtra); }
+  if(ctx){ checkBossHitTrigger(ctx.sourceUnitId, ctx.thenExtra); }
   else { renderBattle(); }
 }
 
@@ -1749,7 +1848,7 @@ function confirmPincerFire(){
 function dismissExCheck(){
   const ctx = state.pendingExCheck;
   state.pendingExCheck = null;
-  if(ctx){ checkPincerProc(ctx.sourceUnitId, ctx.thenExtra); }
+  if(ctx){ finalizeActionChain(ctx.sourceUnitId, ctx.thenExtra); }
   else { renderBattle(); }
 }
 
@@ -1781,6 +1880,8 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
   const s = u.skills.basic;
   const target = state.units.find(x=>x.id===targetEnemyId);
   if(!target){ alert("対象の敵を選択してください"); return; }
+  // 挟撃発動の場合、1ターンに1回までの制限フラグを立てる（EXの誘発カウントとは別枠）
+  if(String(skillLabelSuffix||"").includes("挟撃")){ u.pincerUsedThisTurn = true; }
 
   if(burstOn && state.teamBurst < 4){
     alert("バーストポイントが4未満のため、バースト強化できません（現在" + state.teamBurst + "pt）");
@@ -1791,8 +1892,9 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
   // 挟撃/EX誘発は他スキルのCTに影響しない
 
   const hasAdvantage = hasElementAdvantage(u.attribute, target.attribute);
-  const toughnessDmg = s.toughness + (burstOn ? s.burstAdd : 0) + (hasAdvantage ? 1 : 0) + (state.breakSkillTurnsLeft>0 ? 1 : 0);
+  const toughnessDmg = s.toughness + (burstOn ? s.burstAdd : 0) + (hasAdvantage ? 1 : 0) + (isBreakSkillToughnessBonusActive() ? 1 : 0);
   target.toughness = Math.max(0, target.toughness - toughnessDmg);
+  target.hitCounter = (target.hitCounter||0) + 1;
   state.teamBurst = Math.min(12, state.teamBurst + s.burstGain);
 
   let brokeNow = false;
@@ -1821,8 +1923,8 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
   state.pendingExCheck = null;
   const pctx = state.pendingPincerCheck;
   state.pendingPincerCheck = null;
-  if(ctx){ checkPincerProc(ctx.sourceUnitId, ctx.thenExtra); }
-  else if(pctx){ afterOwnCheck(pctx.sourceUnitId, pctx.thenExtra); }
+  if(ctx){ finalizeActionChain(ctx.sourceUnitId, ctx.thenExtra); }
+  else if(pctx){ checkBossHitTrigger(pctx.sourceUnitId, pctx.thenExtra); }
   else { renderBattle(); }
 }
 
@@ -1920,9 +2022,10 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded){
     const hasAdvantage = !evaded && hasElementAdvantage(u.attribute, target.attribute);
     if(hasAdvantage) hasAdvantageAny = true;
     const advantageBonus = hasAdvantage ? 1 : 0;
-    const breakSkillBonus = (!evaded && state.breakSkillTurnsLeft>0) ? 1 : 0;
+    const breakSkillBonus = (!evaded && isBreakSkillToughnessBonusActive()) ? 1 : 0;
     const toughnessDmg = evaded ? 0 : (s.toughness + (burstOn ? s.burstAdd : 0) + advantageBonus + breakSkillBonus);
     target.toughness = Math.max(0, target.toughness - toughnessDmg);
+    if(!evaded){ target.hitCounter = (target.hitCounter||0) + 1; }
     toughnessDmgSum += toughnessDmg;
 
     let brokeNow = false;
@@ -1944,10 +2047,17 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded){
     if(!evaded){
       targetEffectList.forEach(eff=>{
         const effType = s.targetsAlly ? "buff" : "debuff";
-        if(effType==="debuff" && target.immune){ effText += `／${eff.name}は免疫中のため付与できず`; return; }
+        if(effType==="debuff" && target.immune && !eff.ignoresImmune){ effText += `／${eff.name}は免疫中のため付与できず`; return; }
         if(eff.dot){ target.buffs.push({name:eff.name, turns:eff.turns, type:effType, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, dot:true}); effText += `／${eff.name}を追加スタック付与`; }
         else { const applied = applyBuffWithMaxDuration(target.buffs, {name:eff.name, turns:eff.turns, type:effType, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0}); effText += `／${eff.name}(残${applied.turns}T)付与`; }
       });
+    }
+    if(!evaded && s.consumeAllTargetDebuffName){
+      const before = target.buffs.filter(b=>b.name===s.consumeAllTargetDebuffName).length;
+      if(before>0){
+        target.buffs = target.buffs.filter(b=>b.name!==s.consumeAllTargetDebuffName);
+        effText += `／対象の${s.consumeAllTargetDebuffName}を全消費(${before}→0)`;
+      }
     }
 
     let gimmickText = "";
@@ -2022,10 +2132,78 @@ function activateBreakSkill(){
   if(!state){ alert("戦闘を開始してください"); return; }
   if(state.breakPoints < 3){ alert("ブレイクポイントが3未満のため発動できません（現在" + state.breakPoints + "pt）"); return; }
   if(state.breakSkillCooldownLeft > 0){ alert("クールタイム中のため発動できません（残り" + state.breakSkillCooldownLeft + "ターン）"); return; }
+  const enemies_ = state.units.filter(x=>x.kind==="enemy" && x.alive);
+  if(enemies_.length === 0){ alert("対象の敵がいません"); return; }
+  state.pendingBreakSkillTarget = true;
+  renderBattle();
+}
+function applyBreakSkillTeamBuff(){
+  const allies_ = state.units.filter(x=>x.kind==="ally" && x.alive);
+  const turns = state.breakSkillDurationTurns;
+  const memo = [];
+  allies_.forEach(ally=>{
+    let buffName = null, atkModPct=0, speedModPct=0, critDmgModPct=0;
+    switch(state.breakSkillType){
+      case "tokuiten":
+        buffName = "星空の地平線（攻撃力+防御力20%・防御力は本ツール未反映）";
+        atkModPct = 20;
+        break;
+      case "starpiercer": {
+        const bonus = (ally.role==="ストライカー"||ally.role==="レンジャー") ? 20 : 10;
+        buffName = `戦略指揮（会心率+会心ダメ${bonus}%・会心率は本ツール未反映）`;
+        critDmgModPct = bonus;
+        break;
+      }
+      case "cubeoverload": {
+        const bonus = (ally.role==="ディフェンダー"||ally.role==="サポーター") ? 20 : 10;
+        buffName = `チートマトリックス（速度+${bonus}%）`;
+        speedModPct = bonus;
+        applyBuffWithMaxDuration(ally.buffs, {name:"オメガプロトコル（攻撃力+15%・効果命中は本ツール未反映）", turns:2, type:"buff", speedModPct:0, atkModPct:15, critDmgModPct:0});
+        break;
+      }
+      case "jigenkyoshu":
+        buffName = "CRF増幅（攻撃力+15%）";
+        atkModPct = 15;
+        break;
+      case "wakuseijoka":
+        buffName = null; // 魔女の恩恵はステータスバフなし（強靭ボーナス+ノヴァフォース獲得のみ）
+        break;
+    }
+    if(buffName){
+      applyBuffWithMaxDuration(ally.buffs, {name:buffName, turns, type:"buff", speedModPct, atkModPct, critDmgModPct});
+      memo.push(`${ally.name}:${buffName}`);
+    }
+  });
+  return memo;
+}
+
+function confirmBreakSkillActivate(targetEnemyId){
+  state.pendingBreakSkillTarget = false;
   pushHistory();
   state.breakPoints -= 3;
   state.breakSkillTurnsLeft = state.breakSkillDurationTurns;
   state.breakSkillCooldownLeft = state.breakSkillCooldownTurns;
+  const typeInfo = BREAK_SKILL_TYPES[state.breakSkillType] || BREAK_SKILL_TYPES.wakuseijoka;
+  const buffMemo = applyBreakSkillTeamBuff();
+  const target = state.units.find(x=>x.id===targetEnemyId);
+  if(target && typeInfo.hasHitJudgement){
+    // 攻撃判定を持つブレイクスキルのみ、発動自体が強靭度削りなしの独立した1ヒット攻撃として被弾カウンタに加算される
+    target.hitCounter = (target.hitCounter||0) + 1;
+    logAction(target, "ブレイクスキル発動", `💥 ${typeInfo.label} 発動（強靭削りなし・1ヒット）`, "0", false,
+      `被弾カウント+1（現在${target.hitCounter}）／以降${state.breakSkillDurationTurns}ターン効果継続${typeInfo.hasToughnessBonus?"（攻撃時強靭+1のボーナスあり）":"（強靭ボーナスなし）"}${buffMemo.length?"／"+buffMemo.join("、"):""}`);
+  } else if(target){
+    logAction(target, "ブレイクスキル発動", `💥 ${typeInfo.label} 発動（攻撃判定なし）`, "-", false,
+      `以降${state.breakSkillDurationTurns}ターン効果継続${typeInfo.hasToughnessBonus?"（攻撃時強靭+1のボーナスあり）":"（強靭ボーナスなし）"}${buffMemo.length?"／"+buffMemo.join("、"):""}`);
+  }
+  renderBattle();
+  // 発動直後に被弾トリガー閾値へ到達していないか確認する
+  if(target && typeInfo.hasHitJudgement && target.specialTriggerHitCount>0 && target.hitCounter >= target.specialTriggerHitCount){
+    state.pendingBossHitTrigger = { sourceUnitId: null, thenExtra: false, candidates: [target.id] };
+    renderBattle();
+  }
+}
+function cancelBreakSkillTarget(){
+  state.pendingBreakSkillTarget = false;
   renderBattle();
 }
 
@@ -2066,27 +2244,49 @@ function openExtraTurn(){
 }
 
 // ===================== 描画 =====================
+function renderPointDots(elId, current, visualMax, groupSize, color, showMaxLabel){
+  const el = document.getElementById(elId);
+  if(!el) return;
+  const shown = Math.min(current, visualMax);
+  let html = "";
+  for(let i=0; i<visualMax; i++){
+    const on = i < shown;
+    if(i>0 && i%groupSize===0) html += `<span style="display:inline-block; width:5px;"></span>`;
+    html += `<span style="display:inline-block; width:9px; height:9px; border-radius:50%; margin:0 1px;
+      background:${on?color:"transparent"}; border:1.5px solid ${on?color:"var(--line)"};"></span>`;
+  }
+  if(current > visualMax){
+    html += ` <b style="color:${color}; font-size:11px;">+${current-visualMax}</b>`;
+  } else {
+    html += ` <span style="color:var(--text-dim); font-size:10px;">${current}${showMaxLabel?"/"+visualMax:""}</span>`;
+  }
+  el.innerHTML = html;
+}
+
 function renderBattle(){
   document.getElementById("actionCountDisplay").textContent = state.actionCount;
-  document.getElementById("turnCountDisplay").textContent = state.turnCount;
-  document.getElementById("breakPointDisplay").textContent = state.breakPoints;
-  document.getElementById("teamBurstDisplay").textContent = state.teamBurst;
+  document.getElementById("turnCountDisplay").textContent = Math.max(0, 50 - state.turnCount);
+  renderPointDots("breakPointDots", state.breakPoints, 9, 3, "#f2c46d", false);
+  renderPointDots("burstPointDots", state.teamBurst, 12, 4, "#6ee7d8", true);
   const bsStatusEl = document.getElementById("breakSkillStatusDisplay");
   if(bsStatusEl){
+    const typeInfo = BREAK_SKILL_TYPES[state.breakSkillType] || BREAK_SKILL_TYPES.wakuseijoka;
     if(state.breakSkillTurnsLeft>0){
-      bsStatusEl.textContent = `発動中（残${state.breakSkillTurnsLeft}T／攻撃時強靭+1）`;
+      bsStatusEl.textContent = `発動中（${typeInfo.label}／残${state.breakSkillTurnsLeft}T${typeInfo.hasToughnessBonus?"／攻撃時強靭+1":"／強靭ボーナスなし"}）`;
     } else if(state.breakSkillCooldownLeft>0){
-      bsStatusEl.textContent = `クールタイム中（残${state.breakSkillCooldownLeft}T）`;
+      bsStatusEl.textContent = `クールタイム中（${typeInfo.label}／残${state.breakSkillCooldownLeft}T）`;
     } else {
       bsStatusEl.textContent = "未発動";
     }
   }
+  const bsTypeSelect = document.getElementById("breakSkillTypeSelect");
+  if(bsTypeSelect && state.breakSkillType && bsTypeSelect.value!==state.breakSkillType){ bsTypeSelect.value = state.breakSkillType; }
   const bsBtn = document.getElementById("breakSkillActivateBtn");
   if(bsBtn){ bsBtn.disabled = (state.breakPoints<3 || state.breakSkillCooldownLeft>0); }
 
   // スナップショット
   const table = document.getElementById("snapshotTable");
-  let rows = `<tr><th>ユニット</th><th>速度</th><th>ゲージ</th><th>強靭度</th><th>状態</th><th>CT(特殊/究極)</th><th>バフ/デバフ</th></tr>`;
+  let rows = `<tr><th>ユニット</th><th>速度</th><th>ゲージ</th><th>強靭度</th><th>CT(特殊/究極)</th><th>状態</th></tr>`;
   state.units.forEach(u=>{
     const gaugeBarClass = u.kind==="enemy" ? "gaugebar enemyfill" : "gaugebar";
     const toughnessCell = `${u.toughness}/${u.toughnessMax}`;
@@ -2118,9 +2318,8 @@ function renderBattle(){
       <td>${u.speed}${(effectiveSpeed(u)!==u.speed) ? `<br><span style="color:var(--text-dim); font-size:10px;">実効:${effectiveSpeed(u).toFixed(1)}</span>` : ""}</td>
       <td style="min-width:110px">${u.gauge.toFixed(1)}%<div class="${gaugeBarClass}"><div style="width:${u.gauge}%"></div></div></td>
       <td>${toughnessCell}</td>
+      <td style="white-space:nowrap;">${u.ct.special}/${u.ct.ultimate}</td>
       <td>${statusTags.join(" ") || "-"}</td>
-      <td>${u.ct.special}/${u.ct.ultimate}</td>
-      <td>${statusTags.length ? "" : "-"}</td>
     </tr>`;
   });
   table.innerHTML = rows;
@@ -2198,6 +2397,23 @@ function renderBattle(){
     return;
   }
 
+  if(state.pendingBreakSkillTarget){
+    const panel = document.createElement("div");
+    panel.className = "actionPanel";
+    const typeInfo = BREAK_SKILL_TYPES[state.breakSkillType] || BREAK_SKILL_TYPES.wakuseijoka;
+    const enemyOptions = state.units.filter(x=>x.kind==="enemy" && x.alive)
+      .map(x=>`<button class="skillbtn" onclick="confirmBreakSkillActivate('${x.id}')">
+        <div class="name">${x.name}（強靭${x.toughness}/${x.toughnessMax}）</div>
+      </button>`).join("");
+    panel.innerHTML = `<h3>ブレイクスキル発動：対象の敵を選択（${typeInfo.label}）</h3>
+      <div class="smallnote">効果：${typeInfo.note}</div>
+      <div class="smallnote">${typeInfo.hasHitJudgement ? "発動自体が強靭削りなしの1ヒット攻撃として扱われます（被弾カウンタ+1）" : "このスキルには攻撃判定がありません（被弾カウンタは増えません）"}</div>
+      ${enemyOptions}
+      <button class="btn-secondary" style="margin-top:6px;" onclick="cancelBreakSkillTarget()">キャンセル</button>`;
+    area.appendChild(panel);
+    return;
+  }
+
   if(state.pendingGxCheck){
     const ctx = state.pendingGxCheck;
     const sourceUnit = state.units.find(x=>x.id===ctx.sourceUnitId);
@@ -2210,6 +2426,24 @@ function renderBattle(){
         <button class="btn-primary" onclick="confirmGxProc()">発動した（出血を付与する）</button>
         <button class="btn-secondary" onclick="dismissGxCheck()">発動しなかった</button>
       </div>`;
+    area.appendChild(panel);
+    return;
+  }
+
+  if(state.pendingBossHitTrigger){
+    const ctx = state.pendingBossHitTrigger;
+    const panel = document.createElement("div");
+    panel.className = "actionPanel";
+    const buttons = ctx.candidates.map(id=>{
+      const e = state.units.find(x=>x.id===id);
+      return e ? `<button class="skillbtn" onclick="confirmBossHitTrigger('${id}')">
+          <div class="name">🚨 ${e.name} の特殊トリガー発動（被弾${e.specialTriggerHitCount}回）</div>
+        </button>` : "";
+    }).join("");
+    panel.innerHTML = `<h3>ボス被弾トリガー判定</h3>
+      <div class="smallnote">被弾カウントが規定回数に達した敵がいます。実際にボスの特殊がトリガーで割り込み発動しましたか？</div>
+      ${buttons}
+      <button class="btn-secondary" style="margin-top:6px;" onclick="dismissBossHitTrigger('${ctx.candidates[0]}')">発動しなかった・続ける</button>`;
     area.appendChild(panel);
     return;
   }
@@ -2233,15 +2467,20 @@ function renderBattle(){
           <button class="btn-primary" onclick="confirmExFire()">発動する（強靭削り ${u.skills.basic.toughness}／バースト時+${u.skills.basic.burstAdd}）</button>
           <button class="btn-secondary" onclick="cancelExFireForm()">キャンセル</button>
         </div>`;
+    } else if(!ctx.confirmed){
+      panel.innerHTML = `<h3>${sourceUnit?sourceUnit.name:""}の通常攻撃：遺物EX発動判定（25%抽選）</h3>
+        <div class="smallnote" style="margin-bottom:8px;">実際のゲーム画面で25%抽選が発動したか確認してください。</div>
+        <div class="btn-row">
+          <button class="btn-primary" onclick="confirmExActivated()">発動した</button>
+          <button class="btn-secondary" onclick="dismissExCheck()">発動しなかった・続ける</button>
+        </div>`;
     } else {
       const others = state.units.filter(x=>x.kind==="ally" && x.alive && x.id!==ctx.sourceUnitId);
       const candidates = others.length>0 ? others : state.units.filter(x=>x.kind==="ally" && x.alive && x.id===ctx.sourceUnitId);
-      panel.innerHTML = `<h3>${sourceUnit?sourceUnit.name:""}の通常攻撃：遺物EX発動判定（25%抽選）</h3>
-        <div class="smallnote" style="margin-bottom:8px;">25%の確率で発動する設定です。発動したと判断した場合は、誘発する味方を選んでください（他に味方がいない場合は自分自身が誘発します）。</div>
+      panel.innerHTML = `<h3>${sourceUnit?sourceUnit.name:""}の通常攻撃：EX発動 - 誰が誘発されましたか？</h3>
         ${candidates.map(c=>`<button class="skillbtn" onclick="openExFireForm('${c.id}')">
           <div class="name">⚡ ${c.name} が通常攻撃で誘発</div>
-        </button>`).join("")}
-        <button class="btn-secondary" style="margin-top:6px;" onclick="dismissExCheck()">発動しなかった・続ける</button>`;
+        </button>`).join("")}`;
     }
     area.appendChild(panel);
     return;
