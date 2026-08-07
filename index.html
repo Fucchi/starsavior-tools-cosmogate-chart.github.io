@@ -295,6 +295,9 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
     selfBuff: extraEffects.selfBuff || null, targetEffect: extraEffects.targetEffect || null,
     selfBuffManualOnly: !!extraEffects.selfBuffManualOnly,
     selfStackGain: extraEffects.selfStackGain || 0, selfStackConsumeAll: !!extraEffects.selfStackConsumeAll,
+    selfSenkohanabiGain: extraEffects.selfSenkohanabiGain || 0,
+    consumeSenkohanabiForExtraHits: !!extraEffects.consumeSenkohanabiForExtraHits,
+    battleStartDebuffFastestEnemy: extraEffects.battleStartDebuffFastestEnemy || null,
     consumeAllTargetDebuffName: extraEffects.consumeAllTargetDebuffName || null,
     target: extraEffects.target || "single",
     enemyGaugeReductionPct: extraEffects.enemyGaugeReductionPct || 0,
@@ -338,7 +341,16 @@ function checkGaugeOnHitGimmick(target){
   const threshold = target.gaugeOnHitDebuffThreshold||0;
   const gainPct = target.gaugeOnHitGainPct||0;
   if(threshold<=0 || gainPct<=0) return null;
-  const debuffCount = (target.buffs||[]).filter(b=>b.type==="debuff").length;
+  // デバフの数え方：
+  // ・出血／凍結／燃焼はドットダメージ系で、重複せず「2個、3個…」と独立した別枠として数える
+  // ・それ以外の通常デバフ（惨劇の棘のような複数スタック可能な特殊デバフも含む）は、
+  //   種類（名前）が同じなら何スタックあっても1個として数える（速度ダウン等は残ターン数の長い方が維持されるため元々1枠）
+  const INDEPENDENT_STACK_DEBUFF_NAMES = ["出血", "凍結", "燃焼"];
+  const isIndependentStackDebuff = (name)=> INDEPENDENT_STACK_DEBUFF_NAMES.some(n=>String(name||"").includes(n));
+  const debuffs = (target.buffs||[]).filter(b=>b.type==="debuff");
+  const independentCount = debuffs.filter(b=>isIndependentStackDebuff(b.name)).length;
+  const otherNameSet = new Set(debuffs.filter(b=>!isIndependentStackDebuff(b.name)).map(b=>b.name));
+  const debuffCount = independentCount + otherNameSet.size;
   if(debuffCount > threshold) return null;
   target.gauge = Math.min(100, target.gauge + gainPct);
   return { debuffCount, gainPct };
@@ -523,7 +535,7 @@ const ALLY_PRESET_LIST = [
   ["swimsuit_luna","水着ルナ"], ["marcille","マルシル"], ["charle","シャルル"],
   ["petra","ペトラ"], ["kira","キラ"],
   // 星
-  ["roberta","ロベルタ"], ["ede","エデ"], ["clarissa","クラリッサ"], ["smile","スマイル"],
+  ["roberta","ロベルタ"], ["ede","エデ"], ["clarissa","クラリッサ"], ["smile","スマイル"], ["swimsuit_smile","水着スマイル"],
   ["trish","トリッシュ"], ["tanya","ターニャ"], ["belriese","ベル・リース"],
   ["yanagi_mina","ヤナギ・ミナ"], ["rin","リン"], ["vesta","ベスタ"],
   // 月
@@ -595,7 +607,13 @@ function allyPreset(key){
       basic: defaultAllySkill("少し離れて", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, atkPct:65 }),
       special: defaultAllySkill("感じるままに射撃", 3, 1, 1, 1, false, "none", "hasCT", 40, 0, false, false, false, { targetEffect:{name:"速度ダウン（-20%）", turns:1, speedModPct:-20}, burstEnemyGaugeReductionAdd:15, atkPct:90 }),
       ultimate: defaultAllySkill("銃はこうやって撃つんだよ", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"速度アップ（+20%）", turns:2, speedModPct:20}, selfStackGain:2, enemyGaugeReductionPct:20, atkPct:115 }) },
-    "smile": { name:"スマイル", speed:100, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"レンジャー", passiveNote:"基本スキル使用後、自身の跳躍スタックが最大(5)の場合のみ特殊(猫のタップダンス)が自動トリガー候補として提示される(特殊・究極使用後は対象外)",
+    "swimsuit_smile": { name:"水着スマイル", speed:96, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"アサシン", relics:{SMILE_ARCANA:true},
+      hasWaterBombReactAttack:true, waterBombReactStackReq:2, waterBombReactDebuffName:"水爆弾",
+      passiveNote:"スマイルの水中実験：スマイルの攻撃力が15%上がる(3凸)。戦闘開始時、速度が最も高い敵に100%の確率で水爆弾を3ターン付与(効果耐性・免疫・命中を無視して貫通、実装済み)。基本(水分補充)または究極(夏夜と花火)使用後、敵に100%の確率で水爆弾を3ターン付与(新しい水爆弾は既存のものを解除＝敵1体のみ有効)。攻撃時、対象が水爆弾状態なら自身の会心ダメージ+20%(3凸、本ツール未実装)。専用アルカナ「バカンスの準備はお買い物から！」を標準装備(ターン開始時跳躍+1／特殊使用時ダメ+20%は本ツール未反映)。特殊(クーリングシステム)は「自分以外の味方が水爆弾状態の敵を攻撃した後、跳躍2以上で自動発動」というトリガースキルで、実装済み(跳躍2消費・線香花火1付与・自ゲージ+15%)。究極発動時のクーリングシステム追加分はダメージのみで効果は乗らない(実装済み)",
+      basic: defaultAllySkill("水分補充", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, targetEffect:{name:"水爆弾", turns:3}, atkPct:50, battleStartDebuffFastestEnemy:{name:"水爆弾", turns:3, ignoresImmune:true} }),
+      special: defaultAllySkill("クーリングシステム", 0, 1, 1, 0, false, "none", "hasCT", 15, 0, false, false, false, { selfSenkohanabiGain:1, atkPct:70 }),
+      ultimate: defaultAllySkill("夏夜と花火", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:3, targetEffect:{name:"水爆弾", turns:3}, atkPct:115, consumeSenkohanabiForExtraHits:true }) },
+    "smile": { name:"スマイル", speed:100, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"レンジャー", relics:{SMILE_ARCANA:true}, passiveNote:"基本スキル使用後、自身の跳躍スタックが最大(5)の場合のみ特殊(猫のタップダンス)が自動トリガー候補として提示される(特殊・究極使用後は対象外)。専用アルカナ「バカンスの準備はお買い物から！」を標準装備(ターン開始時跳躍+1／特殊スキル使用時、与ダメージ+20%は本ツール未反映)",
       basic: defaultAllySkill("射撃座標確認", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1 }),
       special: defaultAllySkill("猫のタップダンス", 1, 0, 1, 1, false, "afterOwn", "hasCT", 0, 0, false, false, false, { targetEffect:{name:"燃焼", turns:1, dot:true}, target:"all", triggerRequiresSelfStackMax:true }),
       ultimate: defaultAllySkill("全隊員、一斉射撃！", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { targetEffect:{name:"防御力ダウン", turns:2}, selfStackGain:3 }) },
@@ -1137,10 +1155,14 @@ function startBattle(){
       relics: a.relics || {},
       axStacks: 0,
       danryokuStacks: 0,
+      senkohanabiStacks: 0,
       elementStack: 0,
       turnStartStackGain: !!a.turnStartStackGain,
       hasPincerAttack: !!a.hasPincerAttack,
       pincerStackPct: a.pincerStackPct||0,
+      hasWaterBombReactAttack: !!a.hasWaterBombReactAttack,
+      waterBombReactStackReq: a.waterBombReactStackReq||2,
+      waterBombReactDebuffName: a.waterBombReactDebuffName||"水爆弾",
       envSpeedBonusPct: envBonus,
       passiveNote: a.passiveNote || "",
       effectiveAtk: (a.effectiveAtk!=null && a.effectiveAtk!=="") ? Number(a.effectiveAtk) : null,
@@ -1200,6 +1222,21 @@ function startBattle(){
     pendingPincerCheck: null, // {sourceUnitId, thenExtra, candidates:[{id,name,chancePct}]}
     pendingPincerFire: null   // {allyId}
   };
+
+  // 戦闘開始時、特定の味方スキルが持つ「最速の敵に自動でデバフ付与（免疫貫通）」処理
+  const fastestEnemy = units.filter(x=>x.kind==="enemy" && x.alive).sort((a,b)=>b.speed-a.speed)[0];
+  if(fastestEnemy){
+    units.filter(x=>x.kind==="ally").forEach(ally=>{
+      ["basic","special","ultimate"].forEach(key=>{
+        const skillDef = ally.skills[key];
+        const bs = skillDef && skillDef.battleStartDebuffFastestEnemy;
+        if(bs){
+          if(bs.dot){ fastestEnemy.buffs.push({name:bs.name, turns:bs.turns, type:"debuff", dot:true}); }
+          else { applyBuffWithMaxDuration(fastestEnemy.buffs, {name:bs.name, turns:bs.turns, type:"debuff"}); }
+        }
+      });
+    });
+  }
 
   document.getElementById("setupArea").classList.add("hidden");
   document.getElementById("battleArea").style.display = "block";
@@ -1371,6 +1408,12 @@ function openActionFor(unitId, arrivalType){
     u.danryokuStacks = Math.min(3, (u.danryokuStacks||0) + 1);
   }
 
+  // 遺物 SMILE_ARCANA（スマイル専用アルカナ「バカンスの準備はお買い物から！」のスペシャル潜在力）：
+  // 自ターン開始時に自身の跳躍スタックを1つ付与（特殊スキル使用時、与ダメージ+20%の部分は本ツールでは未反映・要手動考慮）
+  if(u.kind==="ally" && u.relics && u.relics.SMILE_ARCANA){
+    u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0) + 1);
+  }
+
   // ターン開始時に自動で属性スタックが増えるキャラ（例：クラリッサ）
   if(u.kind==="ally" && u.turnStartStackGain){
     u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0) + 1);
@@ -1440,6 +1483,7 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
     let stackMemo = "";
     const stackName = stackNameForAttribute(u.attribute);
     if(s.selfStackGain > 0){ u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0)+s.selfStackGain); stackMemo += `／自身${stackName}+${s.selfStackGain}(${u.elementStack}/${ELEMENT_STACK_MAX})`; }
+    if(s.selfSenkohanabiGain > 0){ u.senkohanabiStacks = Math.min(3, (u.senkohanabiStacks||0) + s.selfSenkohanabiGain); stackMemo += `／自身線香花火+${s.selfSenkohanabiGain}(${u.senkohanabiStacks})`; }
     if(s.selfStackConsumeAll && (u.elementStack||0)>0){ stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)`; u.elementStack = 0; }
 
     logAction(u, state.pendingArrivalType, skillCategoryLabel(skillKey) + "：" + s.name + (burstOn?"（バースト）":""), "-", false,
@@ -1483,6 +1527,13 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
         reductionText = `／ゲージ減少は免疫中のため無効`;
       }
 
+      // ギミック判定（★その攻撃自身のデバフ付与より前の状態で判定する＝被弾した瞬間の状態を見る）
+      let gimmickText = "";
+      if(!isEvaded){
+        const g = checkGaugeOnHitGimmick(target);
+        if(g){ gimmickText = `／ギミック:デバフ${g.debuffCount}個以下→自ゲージ+${g.gainPct}%`; }
+      }
+
       // 対象デバフ付与（★開幕免疫中は無効）
       let effText = "";
       if(autoApplyBuffs !== false && !isEvaded){
@@ -1501,15 +1552,25 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
         }
       }
 
-      // ギミック判定
-      let gimmickText = "";
-      if(!isEvaded){
-        const g = checkGaugeOnHitGimmick(target);
-        if(g){ gimmickText = `／ギミック:デバフ${g.debuffCount}個以下→自ゲージ+${g.gainPct}%`; }
-      }
-
       perTargetMemo.push(`${target.name}:強靭削り${toughnessDmg}／残強靭${target.toughness}${brokeNow?"→ブレイク！":""}${reductionText}${effText}${gimmickText}`);
     });
+
+    if(s.consumeSenkohanabiForExtraHits && (u.senkohanabiStacks||0) > 0 && targets.length>0){
+      const extraCount = u.senkohanabiStacks;
+      const extraTarget = targets[0];
+      const extraToughnessPerHit = (u.skills.special && u.skills.special.toughness) || 1;
+      for(let i=0; i<extraCount; i++){
+        if(extraTarget.toughness<=0) break;
+        extraTarget.toughness = Math.max(0, extraTarget.toughness - extraToughnessPerHit);
+        extraTarget.hitCounter = (extraTarget.hitCounter||0) + 1;
+        if(extraTarget.toughness<=0 && !extraTarget.broken){
+          extraTarget.broken = true; extraTarget.gauge = 0;
+          state.breakPoints = Math.min(3, state.breakPoints + (extraTarget.toughnessMax>=15?3:1));
+        }
+      }
+      perTargetMemo.push(`線香花火${extraCount}スタック消費→クーリングシステム追加発動${extraCount}回（ダメージのみ／強靭合計-${extraCount*extraToughnessPerHit}／残強靭${extraTarget.toughness}）`);
+      u.senkohanabiStacks = 0;
+    }
 
     // 自己バフ・スタック（対象非依存、1回のみ）
     let buffMemo = "";
@@ -1527,6 +1588,7 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
     if(!isEvaded){
       const stackName = stackNameForAttribute(u.attribute);
       if(s.selfStackGain > 0){ u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0)+s.selfStackGain); stackMemo += `／自身${stackName}+${s.selfStackGain}(${u.elementStack}/${ELEMENT_STACK_MAX})`; }
+    if(s.selfSenkohanabiGain > 0){ u.senkohanabiStacks = Math.min(3, (u.senkohanabiStacks||0) + s.selfSenkohanabiGain); stackMemo += `／自身線香花火+${s.selfSenkohanabiGain}(${u.senkohanabiStacks})`; }
       if(s.selfStackConsumeAll && (u.elementStack||0)>0){ stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)`; u.elementStack = 0; }
     }
 
@@ -1581,8 +1643,12 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
     if(u.relics && u.relics.GX && targetEnemyId){
       checkGxProc(unitId, targetEnemyId, extra);
     } else {
-      checkPincerProc(unitId, extra);
+      checkPincerProc(unitId, extra, targetEnemyId);
     }
+  } else if(!isEvaded && !s.targetsAlly && targetEnemyId){
+    // 水爆弾リアクト攻撃（水着スマイル等）は「攻撃した後」が条件のため、特殊・究極スキルでも判定する
+    // （挟撃・GXは基本スキル限定の仕様のためここでは対象外）
+    checkWaterBombReact(unitId, targetEnemyId, extra, false);
   } else if(extra){
     // afterOwnトリガー（自分のスキル使用後に自動発動する系）は「基本スキル使用後」のみ判定対象とする。
     // 特殊・究極スキル使用後はafterOwnトリガーの候補提示は行わず、追加ターンの処理のみ行う。
@@ -1714,8 +1780,8 @@ function finalizeActionChain(unitId, extraTurnFlag){
   }
 }
 
-function afterOwnCheck(unitId, extraTurnFlag){
-  const offers = computeOffers("afterOwn", {hitAllyId:unitId});
+function afterOwnCheck(unitId, extraTurnFlag, wasBasicSkill){
+  const offers = (wasBasicSkill===false) ? [] : computeOffers("afterOwn", {hitAllyId:unitId});
   if(offers.length>0){
     const u = state.units.find(x=>x.id===unitId);
     state.pendingTriggerContext = { targetType:"afterOwn", hitAllyId:unitId,
@@ -1737,8 +1803,8 @@ function checkGxProc(unitId, targetEnemyId, extraTurnFlag){
   state.pendingGxCheck = { sourceUnitId: unitId, targetEnemyId, thenExtra: !!extraTurnFlag };
   renderBattle();
 }
-function continueAfterGx(sourceUnitId, extraTurnFlag){
-  checkPincerProc(sourceUnitId, extraTurnFlag);
+function continueAfterGx(sourceUnitId, extraTurnFlag, targetEnemyId){
+  checkPincerProc(sourceUnitId, extraTurnFlag, targetEnemyId);
 }
 function confirmGxProc(){
   const ctx = state.pendingGxCheck;
@@ -1754,12 +1820,12 @@ function confirmGxProc(){
       if(u){ logAction(u, state.pendingArrivalType || "", "🎲 GX発動（50%抽選）", "-", false, `対象:${target.name}に出血（GX）を2ターン付与`); }
     }
   }
-  continueAfterGx(ctx.sourceUnitId, ctx.thenExtra);
+  continueAfterGx(ctx.sourceUnitId, ctx.thenExtra, ctx.targetEnemyId);
 }
 function dismissGxCheck(){
   const ctx = state.pendingGxCheck;
   state.pendingGxCheck = null;
-  if(ctx){ continueAfterGx(ctx.sourceUnitId, ctx.thenExtra); }
+  if(ctx){ continueAfterGx(ctx.sourceUnitId, ctx.thenExtra, ctx.targetEnemyId); }
   else { renderBattle(); }
 }
 
@@ -1779,13 +1845,13 @@ function computePincerCandidates(){
   }).filter(c=>c.chancePct > 0);
 }
 
-function checkPincerProc(unitId, extraTurnFlag){
+function checkPincerProc(unitId, extraTurnFlag, targetEnemyId){
   const candidates = computePincerCandidates();
   if(candidates.length === 0){
-    afterOwnCheck(unitId, extraTurnFlag);
+    checkWaterBombReact(unitId, targetEnemyId, extraTurnFlag, true);
     return;
   }
-  state.pendingPincerCheck = { sourceUnitId: unitId, thenExtra: !!extraTurnFlag, candidates };
+  state.pendingPincerCheck = { sourceUnitId: unitId, thenExtra: !!extraTurnFlag, targetEnemyId, candidates };
   renderBattle();
 }
 
@@ -1793,10 +1859,10 @@ function checkPincerProc(unitId, extraTurnFlag){
 function computeBossHitTriggerCandidates(){
   return state.units.filter(x=>x.kind==="enemy" && x.alive && (x.specialTriggerHitCount||0)>0 && (x.hitCounter||0) >= x.specialTriggerHitCount);
 }
-function checkBossHitTrigger(unitId, extraTurnFlag){
+function checkBossHitTrigger(unitId, extraTurnFlag, wasBasicSkill){
   const candidates = computeBossHitTriggerCandidates();
-  if(candidates.length===0){ afterOwnCheck(unitId, extraTurnFlag); return; }
-  state.pendingBossHitTrigger = { sourceUnitId: unitId, thenExtra: !!extraTurnFlag, candidates: candidates.map(c=>c.id) };
+  if(candidates.length===0){ afterOwnCheck(unitId, extraTurnFlag, wasBasicSkill); return; }
+  state.pendingBossHitTrigger = { sourceUnitId: unitId, thenExtra: !!extraTurnFlag, wasBasicSkill, candidates: candidates.map(c=>c.id) };
   renderBattle();
 }
 function confirmBossHitTrigger(enemyId){
@@ -1806,21 +1872,57 @@ function confirmBossHitTrigger(enemyId){
   if(enemy){ enemy.hitCounter = Math.max(0, (enemy.hitCounter||0) - (enemy.specialTriggerHitCount||0)); }
   // 実際の発動は手動でボス側の行動パネルから特殊を選んで記録する運用とし、ここではカウンターの持ち越し処理とログのみ行う
   if(enemy){ logAction(enemy, "被弾トリガー", "🚨 特殊トリガー発動（被弾" + (enemy.specialTriggerHitCount||0) + "回）", "-", false, "被弾カウントが" + (enemy.specialTriggerHitCount||0) + "回に達したため、特殊スキルが割り込みで発動。閾値分を差し引き、残りカウント" + enemy.hitCounter + "は次に持ち越し。実際の効果はボスの行動パネルから記録してください"); }
-  if(ctx && ctx.sourceUnitId){ afterOwnCheck(ctx.sourceUnitId, ctx.thenExtra); }
+  if(ctx && ctx.sourceUnitId){ afterOwnCheck(ctx.sourceUnitId, ctx.thenExtra, ctx.wasBasicSkill); }
   else { renderBattle(); }
 }
 function dismissBossHitTrigger(enemyId){
   const ctx = state.pendingBossHitTrigger;
   state.pendingBossHitTrigger = null;
   // 発動しなかった場合はカウントを変更しない（次の被弾チェック時にも引き続き候補として提示される）
-  if(ctx && ctx.sourceUnitId){ afterOwnCheck(ctx.sourceUnitId, ctx.thenExtra); }
+  if(ctx && ctx.sourceUnitId){ afterOwnCheck(ctx.sourceUnitId, ctx.thenExtra, ctx.wasBasicSkill); }
+  else { renderBattle(); }
+}
+
+// ===================== 水爆弾リアクト攻撃（例：水着スマイル、他の味方が水爆弾状態の敵を攻撃後・跳躍2以上で反応攻撃） =====================
+function computeWaterBombReactCandidates(sourceUnitId, targetEnemyId){
+  const target = state.units.find(x=>x.id===targetEnemyId);
+  if(!target) return [];
+  return state.units.filter(x=>x.kind==="ally" && x.alive && x.id!==sourceUnitId && !x.broken
+    && x.hasWaterBombReactAttack
+    && (x.elementStack||0) >= (x.waterBombReactStackReq||2)
+    && target.buffs.some(b=>b.name===(x.waterBombReactDebuffName||"水爆弾"))
+  );
+}
+function checkWaterBombReact(unitId, targetEnemyId, extraTurnFlag, wasBasicSkill){
+  const candidates = computeWaterBombReactCandidates(unitId, targetEnemyId);
+  if(candidates.length===0 || !targetEnemyId){ checkBossHitTrigger(unitId, extraTurnFlag, wasBasicSkill); return; }
+  state.pendingWaterBombReact = { sourceUnitId: unitId, targetEnemyId, thenExtra: !!extraTurnFlag, wasBasicSkill, candidates: candidates.map(c=>c.id) };
+  renderBattle();
+}
+function confirmWaterBombReact(reactUnitId){
+  const ctx = state.pendingWaterBombReact;
+  state.pendingWaterBombReact = null;
+  if(!ctx){ renderBattle(); return; }
+  const u = state.units.find(x=>x.id===reactUnitId);
+  const specialKey = "special";
+  if(u){
+    const req = u.waterBombReactStackReq || 2;
+    u.elementStack = Math.max(0, (u.elementStack||0) - req);
+    fireTrigger(reactUnitId, specialKey, ctx.targetEnemyId, false, false);
+  }
+  checkBossHitTrigger(ctx.sourceUnitId, ctx.thenExtra, ctx.wasBasicSkill);
+}
+function dismissWaterBombReact(){
+  const ctx = state.pendingWaterBombReact;
+  state.pendingWaterBombReact = null;
+  if(ctx){ checkBossHitTrigger(ctx.sourceUnitId, ctx.thenExtra, ctx.wasBasicSkill); }
   else { renderBattle(); }
 }
 
 function dismissPincerCheck(){
   const ctx = state.pendingPincerCheck;
   state.pendingPincerCheck = null;
-  if(ctx){ checkBossHitTrigger(ctx.sourceUnitId, ctx.thenExtra); }
+  if(ctx){ checkWaterBombReact(ctx.sourceUnitId, ctx.targetEnemyId, ctx.thenExtra, true); }
   else { renderBattle(); }
 }
 
@@ -1914,6 +2016,10 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
     u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0) + s.selfStackGain);
     stackMemo = `／自身${stackName}+${s.selfStackGain}(${u.elementStack}/${ELEMENT_STACK_MAX})`;
   }
+  if(s.selfSenkohanabiGain > 0){
+    u.senkohanabiStacks = Math.min(3, (u.senkohanabiStacks||0) + s.selfSenkohanabiGain);
+    stackMemo += `／自身線香花火+${s.selfSenkohanabiGain}(${u.senkohanabiStacks})`;
+  }
 
   logAction(u, arrivalLabel, "通常：" + s.name + skillLabelSuffix, String(toughnessDmg), brokeNow,
     `対象:${target.name}／残強靭:${target.toughness}${brokeNow?"→ブレイク！":""}${hasAdvantage?"／属性有利+1":""}／BP+${s.burstGain}（BP残${state.teamBurst}）${stackMemo}${gimmickMemo}`);
@@ -1924,7 +2030,7 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
   const pctx = state.pendingPincerCheck;
   state.pendingPincerCheck = null;
   if(ctx){ finalizeActionChain(ctx.sourceUnitId, ctx.thenExtra); }
-  else if(pctx){ checkBossHitTrigger(pctx.sourceUnitId, pctx.thenExtra); }
+  else if(pctx){ checkWaterBombReact(pctx.sourceUnitId, pctx.targetEnemyId, pctx.thenExtra, true); }
   else { renderBattle(); }
 }
 
@@ -2043,6 +2149,12 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded){
       reductionText = `／ゲージ減少は免疫中のため無効`;
     }
 
+    let gimmickText = "";
+    if(!evaded){
+      const g = checkGaugeOnHitGimmick(target);
+      if(g){ gimmickText = `／ギミック:デバフ${g.debuffCount}個以下→自ゲージ+${g.gainPct}%`; }
+    }
+
     let effText = "";
     if(!evaded){
       targetEffectList.forEach(eff=>{
@@ -2058,12 +2170,6 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded){
         target.buffs = target.buffs.filter(b=>b.name!==s.consumeAllTargetDebuffName);
         effText += `／対象の${s.consumeAllTargetDebuffName}を全消費(${before}→0)`;
       }
-    }
-
-    let gimmickText = "";
-    if(!evaded){
-      const g = checkGaugeOnHitGimmick(target);
-      if(g){ gimmickText = `／ギミック:デバフ${g.debuffCount}個以下→自ゲージ+${g.gainPct}%`; }
     }
 
     perTargetMemo.push(`${target.name}:強靭削り${toughnessDmg}／残強靭${target.toughness}${brokeNow?"→ブレイク！":""}${reductionText}${effText}${gimmickText}`);
@@ -2093,6 +2199,10 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded){
       u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0) + s.selfStackGain);
       stackMemo += `／自身${stackName}+${s.selfStackGain}(${u.elementStack}/${ELEMENT_STACK_MAX})`;
     }
+    if(s.selfSenkohanabiGain > 0){
+      u.senkohanabiStacks = Math.min(3, (u.senkohanabiStacks||0) + s.selfSenkohanabiGain);
+      stackMemo += `／自身線香花火+${s.selfSenkohanabiGain}(${u.senkohanabiStacks})`;
+    }
     if(s.selfStackConsumeAll && (u.elementStack||0) > 0){
       stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)`;
       u.elementStack = 0;
@@ -2103,7 +2213,7 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded){
     `${perTargetMemo.join(" ｜ ")}${hasAdvantageAny?"／属性有利+1":""}${evaded?"／EVADE成立のため強靭ダメージ0・会心扱いなし":""}${gaugeGain>0?`／自身ゲージ+${gaugeGain}%`:""}${burstOn?"／BP-4":""}${s.burstGain>0?`／BP+${s.burstGain}`:""}（BP残${state.teamBurst}）${buffMemo}${stackMemo}`);
 
   if(skillKey==="basic" && !evaded){
-    checkPincerProc(allyId, false);
+    checkPincerProc(allyId, false, targetEnemyId);
   } else {
     renderBattle();
   }
@@ -2426,6 +2536,25 @@ function renderBattle(){
         <button class="btn-primary" onclick="confirmGxProc()">発動した（出血を付与する）</button>
         <button class="btn-secondary" onclick="dismissGxCheck()">発動しなかった</button>
       </div>`;
+    area.appendChild(panel);
+    return;
+  }
+
+  if(state.pendingWaterBombReact){
+    const ctx = state.pendingWaterBombReact;
+    const panel = document.createElement("div");
+    panel.className = "actionPanel";
+    const targetEnemy = state.units.find(x=>x.id===ctx.targetEnemyId);
+    const buttons = ctx.candidates.map(id=>{
+      const e = state.units.find(x=>x.id===id);
+      return e ? `<button class="skillbtn" onclick="confirmWaterBombReact('${id}')">
+          <div class="name">💦 ${e.name} のクーリングシステムが反応発動（跳躍${e.elementStack}）</div>
+        </button>` : "";
+    }).join("");
+    panel.innerHTML = `<h3>水爆弾リアクト攻撃判定</h3>
+      <div class="smallnote">${targetEnemy?targetEnemy.name:""}は水爆弾状態です。跳躍2以上の候補がいれば反応攻撃が発動します。</div>
+      ${buttons}
+      <button class="btn-secondary" style="margin-top:6px;" onclick="dismissWaterBombReact()">発動しなかった・続ける</button>`;
     area.appendChild(panel);
     return;
   }
