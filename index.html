@@ -1884,19 +1884,19 @@ function dismissBossHitTrigger(enemyId){
 }
 
 // ===================== 水爆弾リアクト攻撃（例：水着スマイル、他の味方が水爆弾状態の敵を攻撃後・跳躍2以上で反応攻撃） =====================
-function computeWaterBombReactCandidates(sourceUnitId, targetEnemyId){
+function computeWaterBombReactCandidates(attackerUnitId, targetEnemyId){
   const target = state.units.find(x=>x.id===targetEnemyId);
   if(!target) return [];
-  return state.units.filter(x=>x.kind==="ally" && x.alive && x.id!==sourceUnitId && !x.broken
+  return state.units.filter(x=>x.kind==="ally" && x.alive && x.id!==attackerUnitId && !x.broken
     && x.hasWaterBombReactAttack
     && (x.elementStack||0) >= (x.waterBombReactStackReq||2)
     && target.buffs.some(b=>b.name===(x.waterBombReactDebuffName||"水爆弾"))
   );
 }
-function checkWaterBombReact(unitId, targetEnemyId, extraTurnFlag, wasBasicSkill){
-  const candidates = computeWaterBombReactCandidates(unitId, targetEnemyId);
-  if(candidates.length===0 || !targetEnemyId){ checkBossHitTrigger(unitId, extraTurnFlag, wasBasicSkill); return; }
-  state.pendingWaterBombReact = { sourceUnitId: unitId, targetEnemyId, thenExtra: !!extraTurnFlag, wasBasicSkill, candidates: candidates.map(c=>c.id) };
+function checkWaterBombReact(chainUnitId, targetEnemyId, extraTurnFlag, wasBasicSkill, attackerUnitId){
+  const candidates = computeWaterBombReactCandidates(attackerUnitId!=null ? attackerUnitId : chainUnitId, targetEnemyId);
+  if(candidates.length===0 || !targetEnemyId){ checkBossHitTrigger(chainUnitId, extraTurnFlag, wasBasicSkill); return; }
+  state.pendingWaterBombReact = { sourceUnitId: chainUnitId, targetEnemyId, thenExtra: !!extraTurnFlag, wasBasicSkill, candidates: candidates.map(c=>c.id) };
   renderBattle();
 }
 function confirmWaterBombReact(reactUnitId){
@@ -2029,8 +2029,8 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
   state.pendingExCheck = null;
   const pctx = state.pendingPincerCheck;
   state.pendingPincerCheck = null;
-  if(ctx){ finalizeActionChain(ctx.sourceUnitId, ctx.thenExtra); }
-  else if(pctx){ checkWaterBombReact(pctx.sourceUnitId, pctx.targetEnemyId, pctx.thenExtra, true); }
+  if(ctx){ checkWaterBombReact(ctx.sourceUnitId, targetEnemyId, ctx.thenExtra, true, allyId); }
+  else if(pctx){ checkWaterBombReact(pctx.sourceUnitId, pctx.targetEnemyId, pctx.thenExtra, true, allyId); }
   else { renderBattle(); }
 }
 
