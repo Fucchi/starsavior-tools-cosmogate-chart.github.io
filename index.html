@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>コスモゲート ターン進行シミュレーター</title>
 <style>
 :root{
@@ -143,17 +144,43 @@ th{ color:var(--text-dim); font-weight:normal; font-size:11px;}
 .attr-badge.custom .dot{ background:transparent; border-style:dashed; display:flex; align-items:center; justify-content:center; font-size:11px; }
 .pill b{ color:var(--accent);}
 select{ background:#0d1024; color:var(--text); border:1px solid var(--line); border-radius:5px; padding:5px 7px; font-size:12px;}
+
+/* ===== スマホ簡易対応 ===== */
+@media (max-width: 760px){
+  body{ padding:8px; }
+  .wrap{ max-width:100%; }
+  h1{ font-size:16px; }
+  .subtitle{ font-size:11px; }
+  .grid{ grid-template-columns: 1fr; gap:10px; } /* 味方/敵パネルを縦積みに */
+  .panel{ padding:10px; }
+  .unit-card{ padding:8px; }
+  .field{ min-width:56px; }
+  .field.grow{ min-width:100%; } /* growフィールドは折り返し時に幅いっぱいに */
+  button{ padding:9px 12px; font-size:13px; } /* タップしやすいサイズに */
+  .btn-small{ padding:7px 10px; font-size:12px; }
+  .unit-card input[type=text], .unit-card input[type=number], select{ font-size:14px; padding:7px 8px; } /* iOS拡大防止のため14px以上 */
+  table{ font-size:11px; }
+  th,td{ padding:5px 6px; }
+  .topbar-wrap .statusRow, .toolSection{ font-size:11px; }
+  .toolSection select, .toolSection input[type="number"]{ font-size:12px; }
+}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>コスモゲート ターン進行シミュレーター <span class="badge">v0.1</span></h1>
-  <div class="subtitle">設計ドキュメントv0.2準拠：味方→敵の与ダメ・強靭削り・行動順・バフ/デバフのみを扱います（被ダメ計算は対象外・全て会心判定）</div>
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
+    <div>
+      <h1>コスモゲート ターン進行シミュレーター <span class="badge" id="versionBadge">v0.1.0</span></h1>
+      <div class="subtitle">設計ドキュメントv0.2準拠：味方→敵の与ダメ・強靭削り・行動順・バフ/デバフのみを扱います（被ダメ計算は対象外・全て会心判定）</div>
+    </div>
+    <button class="btn-secondary btn-small" onclick="toggleChangelog()" style="white-space:nowrap;">📋 更新履歴</button>
+  </div>
+  <div id="changelogPanel" class="panel" style="display:none; max-height:400px; overflow-y:auto; margin-bottom:12px;"></div>
 
   <div id="setupArea">
     <div class="panel" style="padding:8px 12px;">
       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12px;">
-        <b title="ボス開幕免疫・ボス速度補正は各敵カード内で設定">星の挑戦：究極遅延</b>
+        <b title="ボス開幕免疫・ボス速度補正は先頭の敵（ボス）に適用">星の挑戦：究極遅延</b>
         <div id="ultimateDelayRadioGroup" style="display:flex; gap:6px;">
           <label style="display:flex; align-items:center; gap:2px;"><input type="radio" name="ultimateDelayRadio" value="0"> 0</label>
           <label style="display:flex; align-items:center; gap:2px;"><input type="radio" name="ultimateDelayRadio" value="1"> 1</label>
@@ -161,7 +188,18 @@ select{ background:#0d1024; color:var(--text); border:1px solid var(--line); bor
           <label style="display:flex; align-items:center; gap:2px;"><input type="radio" name="ultimateDelayRadio" value="3" checked> 3</label>
         </div>
         <span style="color:var(--line);">｜</span>
-        <b title="属性・ロールを条件に付与される場バフ。最大2種類設定可能">環境バフ</b>
+        <b>★免疫</b>
+        <select id="starImmunitySelect" onchange="if(enemies[0]) enemies[0].starImmunityTurns=Number(this.value); renderEnemySetup();">
+          <option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option>
+        </select>
+        <b>★速度</b>
+        <select id="starSpeedSelect" onchange="if(enemies[0]) enemies[0].starSpeedBonusPct=Number(this.value); renderEnemySetup();">
+          <option value="0">+0%</option><option value="30">+30%</option><option value="40">+40%</option><option value="50">+50%</option>
+        </select>
+        <b>★被ダメ減少</b>
+        <select id="starReductionSelect" onchange="if(enemies[0]) enemies[0].starDamageReductionPct=Number(this.value); renderEnemySetup();">
+          <option value="0">-0%</option><option value="10">-10%</option><option value="20">-20%</option><option value="30">-30%</option>
+        </select>
       </div>
       <div id="envBuffSetup" style="margin-top:6px;"></div>
     </div>
@@ -239,7 +277,7 @@ select{ background:#0d1024; color:var(--text); border:1px solid var(--line); bor
 
     <div class="panel">
       <h2>状態スナップショット</h2>
-      <table id="snapshotTable"></table>
+      <div style="overflow-x:auto;"><table id="snapshotTable"></table></div>
     </div>
 
     <div id="actionArea"></div>
@@ -286,7 +324,7 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
   //   triggerRequiresEnemyStackName/triggerRequiresEnemyStackCount: afterOwnトリガーの発動条件として、直近の基本スキル対象の敵がこの名前のデバフを指定スタック数以上持っている場合のみ候補に出す
   //   triggerRequiresSelfStackMax: afterOwnトリガーの発動条件として、自身の属性スタック（点火/跳躍/冷却等）が最大値（ELEMENT_STACK_MAX）に達している場合のみ候補に出す
   extraEffects = extraEffects || {};
-  return {name, ct, toughness, burstAdd, burstGain, extraTurn: !!extraTurn,
+  return {name, ct, toughness, burstAdd, burstGain, extraTurn: !!extraTurn, extraTurnBurstOnly: !!extraEffects.extraTurnBurstOnly,
     triggerType: triggerType || "none", triggerCtMode: triggerCtMode || "hasCT",
     selfGaugeGain: selfGaugeGain || 0, burstGaugeGainAdd: burstGaugeGainAdd || 0,
     requiresEvade: !!requiresEvade, targetsAlly: !!targetsAlly, gaugeToTarget: !!gaugeToTarget,
@@ -628,7 +666,7 @@ function allyPreset(key){
       basic: defaultAllySkill("終焉のプレリュード", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, targetEffect:{name:"惨劇の棘", turns:99, dot:true, ignoresImmune:true} }),
       special: defaultAllySkill("惨劇のレクイエム", 4, 0, 1, 1, false, "afterOwn", "oncePerTurn", 0, 0, false, false, false,
         { selfBuff:{name:"速度アップ（+20%）", turns:3, speedModPct:20}, selfBuffManualOnly:true, selfStackConsumeAll:true, triggerRequiresEnemyStackName:"惨劇の棘", triggerRequiresEnemyStackCount:3, consumeAllTargetDebuffName:"惨劇の棘" }),
-      ultimate: defaultAllySkill("悲嘆のクレッシェンド", 5, 0, 1, 1, true, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"破砕（ATK+10%）", turns:2}, selfStackGain:2, target:"all" }) },
+      ultimate: defaultAllySkill("悲嘆のクレッシェンド", 5, 0, 1, 1, true, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"破砕（ATK+10%）", turns:2}, selfStackGain:2, target:"all", extraTurnBurstOnly:true }) },
     "bunny_clare": { name:"バニークレア", speed:104, toughnessMax:3, evasionRatePct:0, attribute:"月", role:"ストライカー", passiveNote:"ターン開始時、会心率+10%スタック(最大3)。基本スキル使用後、自身の冷却スタックが最大(5)の場合のみ特殊(どこを見ているのですか？)が自動トリガー候補として提示される(特殊・究極使用後は対象外)",
       basic: defaultAllySkill("目にも止まらぬ動き", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1 }),
       special: defaultAllySkill("どこを見ているのですか？", 3, 0, 1, 1, false, "afterOwn", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"攻撃力アップ（+30%）", turns:2}, selfStackGain:3, triggerRequiresSelfStackMax:true }),
@@ -987,6 +1025,16 @@ function undoRemoveAlly(){
 function renderEnemySetup(){
   const wrap = document.getElementById("enemySetup");
   wrap.innerHTML = "";
+  // 上部「星の挑戦」欄のセレクトを、先頭の敵（ボス）の現在値と同期する
+  const boss0 = enemies[0];
+  if(boss0){
+    const immEl = document.getElementById("starImmunitySelect");
+    const spdEl = document.getElementById("starSpeedSelect");
+    const redEl = document.getElementById("starReductionSelect");
+    if(immEl) immEl.value = boss0.starImmunityTurns||0;
+    if(spdEl) spdEl.value = boss0.starSpeedBonusPct||0;
+    if(redEl) redEl.value = boss0.starDamageReductionPct||0;
+  }
   enemies.forEach((e, idx)=>{
     const card = document.createElement("div");
     card.className = "unit-card enemy";
@@ -1025,23 +1073,7 @@ function renderEnemySetup(){
         </div>
         <div class="field" style="justify-content:flex-end"><label>&nbsp;</label><button class="btn-danger btn-small" onclick="removeEnemy(${idx})">削除</button></div>
       </div>
-      <div class="row" style="border-top:1px dashed var(--line); padding-top:6px; margin-top:2px;">
-        <div class="field"><label>★免疫</label>
-          <select onchange="enemies[${idx}].starImmunityTurns=Number(this.value)">
-            ${[0,1,2,3].map(v=>`<option value="${v}" ${e.starImmunityTurns===v?"selected":""}>${v}</option>`).join("")}
-          </select>
-        </div>
-        <div class="field"><label>★速度</label>
-          <select onchange="enemies[${idx}].starSpeedBonusPct=Number(this.value)">
-            ${[0,30,40,50].map(v=>`<option value="${v}" ${e.starSpeedBonusPct===v?"selected":""}>+${v}%</option>`).join("")}
-          </select>
-        </div>
-        <div class="field"><label>★被ダメ減少</label>
-          <select onchange="enemies[${idx}].starDamageReductionPct=Number(this.value)">
-            ${[0,10,20,30].map(v=>`<option value="${v}" ${(e.starDamageReductionPct||0)===v?"selected":""}>-${v}%</option>`).join("")}
-          </select>
-        </div>
-      </div>
+      ${idx===0 ? `<div class="smallnote" style="margin-bottom:6px;">★免疫・★速度・★被ダメ減少は画面上部の「星の挑戦」欄で設定します</div>` : ""}
       ${renderEnemySkillBlock(e, idx, "basic", "基本スキル")}
       ${renderEnemySkillBlock(e, idx, "special", "特殊スキル")}
       ${renderEnemySkillBlock(e, idx, "ultimate", "究極スキル")}
@@ -1129,6 +1161,88 @@ renderAllySetup();
 renderEnemySetup();
 renderDmgTestPanel();
 renderEnvBuffSetup();
+
+// ===================== 動作確認済みステータス（配布用：ユーザー自身が実際にプレイして確認した内容。都度更新） =====================
+const TOOL_VERSION = "v0.1.1";
+document.getElementById("versionBadge").textContent = TOOL_VERSION;
+const VERIFIED_STATUS = {
+  lastUpdated: "2026-08-08",
+  bosses: ["デモライギス：アルファ"],
+  characters: ["ドレスアセラ", "セイラ", "バニーシャルル", "ティリア", "水着スマイル"]
+};
+
+// 日付つき更新ログ（今後の更新はここに追加していく。過去分は無理に遡らない）
+const DATED_LOG = [
+  { date:"2026-08-08", version:"v0.1.0", text:"更新履歴・動作確認済みステータスパネルを追加" },
+  { date:"2026-08-08", version:"v0.1.1", text:"ティリアの究極スキルの追加ターンを、バースト強化時のみ発生するよう修正（extraTurnBurstOnlyフィールドを新設）" }
+];
+
+// ===================== 更新履歴 =====================
+const CHANGELOG = [
+  { cat:"新規実装", items:[
+    "キャラプリセット：シャルル〜リン等12体、ベスタ、水着スマイル、水着ルナを含む合計34キャラ",
+    "ボスプリセット：デモライギスα/β、オルトロス、不死王モグルス、ヒルデ、ティリア(ボス)の6体",
+    "ダメージ検証ツール（実測ダメージから実効ATKを逆算・整合性チェック）",
+    "遺物GX（基本スキル攻撃後50%で出血付与）",
+    "ブレイクスキル機能（5種類の領域展開効果・持続/クールタイム設定・発動時ヒット判定の有無を再現）",
+    "ボス被弾カウントトリガー（デモライギスβ等、被弾回数で特殊が割り込み発動・カウンタ持ち越し対応）",
+    "水爆弾リアクト攻撃（水着スマイルの特殊トリガー、挟撃/EX経由の攻撃にも反応）",
+    "敵スキルの「対象がバリア状態でなければデバフ」判定（不死王モグルス等）",
+    "速度0固定デバフ（没落した思念）：誰かのターン開始のたびにグローバルでカウントが進む仕様に対応",
+    "エミリーの被弾時究極CT減少パッシブ（全体被弾はさらに-1）",
+    "バリア破壊の選択UI（敵の攻撃時にバリアが破壊されたか記録可能）",
+    "更新履歴パネル（このパネルです）"
+  ]},
+  { cat:"仕様修正・バグ修正", items:[
+    "免疫中はデバフ付与・行動ゲージ減少が無効になるよう修正（一部は免疫貫通の例外あり）",
+    "ボスの究極スキルは戦闘開始時から自身のCT分クールタイム状態になるよう修正",
+    "ブレイク中の敵が本来のターンを迎えた際、強靭全回復はしても行動自体はキャンセルしないよう修正",
+    "CT減算・バフのターン経過ルールを確定：追加ターン中はCTのみ進み、バフは進まない。トリガー再発動はどちらも進まない",
+    "ドレスアセラの挟撃は1ターンに1回まで、かつ挟撃キャラ自身の手番を待たず正しくリセットされるよう修正",
+    "トリガー連鎖の順序を再設計：GX→挟撃→水爆弾リアクト→ボス被弾トリガー→自トリガー→EXの順に統一",
+    "EX判定を「発動したか」→「誰が誘発されたか」の2段階UIに変更",
+    "被弾時のギミック発動判定を、その攻撃自身のデバフ付与より前のタイミングで評価するよう修正",
+    "デバフ数のカウント方法を修正：出血/凍結/燃焼は重複スタックを個別カウント、それ以外は種類数でカウント",
+    "クラリッサ・水着スマイル等のスキル数値（ATK%・強靭削り・自ゲージ増加等）を実データに合わせて修正",
+    "エミリーのバフを「攻撃力アップ」と「バリア」の2つに分離"
+  ]},
+  { cat:"UI改善", items:[
+    "キャラ選択を属性色分けバッジ方式に変更（属性順ソート）",
+    "味方カードをコンパクト化：普段触るキャラ/速度/潜在のみ常時表示、詳細は折りたたみ",
+    "星の挑戦（究極遅延・★免疫・★速度・★被ダメ減少）と環境バフを1つのコンパクトな欄に統合",
+    "ブレイクポイント・バーストポイントをドット表示に変更、残りターン数表示に変更",
+    "状態スナップショット表の列整理（無意味だった「バフ/デバフ」列を削除）"
+  ]}
+];
+function toggleChangelog(){
+  const panel = document.getElementById("changelogPanel");
+  if(panel.style.display==="none"){
+    const verifiedHtml = `
+      <div style="margin-bottom:14px; padding:10px; border:1px solid var(--accent); border-radius:8px; background:rgba(110,231,216,0.06);">
+        <div style="font-weight:700; color:var(--accent); margin-bottom:6px;">✅ 動作確認済み <span style="font-weight:400; color:var(--text-dim); font-size:11px;">（最終更新：${VERIFIED_STATUS.lastUpdated}）</span></div>
+        <div style="font-size:13px; margin-bottom:4px;"><b>ボス：</b>${VERIFIED_STATUS.bosses.length ? VERIFIED_STATUS.bosses.join("、") : "（未確認）"}</div>
+        <div style="font-size:13px;"><b>キャラ：</b>${VERIFIED_STATUS.characters.length ? VERIFIED_STATUS.characters.join("、") : "（未確認）"}</div>
+      </div>`;
+    const datedLogHtml = `
+      <div style="margin-bottom:14px;">
+        <div style="font-weight:700; color:var(--accent-2); margin-bottom:4px;">🗓 更新ログ（日付つき）</div>
+        <ul style="margin:0; padding-left:18px; font-size:13px; line-height:1.7;">
+          ${DATED_LOG.slice().reverse().map(l=>`<li><span style="color:var(--text-dim);">${l.date}</span> <span style="color:var(--accent-2);">${l.version}</span>　${l.text}</li>`).join("")}
+        </ul>
+      </div>`;
+    panel.innerHTML = `<h2 style="margin-top:0;">📋 更新履歴（${TOOL_VERSION}）</h2>` + verifiedHtml + datedLogHtml + CHANGELOG.map(group=>`
+      <div style="margin-bottom:10px;">
+        <div style="font-weight:700; color:var(--accent-2); margin-bottom:4px;">${group.cat}</div>
+        <ul style="margin:0; padding-left:18px; font-size:13px; line-height:1.6;">
+          ${group.items.map(i=>`<li>${i}</li>`).join("")}
+        </ul>
+      </div>
+    `).join("");
+    panel.style.display = "block";
+  } else {
+    panel.style.display = "none";
+  }
+}
 
 // ===================== 戦闘開始 =====================
 function startBattle(){
@@ -1634,7 +1748,7 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
 
   state.pendingActor = null;
 
-  const extra = s.extraTurn;
+  const extra = s.extraTurn && (!s.extraTurnBurstOnly || burstOn);
   // CTを1つ進める（自分が今使ったスキル自身も含めて、行動のたびに他の全スキルのCTが1減る。
   // ただし特殊/究極を使った直後はCTが基礎値にセットされた直後にこの減算が入るため、
   // 結果的に「セット値-1」が使用直後の表示値になる）
