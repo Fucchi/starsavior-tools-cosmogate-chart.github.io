@@ -178,8 +178,8 @@ select{ background:#0d1024; color:var(--text); border:1px solid var(--line); bor
       <button class="btn-secondary btn-small" onclick="toggleChangelog()" style="white-space:nowrap;">📋 更新履歴</button>
     </div>
   </div>
-  <div id="speedComparePanel" class="panel" style="display:none; margin-bottom:12px;">
-    <h2 style="margin-top:0;">⚡ どっちが先？ 速度比較ツール <span class="hint">基準速度・速度・バフ%・現在ゲージ%を入力すると、どちらが先に100%到達するか計算します（戦闘中もいつでも使えます）</span></h2>
+  <div id="speedComparePanel" class="panel" style="display:none; margin-bottom:12px; max-width:420px;">
+    <h2 style="margin-top:0;">⚡ どっちが先？ 速度比較ツール <span class="hint">速度・バフ%・現在ゲージ%を入力すると、どちらが先に100%到達するか計算します（基準速度は比較結果に影響しないため不要です）</span></h2>
     <div id="speedCompareTool"></div>
   </div>
   <div id="changelogPanel" class="panel" style="display:none; max-height:400px; overflow-y:auto; margin-bottom:12px;"></div>
@@ -241,11 +241,29 @@ select{ background:#0d1024; color:var(--text); border:1px solid var(--line); bor
 
   <div id="battleArea">
     <div class="topbar-wrap">
-      <div class="statusRow">
-        <div class="pill">残りターン数：<b id="turnCountDisplay">50</b></div>
-        <div class="pill">行動数：<b id="actionCountDisplay">0</b></div>
-        <div class="pill" id="breakPointPill">ブレイクPT：<span id="breakPointDots"></span></div>
-        <div class="pill" id="burstPointPill">バーストPT：<span id="burstPointDots"></span></div>
+      <div class="statusRow" style="justify-content:space-between; align-items:flex-start;">
+        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          <div class="pill">残りターン数：<b id="turnCountDisplay">50</b></div>
+          <div class="pill">行動数：<b id="actionCountDisplay">0</b></div>
+          <div class="pill" id="breakPointPill">ブレイクPT：<span id="breakPointDots"></span></div>
+          <div class="pill" id="burstPointPill">ノヴァフォース：<span id="burstPointDots"></span></div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+          <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+            <button class="btn-secondary btn-small" onclick="exportChart()">💾 保存</button>
+            <button class="btn-secondary btn-small" onclick="triggerImportChart()">📂 読み込む</button>
+            <button class="btn-secondary btn-small" onclick="undoLastTurn()">↩ 1ターン戻る</button>
+            <button class="btn-secondary btn-small" onclick="resetAll()">⚙ 設定画面に戻る</button>
+            <button class="btn-danger btn-small" onclick="restartBattle()">🔄 再挑戦</button>
+            <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importChart(event)">
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;" title="実際のゲーム画面では確認しづらい情報を手動で記録・補正するためのデバッグ用機能です">
+            <span style="font-size:10px; color:var(--text-dim);">🐞デバッグ用：</span>
+            <button class="btn-secondary btn-small" onclick="openBuffForm()">バフ/デバフ付与</button>
+            <button class="btn-secondary btn-small" onclick="openAllyToughnessDamageForm()">強靭ダメージ記録</button>
+            <button class="btn-secondary btn-small" onclick="openExtraTurn()">追加ターン付与</button>
+          </div>
+        </div>
       </div>
 
       <div class="toolSection">
@@ -261,24 +279,6 @@ select{ background:#0d1024; color:var(--text); border:1px solid var(--line); bor
         <span class="miniField">CT<input type="number" id="breakSkillCooldownInput" value="8" min="1" onchange="state.breakSkillCooldownTurns=Number(this.value)">T</span>
         <button class="btn-secondary btn-small" id="breakSkillActivateBtn" onclick="activateBreakSkill()">発動（3pt消費）</button>
         <span class="pill" id="breakSkillStatusPill">状態：<b id="breakSkillStatusDisplay">未発動</b></span>
-      </div>
-
-      <div class="toolSection">
-        <div class="toolbarGroup">
-          <span class="groupLabel">記録</span>
-          <button class="btn-secondary btn-small" onclick="openBuffForm()">バフ/デバフ付与</button>
-          <button class="btn-secondary btn-small" onclick="openAllyToughnessDamageForm()">強靭ダメージ記録</button>
-          <button class="btn-secondary btn-small" onclick="openExtraTurn()">追加ターン付与</button>
-          <button class="btn-secondary btn-small" onclick="undoLastTurn()">1ターン戻る</button>
-        </div>
-        <div class="toolDivider"></div>
-        <div class="toolbarGroup">
-          <span class="groupLabel">チャート</span>
-          <button class="btn-secondary btn-small" onclick="exportChart()">💾 保存</button>
-          <button class="btn-secondary btn-small" onclick="triggerImportChart()">📂 読み込む</button>
-          <button class="btn-danger btn-small" onclick="resetAll()">最初からやり直す</button>
-          <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importChart(event)">
-        </div>
       </div>
     </div>
 
@@ -399,6 +399,18 @@ function checkGaugeOnHitGimmick(target){
   return { debuffCount, gainPct };
 }
 
+// 敵の被弾時ギミック：いずれかの味方（敵から見た「敵」）が特定のデバフ状態であれば、自身のゲージが増える（モグルス「没落した思念」等）
+function checkGaugeOnHitIfAllyDebuffGimmick(target){
+  if(!target || target.kind!=="enemy") return null;
+  const debuffName = target.gaugeOnHitIfAllyDebuffName;
+  const gainPct = target.gaugeOnHitIfAllyDebuffGainPct||0;
+  if(!debuffName || gainPct<=0) return null;
+  const anyAllyHasDebuff = state.units.some(x=>x.kind==="ally" && x.alive && x.buffs.some(b=>b.name.includes(debuffName)));
+  if(!anyAllyHasDebuff) return null;
+  target.gauge = Math.min(100, target.gauge + gainPct);
+  return { debuffName, gainPct };
+}
+
 // ===================== 環境バフの速度ボーナス計算 =====================
 function computeEnvSpeedBonus(unitAttribute, unitRole){
   let total = 0;
@@ -502,12 +514,11 @@ function computeDmgTestResult(e){
 }
 // ===================== ⚡ どっちが先？ 速度比較ツール =====================
 let speedCompareState = {
-  baseline: 225,
-  a: { name:"自分", speed:100, buffPct:0, gauge:0 },
-  b: { name:"相手", speed:100, buffPct:0, gauge:0 }
+  a: { speed:100, buffPct:0, gauge:0 },
+  b: { speed:100, buffPct:0, gauge:0 }
 };
 function updateSpeedCompare(who, field, value){
-  speedCompareState[who][field] = (field==="name") ? value : Number(value);
+  speedCompareState[who][field] = Number(value);
   updateSpeedCompareResult(); // 入力欄は再描画せず、結果表示だけ更新（フォーカスが外れないように）
 }
 function toggleSpeedCompare(){
@@ -525,27 +536,27 @@ function updateSpeedCompareResult(){
   const S = speedCompareState;
   const effA = S.a.speed * (1 + S.a.buffPct/100);
   const effB = S.b.speed * (1 + S.b.buffPct/100);
-  const rateA = (effA / S.baseline) * 100; // %/tick
-  const rateB = (effB / S.baseline) * 100;
+  // 「どちらが先に到達するか」は基準速度に依存しない（両者に同じ基準を使うため比較上は相殺される）
+  // ここでは「到達に必要な実効速度の何倍か」＝(100-ゲージ)/実効速度 を比較の目安として使う
   let resultHtml = "";
-  if(rateA<=0 && rateB<=0){
+  if(effA<=0 && effB<=0){
     resultHtml = `<div class="smallnote">両者とも速度0のため到達しません</div>`;
-  } else if(rateA<=0){
-    resultHtml = `<div class="smallnote" style="color:var(--warn);">${S.a.name}は速度0のため${S.b.name}が先着します</div>`;
-  } else if(rateB<=0){
-    resultHtml = `<div class="smallnote" style="color:var(--warn);">${S.b.name}は速度0のため${S.a.name}が先着します</div>`;
+  } else if(effA<=0){
+    resultHtml = `<div class="smallnote" style="color:var(--warn);">自分は速度0のため相手が先着します</div>`;
+  } else if(effB<=0){
+    resultHtml = `<div class="smallnote" style="color:var(--warn);">相手は速度0のため自分が先着します</div>`;
   } else {
-    const ticksA = Math.max(0, (100 - S.a.gauge) / rateA);
-    const ticksB = Math.max(0, (100 - S.b.gauge) / rateB);
-    const winner = ticksA < ticksB ? S.a.name : (ticksB < ticksA ? S.b.name : "同着");
-    const diffTicks = Math.abs(ticksA - ticksB);
+    const unitsA = Math.max(0, (100 - S.a.gauge) / effA);
+    const unitsB = Math.max(0, (100 - S.b.gauge) / effB);
+    const winner = unitsA < unitsB ? "自分" : (unitsB < unitsA ? "相手" : "同着");
+    const ratio = unitsA < unitsB ? (unitsB/unitsA) : (unitsA>0 ? (unitsA/unitsB) : 1);
     resultHtml = `
-      <div style="padding:10px; border:1px solid var(--accent); border-radius:8px; background:rgba(110,231,216,0.06); margin-top:6px;">
+      <div style="padding:8px 10px; border:1px solid var(--accent); border-radius:8px; background:rgba(110,231,216,0.06); margin-top:4px;">
         <div style="font-size:15px; font-weight:700; color:var(--accent);">🏁 ${winner==="同着" ? "同着（ゲージ同時到達）" : winner + " が先に到達"}</div>
         <div class="smallnote" style="margin-top:4px;">
-          ${S.a.name}：実効速度${effA.toFixed(1)}／到達まで${ticksA.toFixed(3)}tick　｜　
-          ${S.b.name}：実効速度${effB.toFixed(1)}／到達まで${ticksB.toFixed(3)}tick
-          ${winner!=="同着" ? `　｜　差：${diffTicks.toFixed(3)}tick` : ""}
+          自分：実効速度${effA.toFixed(1)}／残ゲージ${(100-S.a.gauge).toFixed(0)}%　｜　
+          相手：実効速度${effB.toFixed(1)}／残ゲージ${(100-S.b.gauge).toFixed(0)}%
+          ${winner!=="同着" ? `　｜　約${ratio.toFixed(2)}倍の差` : ""}
         </div>
       </div>`;
   }
@@ -555,25 +566,19 @@ function renderSpeedCompareTool(){
   const wrap = document.getElementById("speedCompareTool");
   if(!wrap) return;
   const S = speedCompareState;
-  const rowHtml = (key)=>{
+  const rowHtml = (key, label)=>{
     const u = S[key];
     return `
-      <div class="unit-card" style="margin-bottom:8px;">
-        <div class="row">
-          <div class="field grow"><label>名前</label><input type="text" value="${u.name}" oninput="updateSpeedCompare('${key}','name',this.value)"></div>
-          <div class="field"><label>速度</label><input type="number" value="${u.speed}" style="width:70px" oninput="updateSpeedCompare('${key}','speed',this.value)"></div>
-          <div class="field"><label>速度バフ合計%</label><input type="number" value="${u.buffPct}" style="width:70px" oninput="updateSpeedCompare('${key}','buffPct',this.value)"></div>
-          <div class="field"><label>現在ゲージ%</label><input type="number" value="${u.gauge}" style="width:70px" min="0" max="100" oninput="updateSpeedCompare('${key}','gauge',this.value)"></div>
-        </div>
+      <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:12px; margin-bottom:6px;">
+        <span style="width:32px; font-weight:700; color:var(--accent-2);">${label}</span>
+        <span style="color:var(--text-dim);">速度</span><input type="number" value="${u.speed}" style="width:60px" oninput="updateSpeedCompare('${key}','speed',this.value)">
+        <span style="color:var(--text-dim);">バフ%</span><input type="number" value="${u.buffPct}" style="width:55px" oninput="updateSpeedCompare('${key}','buffPct',this.value)">
+        <span style="color:var(--text-dim);">ゲージ%</span><input type="number" value="${u.gauge}" style="width:55px" min="0" max="100" oninput="updateSpeedCompare('${key}','gauge',this.value)">
       </div>`;
   };
   wrap.innerHTML = `
-    <div class="row">
-      <div class="field"><label>基準速度B</label><input type="number" value="${S.baseline}" style="width:80px" oninput="speedCompareState.baseline=Number(this.value); updateSpeedCompareResult();"></div>
-      <div class="field grow"><label>&nbsp;</label><div class="smallnote">基準速度Bは、戦闘中なら画面上部の「基準速度」と同じ値を入れてください（速度が最速の敵の実効速度など）</div></div>
-    </div>
-    ${rowHtml("a")}
-    ${rowHtml("b")}
+    ${rowHtml("a","自分")}
+    ${rowHtml("b","相手")}
     <div id="speedCompareResult"></div>
   `;
   updateSpeedCompareResult();
@@ -717,8 +722,10 @@ function allyPreset(key){
       basic: defaultAllySkill("鋼鉄の雹", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1 }),
       special: defaultAllySkill("錐の鎧", 3, 0, 0, 1, true, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"バリア＋防御力アップ（+30%）", turns:3}, selfStackConsumeAll:true }),
       ultimate: defaultAllySkill("棘の墓", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"守護", turns:3}, targetEffect:{name:"命中率ダウン（-30%）", turns:2} }) },
-    "emily": { name:"エミリー", speed:95, toughnessMax:3, evasionRatePct:0, attribute:"月", role:"ディフェンダー", ultimateCtReduceOnHit:true, passiveNote:"戦闘開始時バリア。被弾で究極CT-1(全体被弾はさらに-1、合計-2)",
-      basic: defaultAllySkill("戦闘掃除開始", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1 }),
+    "emily": { name:"エミリー", speed:95, toughnessMax:3, evasionRatePct:0, attribute:"月", role:"ディフェンダー", ultimateCtReduceOnHit:true, gainStackOnHit:true,
+      battleStartSelfBarrier: { turns:1, hpPct:18 },
+      passiveNote:"準備万端なメイド：エミリーの最大HPが上がる(3凸で15%)。戦闘開始時、自身に1ターンバリア(HP18%)を発生(実装済み)。攻撃を受けた後、究極スキル「ターンダウンサービス」のCTが1ターン短縮。全体攻撃を受けた後はさらに追加で1ターン短縮(単体-1／全体-2、実装済み)。自身に一定確率で冷却スタックを1つ付与(3凸で100%、実装済み・確率は常時発生として扱う)",
+      basic: defaultAllySkill("戦闘掃除開始", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, selfBuff:{name:"バリア（バースト時のみ）", turns:1}, burstOnlySelfBuff:true }),
       special: defaultAllySkill("クリーニングサービス", 4, 0, 0, 1, true, "none", "hasCT", 0, 0, false, true, false, { targetEffect:[{name:"攻撃力アップ（+30%）", turns:3, atkModPct:30}, {name:"バリア（HP40%）", turns:3}], selfStackGain:3 }),
       ultimate: defaultAllySkill("ターンダウンサービス", 7, 0, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfStackConsumeAll:true, target:"all", teamBuff:{name:"防御力アップ（+30%）", turns:2} }) },
     "kanelia": { name:"カネリア", speed:93, toughnessMax:3, evasionRatePct:0, attribute:"混沌", role:"キャスター", passiveNote:"戦闘不能に瀕すると1回だけ不死身発動(HP1%回復・全CTリセット)。激動スタックでATK上昇",
@@ -882,8 +889,8 @@ function isBreakSkillToughnessBonusActive(){
   return !!typeInfo.hasToughnessBonus;
 }
 
-function defaultEnemySkill(name, ct, note, target, selfGaugeGainPct, targetEffectIfNoBarrier){
-  return {name, ct, note: note||"", target: target || "single", selfGaugeGainPct: selfGaugeGainPct||0, targetEffectIfNoBarrier: targetEffectIfNoBarrier||null}; // target: "single" | "all"
+function defaultEnemySkill(name, ct, note, target, selfGaugeGainPct, targetEffectIfNoBarrier, selfBuffIfTwistedWill){
+  return {name, ct, note: note||"", target: target || "single", selfGaugeGainPct: selfGaugeGainPct||0, targetEffectIfNoBarrier: targetEffectIfNoBarrier||null, selfBuffIfTwistedWill: selfBuffIfTwistedWill||null}; // target: "single" | "all"
 }
 
 let enemies = [
@@ -911,9 +918,13 @@ function bossPreset(key){
       ultimate: defaultEnemySkill("叙情詩の終幕", 4, "強靭削り2／自身に2T攻撃力アップ／自身の弱体化全解除／対象が第十の課業状態ならダメ+30%", "all") },
     "mogrus": { name:"不死王モグルス", speed:180, toughnessMax:15, breakDmgPct:15, attribute:"混沌", role:"ストライカー",
       starImmunityTurns:0, starSpeedBonusPct:0, starDamageReductionPct:0,
+      gainsTwistedWillOnBattleStart:true, gainsTwistedWillOnAllyTurn:true,
+      gaugeOnHitIfAllyDebuffName:"没落した思念", gaugeOnHitIfAllyDebuffGainPct:20,
+      passiveNote:"歪んだ意志：戦闘開始時、自身に歪んだ意志を1スタック付与。以降、いずれかの味方（敵から見た「敵」）のターン開始時、自身に1スタック付与（1ターンに1回のみ、最大3スタック）。歪んだ意志：スタックごとに究極スキルのダメージが10%上がる（本ツールは被ダメ計算対象外のため注記のみ）。また、攻撃を受けた時、いずれかの味方が「没落した思念（解除不可）」状態であれば、自身の行動ゲージを20%増やす（実装済み）",
       basic: defaultEnemySkill("思念の剣", 0, "強靭削り1／前衛優先攻撃／バリアなしの敵に100%で3T没落した思念(速度0固定・被ダメ+10%、効果耐性無視)", "single", 0,
         {name:"没落した思念（解除不可・被ダメ+10%は要手動反映）", turns:3, dot:false, speedZeroLock:true}),
-      special: defaultEnemySkill("燦然たる共鳴鎖宝珠の力", 3, "強靭削り2／自身に2T攻撃力アップ／敵ゲージ-30%／攻撃後、自身が歪んだ意志状態なら2T速度アップ", "single"),
+      special: defaultEnemySkill("燦然たる共鳴鎖宝珠の力", 3, "強靭削り2／自身に2T攻撃力アップ／敵ゲージ-30%／攻撃後、自身が歪んだ意志状態なら2T速度アップ", "single", 0, null,
+        {name:"速度アップ（+20%）", turns:2, speedModPct:20}),
       ultimate: defaultEnemySkill("垂れ込める死の影", 5, "強靭削り2／敵全体に100%で2T防御DOWN／バリアなしの対象に100%で3T没落した思念(効果耐性無視)", "all", 0,
         {name:"没落した思念（解除不可・被ダメ+10%は要手動反映）", turns:3, dot:false, speedZeroLock:true}) },
     "hilde": { name:"ヒルデ（TYPE：ジークフリート）", speed:180, toughnessMax:15, breakDmgPct:15, attribute:"混沌", role:"ディフェンダー",
@@ -938,6 +949,15 @@ function bossPreset(key){
 function applyBossPreset(idx, key){
   const data = bossPreset(key);
   if(!data) return;
+  // 先頭の敵（ボス）を切り替える際、★免疫・★速度・★被ダメ減少の設定は引き継ぐ（プリセット切り替えでリセットしない）
+  if(idx===0 && enemies[0]){
+    data.starImmunityTurns = enemies[0].starImmunityTurns!=null ? enemies[0].starImmunityTurns : 3;
+    data.starSpeedBonusPct = enemies[0].starSpeedBonusPct!=null ? enemies[0].starSpeedBonusPct : 50;
+    data.starDamageReductionPct = enemies[0].starDamageReductionPct || 0;
+  } else if(idx===0){
+    data.starImmunityTurns = 3;
+    data.starSpeedBonusPct = 50;
+  }
   enemies[idx] = data;
   bossPickerOpen[idx] = false;
   renderEnemySetup();
@@ -975,10 +995,10 @@ function renderAllySetup(){
   allies.forEach((a, idx)=>{
     const card = document.createElement("div");
     card.className = "unit-card";
-    const relicChecks = ["EX","AX","DANRYOKU","GX","SMILE_ARCANA"].map(key=>{
-      const labelText = key==="DANRYOKU" ? "弾力・加速" : key==="SMILE_ARCANA" ? "スマイル専用" : key;
+    const relicChecks = ["EX","AX","DANRYOKU","GX","SMILE_ARCANA","LUNA_ARCANA","CAUTIOUS_TACTICS"].map(key=>{
+      const labelText = key==="DANRYOKU" ? "弾力・加速" : key==="SMILE_ARCANA" ? "スマイル専用" : key==="LUNA_ARCANA" ? "水着ルナ専用" : key==="CAUTIOUS_TACTICS" ? "慎重な戦術" : key;
       return `<label style="display:flex; align-items:center; gap:3px; font-size:12px;">
-        <input type="checkbox" ${a.relics&&a.relics[key]?"checked":""} onchange="allies[${idx}].relics=allies[${idx}].relics||{}; allies[${idx}].relics.${key}=this.checked;"> ${labelText}
+        <input type="checkbox" ${a.relics&&a.relics[key]?"checked":""} onchange="allies[${idx}].relics=allies[${idx}].relics||{}; allies[${idx}].relics.${key}=this.checked; renderAllySetup();"> ${labelText}
       </label>`;
     }).join("");
     card.innerHTML = `
@@ -1002,6 +1022,7 @@ function renderAllySetup(){
         </div>
       </div>
       ${(a.relics && a.relics.DANRYOKU && a.role!=="アサシン") ? `<div class="smallnote" style="color:var(--warn); margin-bottom:8px;">⚠ 弾力・加速はアサシン専用潜在です。このキャラのロールは「${a.role||"未設定"}」になっています</div>` : ""}
+      ${(a.relics && a.relics.CAUTIOUS_TACTICS && a.role!=="ディフェンダー") ? `<div class="smallnote" style="color:var(--warn); margin-bottom:8px;">⚠ 慎重な戦術はディフェンダー専用潜在です。このキャラのロールは「${a.role||"未設定"}」になっています</div>` : ""}
       ${allyDetailOpen[idx] ? `
       <div class="row">
         <div class="field grow"><label>名前</label><input type="text" value="${a.name}" oninput="allies[${idx}].name=this.value"></div>
@@ -1250,11 +1271,11 @@ renderEnvBuffSetup();
 renderSpeedCompareTool();
 
 // ===================== 動作確認済みステータス（配布用：ユーザー自身が実際にプレイして確認した内容。都度更新） =====================
-const TOOL_VERSION = "v0.1.5";
+const TOOL_VERSION = "v0.2.3";
 document.getElementById("versionBadge").textContent = TOOL_VERSION;
 const VERIFIED_STATUS = {
   lastUpdated: "2026-08-08",
-  bosses: ["デモライギス：アルファ"],
+  bosses: ["デモライギス：アルファ", "不死王モグルス"],
   characters: ["ドレスアセラ", "セイラ", "バニーシャルル", "ティリア", "水着スマイル"]
 };
 
@@ -1265,7 +1286,24 @@ const DATED_LOG = [
   { date:"2026-08-08", version:"v0.1.2", text:"スマホ表示への軽量対応（viewportメタタグ・メディアクエリ追加）。補助ツール「⚡どっちが先？速度比較ツール」を追加" },
   { date:"2026-08-08", version:"v0.1.3", text:"スキル選択パネルの並びを変更：対象選択の直後にスキル選択ボタンを配置し、バースト等のオプション設定は後ろに移動（モバイルでのスクロール量を削減）" },
   { date:"2026-08-08", version:"v0.1.4", text:"速度比較ツールをヘッダーの独立ボタンに移動。セットアップ画面だけでなく戦闘中もいつでも開けるように変更" },
-  { date:"2026-08-08", version:"v0.1.5", text:"速度比較ツールで入力中にカーソルが外れる不具合を修正（入力欄を再描画せず、結果表示部分のみ更新するよう変更）" }
+  { date:"2026-08-08", version:"v0.1.5", text:"速度比較ツールで入力中にカーソルが外れる不具合を修正（入力欄を再描画せず、結果表示部分のみ更新するよう変更）" },
+  { date:"2026-08-08", version:"v0.1.6", text:"モグルスの「没落した思念」等、速度0固定デバフが実際の被弾判定フロー経由で付与された際にspeedZeroLockフラグが失われ、行動ゲージが自然増加してしまう不具合を修正" },
+  { date:"2026-08-08", version:"v0.1.7", text:"ボスプリセットを切り替えると★免疫・★速度・★被ダメ減少の設定がリセットされてしまう不具合を修正（切り替え時も現在の設定値を維持。デフォルトは免疫3・速度+50%）" },
+  { date:"2026-08-08", version:"v0.1.8", text:"モグルスの「歪んだ意志」を実装：戦闘開始時+1スタック、味方のターン開始時+1スタック（1ターン1回・最大3）。特殊使用時、歪んだ意志状態なら自身に速度アップを自動付与" },
+  { date:"2026-08-08", version:"v0.1.9", text:"敵の速度計算を修正：★速度（星の挑戦）・環境バフ・スキルバフの速度%が別々に掛け算されてしまう不具合を修正し、全て加算してから1回だけ掛けるよう変更（例：基礎速度180、★速度+50%、バフ+20%の場合、180→306が正しい値に。従来は誤って324になっていた）" },
+  { date:"2026-08-08", version:"v0.1.10", text:"速度比較ツールから「基準速度B」の入力欄を削除（先着判定の結果は基準速度に依存せず変わらないため不要と判明）。実効速度と残ゲージから直接比較する方式に簡略化" },
+  { date:"2026-08-08", version:"v0.1.11", text:"モグルスの特殊で付与されるバフ名を「速度アップ（歪んだ意志）」から「速度アップ（+20%）」に修正（他キャラの命名規則と統一）" },
+  { date:"2026-08-08", version:"v0.1.12", text:"速度比較ツールから名前欄を削除しコンパクト化（自分/相手固定表記に）。モグルスのパッシブ「攻撃を受けた時、味方が没落した思念状態なら自身ゲージ+20%」を実装" },
+  { date:"2026-08-08", version:"v0.1.13", text:"状態スナップショット表の「状態」列が横一列で伸び続けて横スクロールが必要になっていた問題を修正。折り返し表示されるように変更" },
+  { date:"2026-08-08", version:"v0.1.14", text:"エミリーの固有パッシブ「準備万端なメイド」を実装：戦闘開始時1ターンバリア(HP18%、汎用機構battleStartSelfBarrierとして他キャラでも再利用可能)、被弾時に冷却スタック+1（gainStackOnHit）" },
+  { date:"2026-08-08", version:"v0.1.15", text:"潜在選択に「水着ルナ専用」を追加。チェックした味方が1人でもいれば、戦闘開始時に味方全体へバリアを付与するよう実装" },
+  { date:"2026-08-08", version:"v0.1.16", text:"「バーストポイント」の表記を「ノヴァフォース」に統一。潜在選択に「慎重な戦術」（ディフェンダー専用、自ターン開始時2ターンに1回ノヴァフォース+2）を追加" },
+  { date:"2026-08-08", version:"v0.1.17", text:"エミリーの通常スキル「戦闘掃除開始」のノヴァバースト効果（バースト時のみ自身にバリア付与）が未実装だったため追加。UIレイアウト改善：1ターン戻る・チャート保存/読込・最初からやり直すのボタンをステータス欄の右側に移動し、空きスペースを活用" },
+  { date:"2026-08-08", version:"v0.1.18", text:"デバッグ用の「記録」ボタン群（バフ/デバフ付与・強靭ダメージ記録・追加ターン付与）もステータス欄右側へ移動し集約。「最初からやり直す」を廃止し、「設定画面に戻る」（従来の挙動）と「再挑戦」（同じ設定のまま戦闘開始時点からやり直す・新機能）の2つに分離。ボタン順を保存→読み込む→1ターン戻る→設定画面に戻る→再挑戦に整理。動作確認済みボスに不死王モグルスを追加" },
+  { date:"2026-08-08", version:"v0.2.0", text:"バージョン表記をv0.2系に更新" },
+  { date:"2026-08-08", version:"v0.2.1", text:"水着スマイルの線香花火スタックが内部では正しく蓄積されていたが、状態スナップショット表に表示されていなかった不具合を修正（「🎇線香花火:X/3」を状態欄に追加）" },
+  { date:"2026-08-08", version:"v0.2.2", text:"水着スマイルの究極で発動する追加クーリングシステム連打に、ブレイクスキルの「攻撃時強靭+1」ボーナスが乗っていなかった不具合を修正" },
+  { date:"2026-08-08", version:"v0.2.3", text:"追加クーリングシステム連打の各ヒットに、被弾ギミック判定（デバフ数条件・味方デバフ条件）と被弾カウンタ加算を正しく反映するよう修正（ダメージ計算に関わる部分のみ実ヒットと同等に扱い、ゲージ増加やスタック獲得などの副次効果は仕様通り除外）" }
 ];
 
 // ===================== 更新履歴 =====================
@@ -1301,7 +1339,7 @@ const CHANGELOG = [
     "キャラ選択を属性色分けバッジ方式に変更（属性順ソート）",
     "味方カードをコンパクト化：普段触るキャラ/速度/潜在のみ常時表示、詳細は折りたたみ",
     "星の挑戦（究極遅延・★免疫・★速度・★被ダメ減少）と環境バフを1つのコンパクトな欄に統合",
-    "ブレイクポイント・バーストポイントをドット表示に変更、残りターン数表示に変更",
+    "ブレイクポイント・ノヴァフォースをドット表示に変更、残りターン数表示に変更",
     "状態スナップショット表の列整理（無意味だった「バフ/デバフ」列を削除）"
   ]}
 ];
@@ -1347,9 +1385,8 @@ function startBattle(){
   const units = [];
   allies.forEach(a=>{
     const envBonus = computeEnvSpeedBonus(a.attribute, a.role);
-    const effSpeed = Math.round(a.speed * (1 + envBonus/100));
     units.push({
-      id: uid("ally"), kind:"ally", name:a.name, speed:effSpeed, baseSpeed:a.speed, gauge:0, alive:true,
+      id: uid("ally"), kind:"ally", name:a.name, speed:a.speed, baseSpeed:a.speed, gauge:0, alive:true,
       toughnessMax:a.toughnessMax, toughness:a.toughnessMax, broken:false,
       evasionRatePct: a.evasionRatePct||0,
       attribute: a.attribute || "太陽",
@@ -1366,6 +1403,9 @@ function startBattle(){
       waterBombReactStackReq: a.waterBombReactStackReq||2,
       waterBombReactDebuffName: a.waterBombReactDebuffName||"水爆弾",
       ultimateCtReduceOnHit: !!a.ultimateCtReduceOnHit,
+      battleStartSelfBarrier: a.battleStartSelfBarrier || null,
+      cautiousTacticsReady: true,
+      gainStackOnHit: !!a.gainStackOnHit,
       envSpeedBonusPct: envBonus,
       passiveNote: a.passiveNote || "",
       effectiveAtk: (a.effectiveAtk!=null && a.effectiveAtk!=="") ? Number(a.effectiveAtk) : null,
@@ -1378,9 +1418,8 @@ function startBattle(){
   });
   enemies.forEach(e=>{
     const envBonus = computeEnvSpeedBonus(e.attribute, e.role);
-    const effSpeed = Math.round(e.speed * (1 + (e.starSpeedBonusPct||0)/100) * (1 + envBonus/100));
     units.push({
-      id: uid("enemy"), kind:"enemy", name:e.name, speed:effSpeed, baseSpeed:e.speed, gauge:0, alive:true,
+      id: uid("enemy"), kind:"enemy", name:e.name, speed:e.speed, baseSpeed:e.speed, gauge:0, alive:true,
       toughnessMax:e.toughnessMax, toughness:e.toughnessMax, broken:false, breakDmgPct:e.breakDmgPct,
       skills:{ basic:{...e.basic}, special:{...e.special}, ultimate:{...e.ultimate} },
       ct:{ special:0, ultimate: e.ultimate.ct },
@@ -1389,17 +1428,23 @@ function startBattle(){
       starDamageReductionPct: e.starDamageReductionPct||0,
       hitCounter: 0,
       specialTriggerHitCount: e.specialTriggerHitCount||0,
+      twistedWillStacks: 0,
+      gainsTwistedWillOnBattleStart: !!e.gainsTwistedWillOnBattleStart,
+      gainsTwistedWillOnAllyTurn: !!e.gainsTwistedWillOnAllyTurn,
+      twistedWillGainedThisTurn: false,
       envSpeedBonusPct: envBonus,
       attribute: e.attribute || "太陽",
       role: e.role || "ディフェンダー",
       gaugeOnHitDebuffThreshold: e.gaugeOnHitDebuffThreshold||0,
       gaugeOnHitGainPct: e.gaugeOnHitGainPct||0,
+      gaugeOnHitIfAllyDebuffName: e.gaugeOnHitIfAllyDebuffName||null,
+      gaugeOnHitIfAllyDebuffGainPct: e.gaugeOnHitIfAllyDebuffGainPct||0,
       immuneRemaining: e.starImmunityTurns||0,
       immune: (e.starImmunityTurns||0) > 0
     });
   });
 
-  const baseline = Math.max(...units.map(u=>u.speed));
+  const baseline = Math.max(...units.map(u=>effectiveSpeed(u)));
 
   state = {
     baseline,
@@ -1441,6 +1486,24 @@ function startBattle(){
     });
   }
 
+  // 戦闘開始時、「歪んだ意志」を自身に付与する敵（モグルス等）
+  units.filter(x=>x.kind==="enemy" && x.gainsTwistedWillOnBattleStart).forEach(e=>{
+    e.twistedWillStacks = Math.min(3, e.twistedWillStacks + 1);
+  });
+
+  // 戦闘開始時、自身にバリアを発生させる味方（エミリー等、ディフェンダーに多い）
+  units.filter(x=>x.kind==="ally" && x.battleStartSelfBarrier).forEach(ally=>{
+    const bs = ally.battleStartSelfBarrier;
+    applyBuffWithMaxDuration(ally.buffs, {name:`バリア（HP${bs.hpPct}%）`, turns:bs.turns, type:"buff"});
+  });
+
+  // 戦闘開始時、水着ルナ専用アルカナを持つ味方がいれば、味方全体にバリアを付与
+  if(units.some(x=>x.kind==="ally" && x.relics && x.relics.LUNA_ARCANA)){
+    units.filter(x=>x.kind==="ally").forEach(ally=>{
+      applyBuffWithMaxDuration(ally.buffs, {name:"バリア（水着ルナ専用アルカナ）", turns:1, type:"buff"});
+    });
+  }
+
   document.getElementById("setupArea").classList.add("hidden");
   document.getElementById("battleArea").style.display = "block";
   renderBattle();
@@ -1451,6 +1514,10 @@ function resetAll(){
   document.getElementById("battleArea").style.display = "none";
   state = null;
   historyStack = [];
+}
+function restartBattle(){
+  if(!confirm("現在の戦闘を最初(戦闘開始時点)からやり直します。よろしいですか？")) return;
+  startBattle();
 }
 
 // ===================== チャートの保存/読み込み =====================
@@ -1523,7 +1590,9 @@ function effectiveSpeed(u){
   if((u.buffs||[]).some(b=>b.speedZeroLock)) return 0; // 速度0固定デバフ（没落した思念等）
   const buffSpeedMod = (u.buffs||[]).reduce((sum,b)=> sum + (b.speedModPct||0), 0);
   const flatBonus = (u.relics && u.relics.DANRYOKU) ? (u.danryokuStacks||0) * 10 : 0;
-  return (u.speed + flatBonus) * (1 + buffSpeedMod/100);
+  // ★速度（星の挑戦）・環境バフ・スキルバフの速度%は、それぞれ別々に掛け算せず、全て加算してから1回だけ掛ける
+  const totalPct = (u.starSpeedBonusPct||0) + (u.envSpeedBonusPct||0) + buffSpeedMod;
+  return (u.speed + flatBonus) * (1 + totalPct/100);
 }
 function rate(u){ return (effectiveSpeed(u) / state.baseline) * 100; } // %/tick
 
@@ -1593,6 +1662,12 @@ function openActionFor(unitId, arrivalType){
       x.buffs = x.buffs.map(b=> b.speedZeroLock ? {...b, turns:b.turns-1} : b).filter(b=> !(b.speedZeroLock && b.turns<=0));
     });
   }
+  // 歪んだ意志（モグルス等）：いずれかの味方（敵から見た「敵」）のターン開始時、自身に1スタック付与（1ターンに1回のみ）
+  if(!isExtraTurnWithinSameTurn && u.kind==="ally"){
+    state.units.filter(x=>x.kind==="enemy" && x.gainsTwistedWillOnAllyTurn).forEach(e=>{
+      e.twistedWillStacks = Math.min(3, (e.twistedWillStacks||0) + 1);
+    });
+  }
 
   // 敵がブレイク中なら「本来のターン開始」で強靭度全回復＆解除（行動そのものはキャンセルせず、通常通り行動する）
   if(u.kind==="enemy" && u.broken){
@@ -1625,6 +1700,17 @@ function openActionFor(unitId, arrivalType){
     u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0) + 1);
   }
 
+  // 遺物 慎重な戦術（ディフェンダー専用）：自ターン開始時、2ターンに1回ノヴァフォース+2
+  // （発動したターンの次の自ターンでは発動せず、その次の自ターンでまた発動する、を繰り返す）
+  if(u.kind==="ally" && u.relics && u.relics.CAUTIOUS_TACTICS){
+    if(u.cautiousTacticsReady){
+      state.teamBurst = Math.min(12, state.teamBurst + 2);
+      u.cautiousTacticsReady = false;
+    } else {
+      u.cautiousTacticsReady = true;
+    }
+  }
+
   // ターン開始時に自動で属性スタックが増えるキャラ（例：クラリッサ）
   if(u.kind==="ally" && u.turnStartStackGain){
     u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0) + 1);
@@ -1642,7 +1728,7 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
 
   if(skillKey!=="basic" && u.ct[skillKey] > 0){ alert("クールタイム中です"); return; }
   if(burstOn && state.teamBurst < 4){
-    alert("バーストポイントが4未満のため、バースト強化できません（現在" + state.teamBurst + "pt）");
+    alert("ノヴァフォースが4未満のため、バースト強化できません（現在" + state.teamBurst + "pt）");
     return;
   }
 
@@ -1743,6 +1829,8 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       if(!isEvaded){
         const g = checkGaugeOnHitGimmick(target);
         if(g){ gimmickText = `／ギミック:デバフ${g.debuffCount}個以下→自ゲージ+${g.gainPct}%`; }
+        const g2 = checkGaugeOnHitIfAllyDebuffGimmick(target);
+        if(g2){ gimmickText += `／ギミック:味方が${g2.debuffName}状態→自ゲージ+${g2.gainPct}%`; }
       }
 
       // 対象デバフ付与（★開幕免疫中は無効）
@@ -1769,9 +1857,15 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
     if(s.consumeSenkohanabiForExtraHits && (u.senkohanabiStacks||0) > 0 && targets.length>0){
       const extraCount = u.senkohanabiStacks;
       const extraTarget = targets[0];
-      const extraToughnessPerHit = (u.skills.special && u.skills.special.toughness) || 1;
+      const extraToughnessPerHit = ((u.skills.special && u.skills.special.toughness) || 1) + (isBreakSkillToughnessBonusActive() ? 1 : 0);
+      const extraGimmickTexts = [];
       for(let i=0; i<extraCount; i++){
         if(extraTarget.toughness<=0) break;
+        // ギミック判定は各追加ヒット自身のデバフ付与より前＝被弾した瞬間の状態で判定（通常のヒットと同じ扱い）
+        const g1 = checkGaugeOnHitGimmick(extraTarget);
+        const g2 = checkGaugeOnHitIfAllyDebuffGimmick(extraTarget);
+        if(g1) extraGimmickTexts.push(`${i+1}撃目:デバフ${g1.debuffCount}個以下→自ゲージ+${g1.gainPct}%`);
+        if(g2) extraGimmickTexts.push(`${i+1}撃目:味方が${g2.debuffName}状態→自ゲージ+${g2.gainPct}%`);
         extraTarget.toughness = Math.max(0, extraTarget.toughness - extraToughnessPerHit);
         extraTarget.hitCounter = (extraTarget.hitCounter||0) + 1;
         if(extraTarget.toughness<=0 && !extraTarget.broken){
@@ -1779,7 +1873,7 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
           state.breakPoints = Math.min(3, state.breakPoints + (extraTarget.toughnessMax>=15?3:1));
         }
       }
-      perTargetMemo.push(`線香花火${extraCount}スタック消費→クーリングシステム追加発動${extraCount}回（ダメージのみ／強靭合計-${extraCount*extraToughnessPerHit}／残強靭${extraTarget.toughness}）`);
+      perTargetMemo.push(`線香花火${extraCount}スタック消費→クーリングシステム追加発動${extraCount}回（ダメージのみ／強靭合計-${extraCount*extraToughnessPerHit}／残強靭${extraTarget.toughness}）${extraGimmickTexts.length?"／"+extraGimmickTexts.join("／"):""}`);
       u.senkohanabiStacks = 0;
     }
 
@@ -1879,6 +1973,10 @@ function useEnemySkill(unitId, skillKey){
 
   u.gauge = 0;
   if(s.selfGaugeGainPct){ u.gauge = Math.min(100, u.gauge + s.selfGaugeGainPct); }
+  if(s.selfBuffIfTwistedWill && (u.twistedWillStacks||0) > 0){
+    applyBuffWithMaxDuration(u.buffs, {name:s.selfBuffIfTwistedWill.name, turns:s.selfBuffIfTwistedWill.turns, type:"buff", speedModPct:s.selfBuffIfTwistedWill.speedModPct||0});
+    logAction(u, "被弾判定", "😈 歪んだ意志(" + u.twistedWillStacks + ")状態のため" + s.selfBuffIfTwistedWill.name + "(" + s.selfBuffIfTwistedWill.turns + "T)を自身に付与", "-", false, "");
+  }
   state.pendingActor = null;
   if(u.immuneRemaining > 0){
     u.immuneRemaining--;
@@ -1907,6 +2005,7 @@ function applyBuffWithMaxDuration(buffsArray, newBuff){
     existing.speedModPct = newBuff.speedModPct||0;
     existing.atkModPct = newBuff.atkModPct||0;
     existing.critDmgModPct = newBuff.critDmgModPct||0;
+    existing.speedZeroLock = !!newBuff.speedZeroLock;
     return existing;
   } else {
     buffsArray.push(newBuff);
@@ -2197,7 +2296,7 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
   if(String(skillLabelSuffix||"").includes("挟撃")){ u.pincerUsedThisTurn = true; }
 
   if(burstOn && state.teamBurst < 4){
-    alert("バーストポイントが4未満のため、バースト強化できません（現在" + state.teamBurst + "pt）");
+    alert("ノヴァフォースが4未満のため、バースト強化できません（現在" + state.teamBurst + "pt）");
     return;
   }
   if(burstOn){ state.teamBurst -= 4; }
@@ -2219,7 +2318,9 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
   }
 
   const gimmickResult = checkGaugeOnHitGimmick(target);
-  const gimmickMemo = gimmickResult ? `／${target.name}のギミック発動:デバフ${gimmickResult.debuffCount}個以下のため自ゲージ+${gimmickResult.gainPct}%` : "";
+  const gimmickResult2 = checkGaugeOnHitIfAllyDebuffGimmick(target);
+  const gimmickMemo = (gimmickResult ? `／${target.name}のギミック発動:デバフ${gimmickResult.debuffCount}個以下のため自ゲージ+${gimmickResult.gainPct}%` : "")
+    + (gimmickResult2 ? `／${target.name}のギミック発動:味方が${gimmickResult2.debuffName}状態のため自ゲージ+${gimmickResult2.gainPct}%` : "");
 
   let stackMemo = "";
   if(s.selfStackGain > 0){
@@ -2269,8 +2370,8 @@ function applyEnemyNoBarrierDebuff(sourceUnitId, skillKey, targetAllyId){
     logAction(u, "被弾判定", "🛡 " + target.name + "はバリア状態のため" + eff.name + "は付与されず", "-", false, "");
     return;
   }
-  if(eff.dot){ target.buffs.push({name:eff.name, turns:eff.turns, type:"debuff", dot:true}); }
-  else { applyBuffWithMaxDuration(target.buffs, {name:eff.name, turns:eff.turns, type:"debuff"}); }
+  if(eff.dot){ target.buffs.push({name:eff.name, turns:eff.turns, type:"debuff", dot:true, speedZeroLock:!!eff.speedZeroLock, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0}); }
+  else { applyBuffWithMaxDuration(target.buffs, {name:eff.name, turns:eff.turns, type:"debuff", speedZeroLock:!!eff.speedZeroLock, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0}); }
   logAction(u, "被弾判定", "☠ " + target.name + "はバリアなしのため" + eff.name + "(" + eff.turns + "T)を付与", "-", false, "");
 }
 
@@ -2289,6 +2390,11 @@ function confirmHitAlly(){
     if(hitUnit && hitUnit.ultimateCtReduceOnHit && hitUnit.ct.ultimate>0){
       hitUnit.ct.ultimate = Math.max(0, hitUnit.ct.ultimate - 1);
       logAction(hitUnit, "被弾判定", "⏱ 被弾により究極CT-1", "-", false, `残CT:${hitUnit.ct.ultimate}`);
+    }
+    if(hitUnit && hitUnit.gainStackOnHit){
+      const stackName = stackNameForAttribute(hitUnit.attribute);
+      hitUnit.elementStack = Math.min(ELEMENT_STACK_MAX, (hitUnit.elementStack||0) + 1);
+      logAction(hitUnit, "被弾判定", `✨ 被弾により自身${stackName}+1(${hitUnit.elementStack}/${ELEMENT_STACK_MAX})`, "-", false, "");
     }
   }
   if(barrierBreakCheck && barrierBreakCheck.checked){
@@ -2320,6 +2426,11 @@ function confirmAoeEvade(){
       // 全体攻撃を受けた場合は追加で-1（合計-2）
       u.ct.ultimate = Math.max(0, u.ct.ultimate - 2);
       logAction(u, "被弾判定", "⏱ 全体被弾により究極CT-2", "-", false, `残CT:${u.ct.ultimate}`);
+    }
+    if(!evaded && u.gainStackOnHit){
+      const stackName = stackNameForAttribute(u.attribute);
+      u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0) + 1);
+      logAction(u, "被弾判定", `✨ 被弾により自身${stackName}+1(${u.elementStack}/${ELEMENT_STACK_MAX})`, "-", false, "");
     }
     const barrierCb = document.getElementById("aoeBarrierBreak_" + u.id);
     if(barrierCb && barrierCb.checked){
@@ -2370,7 +2481,7 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded){
   pushHistory();
 
   if(burstOn && state.teamBurst < 4){
-    alert("バーストポイントが4未満のため、バースト強化できません（現在" + state.teamBurst + "pt）");
+    alert("ノヴァフォースが4未満のため、バースト強化できません（現在" + state.teamBurst + "pt）");
     return;
   }
   if(burstOn){ state.teamBurst -= 4; }
@@ -2419,6 +2530,8 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded){
     if(!evaded){
       const g = checkGaugeOnHitGimmick(target);
       if(g){ gimmickText = `／ギミック:デバフ${g.debuffCount}個以下→自ゲージ+${g.gainPct}%`; }
+      const g2 = checkGaugeOnHitIfAllyDebuffGimmick(target);
+      if(g2){ gimmickText += `／ギミック:味方が${g2.debuffName}状態→自ゲージ+${g2.gainPct}%`; }
     }
 
     let effText = "";
@@ -2670,12 +2783,14 @@ function renderBattle(){
     if(u.broken) statusTags.push('<span class="tag break">ブレイク中</span>');
     if(u.kind==="enemy" && u.immune) statusTags.push(`<span class="tag buff">免疫(残${u.immuneRemaining})</span>`);
     if(u.kind==="enemy" && u.starSpeedBonusPct) statusTags.push(`<span class="tag permanent">★速度+${u.starSpeedBonusPct}%</span>`);
+    if(u.kind==="enemy" && (u.twistedWillStacks||0)>0) statusTags.push(`<span class="tag permanent">😈歪んだ意志:${u.twistedWillStacks}/3</span>`);
     if(u.envSpeedBonusPct) statusTags.push(`<span class="tag permanent">環境速度+${u.envSpeedBonusPct}%</span>`);
     if(u.kind==="ally" && u.relics && u.relics.AX) statusTags.push(`<span class="tag buff">AX:ATK+${(u.axStacks||0)*8}%</span>`);
     if(u.kind==="ally" && u.relics && u.relics.EX) statusTags.push(`<span class="tag buff">EX装備</span>`);
     if(u.kind==="ally" && u.relics && u.relics.DANRYOKU) statusTags.push(`<span class="tag buff">弾力・加速：速度+${(u.danryokuStacks||0)*10}</span>`);
     if(u.kind==="ally" && u.relics && u.relics.GX) statusTags.push(`<span class="tag buff">GX：基本攻撃後50%で出血付与</span>`);
     if(u.kind==="ally") statusTags.push(`<span class="tag permanent">${stackNameForAttribute(u.attribute)}:${u.elementStack||0}/${ELEMENT_STACK_MAX}</span>`);
+    if(u.kind==="ally" && u.hasWaterBombReactAttack) statusTags.push(`<span class="tag permanent">🎇線香花火:${u.senkohanabiStacks||0}/3</span>`);
     (function(){
       const grouped = {};
       u.buffs.forEach(b=>{
@@ -2695,7 +2810,7 @@ function renderBattle(){
       <td style="min-width:110px">${u.gauge.toFixed(1)}%<div class="${gaugeBarClass}"><div style="width:${u.gauge}%"></div></div></td>
       <td>${toughnessCell}</td>
       <td style="white-space:nowrap;">${u.ct.special}/${u.ct.ultimate}</td>
-      <td>${statusTags.join(" ") || "-"}</td>
+      <td style="white-space:normal; max-width:280px;">${statusTags.join(" ") || "-"}</td>
     </tr>`;
   });
   table.innerHTML = rows;
