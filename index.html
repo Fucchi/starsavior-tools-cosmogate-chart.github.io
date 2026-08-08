@@ -151,21 +151,19 @@ select{ background:#0d1024; color:var(--text); border:1px solid var(--line); bor
   <div class="subtitle">設計ドキュメントv0.2準拠：味方→敵の与ダメ・強靭削り・行動順・バフ/デバフのみを扱います（被ダメ計算は対象外・全て会心判定）</div>
 
   <div id="setupArea">
-    <div class="panel">
-      <h2>星の挑戦 <span class="hint">ボス開幕免疫・ボス速度補正は各敵カード内で設定。味方究極遅延はパーティ全体に適用</span></h2>
-      <div class="field">
-        <label>味方究極遅延ターン（0〜3。該当キャラがこの回数だけ自分の行動を終えるまで究極スキルが使用不可）</label>
-        <div class="btn-row" id="ultimateDelayRadioGroup">
-          <label style="display:flex; align-items:center; gap:4px; font-size:12px;"><input type="radio" name="ultimateDelayRadio" value="0"> 0</label>
-          <label style="display:flex; align-items:center; gap:4px; font-size:12px;"><input type="radio" name="ultimateDelayRadio" value="1"> 1</label>
-          <label style="display:flex; align-items:center; gap:4px; font-size:12px;"><input type="radio" name="ultimateDelayRadio" value="2"> 2</label>
-          <label style="display:flex; align-items:center; gap:4px; font-size:12px;"><input type="radio" name="ultimateDelayRadio" value="3" checked> 3</label>
+    <div class="panel" style="padding:8px 12px;">
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12px;">
+        <b title="ボス開幕免疫・ボス速度補正は各敵カード内で設定">星の挑戦：究極遅延</b>
+        <div id="ultimateDelayRadioGroup" style="display:flex; gap:6px;">
+          <label style="display:flex; align-items:center; gap:2px;"><input type="radio" name="ultimateDelayRadio" value="0"> 0</label>
+          <label style="display:flex; align-items:center; gap:2px;"><input type="radio" name="ultimateDelayRadio" value="1"> 1</label>
+          <label style="display:flex; align-items:center; gap:2px;"><input type="radio" name="ultimateDelayRadio" value="2"> 2</label>
+          <label style="display:flex; align-items:center; gap:2px;"><input type="radio" name="ultimateDelayRadio" value="3" checked> 3</label>
         </div>
+        <span style="color:var(--line);">｜</span>
+        <b title="属性・ロールを条件に付与される場バフ。最大2種類設定可能">環境バフ</b>
       </div>
-    </div>
-    <div class="panel">
-      <h2>環境バフ <span class="hint">属性・ロールを条件に付与される場バフ。最大2種類設定可能</span></h2>
-      <div id="envBuffSetup"></div>
+      <div id="envBuffSetup" style="margin-top:6px;"></div>
     </div>
     <div class="grid">
       <div>
@@ -595,9 +593,9 @@ function allyPreset(key){
       basic: defaultAllySkill("鋼鉄の雹", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1 }),
       special: defaultAllySkill("錐の鎧", 3, 0, 0, 1, true, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"バリア＋防御力アップ（+30%）", turns:3}, selfStackConsumeAll:true }),
       ultimate: defaultAllySkill("棘の墓", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"守護", turns:3}, targetEffect:{name:"命中率ダウン（-30%）", turns:2} }) },
-    "emily": { name:"エミリー", speed:95, toughnessMax:3, evasionRatePct:0, attribute:"月", role:"ディフェンダー", passiveNote:"戦闘開始時バリア。被弾で究極CT-1(全体被弾はさらに-1)",
+    "emily": { name:"エミリー", speed:95, toughnessMax:3, evasionRatePct:0, attribute:"月", role:"ディフェンダー", ultimateCtReduceOnHit:true, passiveNote:"戦闘開始時バリア。被弾で究極CT-1(全体被弾はさらに-1、合計-2)",
       basic: defaultAllySkill("戦闘掃除開始", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1 }),
-      special: defaultAllySkill("クリーニングサービス", 4, 0, 0, 1, true, "none", "hasCT", 0, 0, false, true, false, { targetEffect:{name:"攻撃力アップ（+30%）＋バリア（HP40%）", turns:3}, selfStackGain:3 }),
+      special: defaultAllySkill("クリーニングサービス", 4, 0, 0, 1, true, "none", "hasCT", 0, 0, false, true, false, { targetEffect:[{name:"攻撃力アップ（+30%）", turns:3, atkModPct:30}, {name:"バリア（HP40%）", turns:3}], selfStackGain:3 }),
       ultimate: defaultAllySkill("ターンダウンサービス", 7, 0, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfStackConsumeAll:true, target:"all", teamBuff:{name:"防御力アップ（+30%）", turns:2} }) },
     "kanelia": { name:"カネリア", speed:93, toughnessMax:3, evasionRatePct:0, attribute:"混沌", role:"キャスター", passiveNote:"戦闘不能に瀕すると1回だけ不死身発動(HP1%回復・全CTリセット)。激動スタックでATK上昇",
       basic: defaultAllySkill("暁の誘い", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1 }),
@@ -731,6 +729,7 @@ function applyAllyPreset(idx, key){
   renderAllySetup();
 }
 let allyPickerOpen = [];
+let allyDetailOpen = [];
 let bossPickerOpen = [];
 function toggleAllyPicker(idx){ allyPickerOpen[idx] = !allyPickerOpen[idx]; renderAllySetup(); }
 function toggleBossPicker(idx){ bossPickerOpen[idx] = !bossPickerOpen[idx]; renderEnemySetup(); }
@@ -759,8 +758,8 @@ function isBreakSkillToughnessBonusActive(){
   return !!typeInfo.hasToughnessBonus;
 }
 
-function defaultEnemySkill(name, ct, note, target, selfGaugeGainPct){
-  return {name, ct, note: note||"", target: target || "single", selfGaugeGainPct: selfGaugeGainPct||0}; // target: "single" | "all"
+function defaultEnemySkill(name, ct, note, target, selfGaugeGainPct, targetEffectIfNoBarrier){
+  return {name, ct, note: note||"", target: target || "single", selfGaugeGainPct: selfGaugeGainPct||0, targetEffectIfNoBarrier: targetEffectIfNoBarrier||null}; // target: "single" | "all"
 }
 
 let enemies = [
@@ -788,9 +787,11 @@ function bossPreset(key){
       ultimate: defaultEnemySkill("叙情詩の終幕", 4, "強靭削り2／自身に2T攻撃力アップ／自身の弱体化全解除／対象が第十の課業状態ならダメ+30%", "all") },
     "mogrus": { name:"不死王モグルス", speed:180, toughnessMax:15, breakDmgPct:15, attribute:"混沌", role:"ストライカー",
       starImmunityTurns:0, starSpeedBonusPct:0, starDamageReductionPct:0,
-      basic: defaultEnemySkill("思念の剣", 0, "強靭削り1／前衛優先攻撃／バリアなしの敵に100%で3T没落した思念(速度0固定・被ダメ+10%、効果耐性無視)", "single"),
+      basic: defaultEnemySkill("思念の剣", 0, "強靭削り1／前衛優先攻撃／バリアなしの敵に100%で3T没落した思念(速度0固定・被ダメ+10%、効果耐性無視)", "single", 0,
+        {name:"没落した思念（解除不可・被ダメ+10%は要手動反映）", turns:3, dot:false, speedZeroLock:true}),
       special: defaultEnemySkill("燦然たる共鳴鎖宝珠の力", 3, "強靭削り2／自身に2T攻撃力アップ／敵ゲージ-30%／攻撃後、自身が歪んだ意志状態なら2T速度アップ", "single"),
-      ultimate: defaultEnemySkill("垂れ込める死の影", 5, "強靭削り2／敵全体に100%で2T防御DOWN／バリアなしの対象に100%で3T没落した思念(効果耐性無視)", "all") },
+      ultimate: defaultEnemySkill("垂れ込める死の影", 5, "強靭削り2／敵全体に100%で2T防御DOWN／バリアなしの対象に100%で3T没落した思念(効果耐性無視)", "all", 0,
+        {name:"没落した思念（解除不可・被ダメ+10%は要手動反映）", turns:3, dot:false, speedZeroLock:true}) },
     "hilde": { name:"ヒルデ（TYPE：ジークフリート）", speed:180, toughnessMax:15, breakDmgPct:15, attribute:"混沌", role:"ディフェンダー",
       starImmunityTurns:0, starSpeedBonusPct:0, starDamageReductionPct:0,
       basic: defaultEnemySkill("ツインブレード", 0, "強靭削り1／100%で敵ゲージ-30%", "single"),
@@ -850,19 +851,36 @@ function renderAllySetup(){
   allies.forEach((a, idx)=>{
     const card = document.createElement("div");
     card.className = "unit-card";
+    const relicChecks = ["EX","AX","DANRYOKU","GX","SMILE_ARCANA"].map(key=>{
+      const labelText = key==="DANRYOKU" ? "弾力・加速" : key==="SMILE_ARCANA" ? "スマイル専用" : key;
+      return `<label style="display:flex; align-items:center; gap:3px; font-size:12px;">
+        <input type="checkbox" ${a.relics&&a.relics[key]?"checked":""} onchange="allies[${idx}].relics=allies[${idx}].relics||{}; allies[${idx}].relics.${key}=this.checked;"> ${labelText}
+      </label>`;
+    }).join("");
     card.innerHTML = `
-      <div class="row">
+      <div class="row" style="align-items:flex-start;">
         <div class="field grow"><label>キャラプリセット</label>
           <div class="attr-badge" style="cursor:pointer; font-size:13px;" onclick="toggleAllyPicker(${idx})">
             <span class="dot" style="background:${ATTRIBUTE_COLORS[a.attribute]||'#555b82'}"></span>
             ${a.name || "キャラを選ぶ"} ${allyPickerOpen[idx] ? "▲閉じる" : "▼選び直す"}
           </div>
-          ${allyPickerOpen[idx] ? renderAllyBadgeGrid(idx) : ""}
+        </div>
+        <div class="field" style="justify-content:flex-end"><button class="btn-danger btn-small" onclick="removeAlly(${idx})">削除</button></div>
+      </div>
+      ${allyPickerOpen[idx] ? `<div class="row">${renderAllyBadgeGrid(idx)}</div>` : ""}
+      <div class="row" style="align-items:flex-end;">
+        <div class="field"><label>速度</label><input type="number" value="${a.speed}" style="width:70px" oninput="allies[${idx}].speed=Number(this.value)"></div>
+        <div class="field grow"><label>潜在（遺物、複数選択可）</label>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">${relicChecks}</div>
+        </div>
+        <div class="field" style="justify-content:flex-end">
+          <button class="btn-secondary btn-small" onclick="allyDetailOpen[${idx}]=!allyDetailOpen[${idx}]; renderAllySetup();">${allyDetailOpen[idx]?"▲詳細を閉じる":"▼詳細設定"}</button>
         </div>
       </div>
+      ${(a.relics && a.relics.DANRYOKU && a.role!=="アサシン") ? `<div class="smallnote" style="color:var(--warn); margin-bottom:8px;">⚠ 弾力・加速はアサシン専用潜在です。このキャラのロールは「${a.role||"未設定"}」になっています</div>` : ""}
+      ${allyDetailOpen[idx] ? `
       <div class="row">
         <div class="field grow"><label>名前</label><input type="text" value="${a.name}" oninput="allies[${idx}].name=this.value"></div>
-        <div class="field"><label>速度</label><input type="number" value="${a.speed}" style="width:60px" oninput="allies[${idx}].speed=Number(this.value)"></div>
         <div class="field"><label>強靭度上限</label><input type="number" value="${a.toughnessMax}" style="width:60px" oninput="allies[${idx}].toughnessMax=Number(this.value)"></div>
         <div class="field"><label>回避率%</label><input type="number" value="${a.evasionRatePct||0}" style="width:60px" oninput="allies[${idx}].evasionRatePct=Number(this.value)"></div>
         <div class="field"><label>実効ATK（逆算値）</label><input type="number" value="${a.effectiveAtk||''}" placeholder="未算出" style="width:80px" oninput="allies[${idx}].effectiveAtk=this.value?Number(this.value):null"></div>
@@ -877,30 +895,13 @@ function renderAllySetup(){
             ${["ディフェンダー","ストライカー","レンジャー","キャスター","アサシン","サポーター"].map(v=>`<option value="${v}" ${a.role===v?"selected":""}>${v}</option>`).join("")}
           </select>
         </div>
-        <div class="field grow"><label>遺物（複数選択可）</label>
-          <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <label style="display:flex; align-items:center; gap:4px; font-size:12px;">
-              <input type="checkbox" ${a.relics&&a.relics.EX?"checked":""} onchange="allies[${idx}].relics=allies[${idx}].relics||{}; allies[${idx}].relics.EX=this.checked;"> EX
-            </label>
-            <label style="display:flex; align-items:center; gap:4px; font-size:12px;">
-              <input type="checkbox" ${a.relics&&a.relics.AX?"checked":""} onchange="allies[${idx}].relics=allies[${idx}].relics||{}; allies[${idx}].relics.AX=this.checked;"> AX
-            </label>
-            <label style="display:flex; align-items:center; gap:4px; font-size:12px;">
-              <input type="checkbox" ${a.relics&&a.relics.DANRYOKU?"checked":""} onchange="allies[${idx}].relics=allies[${idx}].relics||{}; allies[${idx}].relics.DANRYOKU=this.checked; renderAllySetup();"> 弾力・加速
-            </label>
-            <label style="display:flex; align-items:center; gap:4px; font-size:12px;">
-              <input type="checkbox" ${a.relics&&a.relics.GX?"checked":""} onchange="allies[${idx}].relics=allies[${idx}].relics||{}; allies[${idx}].relics.GX=this.checked;"> GX
-            </label>
-          </div>
-          <div class="smallnote">EX:通常攻撃時25%で味方1人を誘発／AX:ターン開始時ATK+8%最大40%・究極でリセット／弾力・加速:アサシン専用、ターン開始時+10速度最大+30／GX:基本スキル攻撃後50%で対象に2ターン出血付与</div>
-        </div>
-        <div class="field" style="justify-content:flex-end"><label>&nbsp;</label><button class="btn-danger btn-small" onclick="removeAlly(${idx})">削除</button></div>
       </div>
-      ${(a.relics && a.relics.DANRYOKU && a.role!=="アサシン") ? `<div class="smallnote" style="color:var(--warn); margin-bottom:8px;">⚠ 弾力・加速はアサシン専用潜在です。このキャラのロールは「${a.role||"未設定"}」になっています</div>` : ""}
+      <div class="smallnote" style="margin-bottom:8px;">EX:通常攻撃時25%で味方1人を誘発／AX:ターン開始時ATK+8%最大40%・究極でリセット／弾力・加速:アサシン専用、ターン開始時+10速度最大+30／GX:基本スキル攻撃後50%で対象に2ターン出血付与／スマイル専用:ターン開始時跳躍+1</div>
       ${a.passiveNote ? `<div class="smallnote" style="margin-bottom:8px;">🧬 固有パッシブ概要（参考・自動判定なし）：${a.passiveNote}</div>` : ""}
       ${renderAllySkillBlock(a, idx, "basic", "基本スキル", false)}
       ${renderAllySkillBlock(a, idx, "special", "特殊スキル", true)}
       ${renderAllySkillBlock(a, idx, "ultimate", "究極スキル", true)}
+      ` : ""}
     `;
     wrap.appendChild(card);
   });
@@ -1105,25 +1106,21 @@ let envBuffs = [
 
 function renderEnvBuffSetup(){
   const wrap = document.getElementById("envBuffSetup");
-  const attrOpts = (cur)=>["none","太陽","星","月","秩序","混沌"].map(v=>`<option value="${v}" ${cur===v?"selected":""}>${v==="none"?"指定なし":v}</option>`).join("");
-  const roleOpts = (cur)=>["none","ディフェンダー","ストライカー","レンジャー","キャスター","アサシン","サポーター"].map(v=>`<option value="${v}" ${cur===v?"selected":""}>${v==="none"?"指定なし":v}</option>`).join("");
-  const dmgTypeOpts = (cur)=>["none","斬撃","衝撃","精神","元素"].map(v=>`<option value="${v}" ${cur===v?"selected":""}>${v==="none"?"指定なし":v}</option>`).join("");
+  const attrOpts = (cur)=>["none","太陽","星","月","秩序","混沌"].map(v=>`<option value="${v}" ${cur===v?"selected":""}>${v==="none"?"属性指定なし":v}</option>`).join("");
+  const roleOpts = (cur)=>["none","ディフェンダー","ストライカー","レンジャー","キャスター","アサシン","サポーター"].map(v=>`<option value="${v}" ${cur===v?"selected":""}>${v==="none"?"ロール指定なし":v}</option>`).join("");
+  const dmgTypeOpts = (cur)=>["none","斬撃","衝撃","精神","元素"].map(v=>`<option value="${v}" ${cur===v?"selected":""}>${v==="none"?"種別指定なし":v}</option>`).join("");
   wrap.innerHTML = envBuffs.map((b, idx)=>`
-    <div class="unit-card">
-      <div class="stitle">環境バフ${idx+1}</div>
-      <div class="row">
-        <div class="field"><label>対象属性</label><select onchange="envBuffs[${idx}].attrFilter=this.value">${attrOpts(b.attrFilter)}</select></div>
-        <div class="field"><label>対象ロール</label><select onchange="envBuffs[${idx}].roleFilter=this.value">${roleOpts(b.roleFilter)}</select></div>
-        <div class="field"><label>効果種別</label>
-          <select onchange="envBuffs[${idx}].effectType=this.value; renderEnvBuffSetup();">
-            <option value="speed" ${b.effectType==="speed"?"selected":""}>速度バフ</option>
-            <option value="damage" ${b.effectType==="damage"?"selected":""}>ダメージ種別ダメージアップ（参考表示のみ・計算未対応）</option>
-          </select>
-        </div>
-        <div class="field"><label>数値%</label><input type="number" value="${b.value}" style="width:60px" oninput="envBuffs[${idx}].value=Number(this.value)"></div>
-        ${b.effectType==="damage" ? `<div class="field"><label>対象攻撃種</label><select onchange="envBuffs[${idx}].damageTypeFilter=this.value">${dmgTypeOpts(b.damageTypeFilter)}</select></div>` : ""}
-      </div>
-      <div class="smallnote">対象属性・対象ロールは両方「指定なし」以外を選ぶとAND条件になります（両方指定なしの場合は全ユニットが対象）。速度バフは戦闘開始時に対象ユニットの実効速度へ反映されます。</div>
+    <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:12px; margin-bottom:4px;"
+      title="対象属性・対象ロールは両方「指定なし」以外を選ぶとAND条件。両方指定なしなら全ユニット対象。速度バフは戦闘開始時に反映">
+      <span style="color:var(--text-dim);">#${idx+1}</span>
+      <select onchange="envBuffs[${idx}].attrFilter=this.value">${attrOpts(b.attrFilter)}</select>
+      <select onchange="envBuffs[${idx}].roleFilter=this.value">${roleOpts(b.roleFilter)}</select>
+      <select onchange="envBuffs[${idx}].effectType=this.value; renderEnvBuffSetup();">
+        <option value="speed" ${b.effectType==="speed"?"selected":""}>速度バフ</option>
+        <option value="damage" ${b.effectType==="damage"?"selected":""}>ダメージ種別アップ（表示のみ）</option>
+      </select>
+      <input type="number" value="${b.value}" style="width:55px" oninput="envBuffs[${idx}].value=Number(this.value)">%
+      ${b.effectType==="damage" ? `<select onchange="envBuffs[${idx}].damageTypeFilter=this.value">${dmgTypeOpts(b.damageTypeFilter)}</select>` : ""}
     </div>
   `).join("");
 }
@@ -1163,6 +1160,7 @@ function startBattle(){
       hasWaterBombReactAttack: !!a.hasWaterBombReactAttack,
       waterBombReactStackReq: a.waterBombReactStackReq||2,
       waterBombReactDebuffName: a.waterBombReactDebuffName||"水爆弾",
+      ultimateCtReduceOnHit: !!a.ultimateCtReduceOnHit,
       envSpeedBonusPct: envBonus,
       passiveNote: a.passiveNote || "",
       effectiveAtk: (a.effectiveAtk!=null && a.effectiveAtk!=="") ? Number(a.effectiveAtk) : null,
@@ -1317,6 +1315,7 @@ function importChart(event){
 
 // ===================== ゲージ進行ロジック =====================
 function effectiveSpeed(u){
+  if((u.buffs||[]).some(b=>b.speedZeroLock)) return 0; // 速度0固定デバフ（没落した思念等）
   const buffSpeedMod = (u.buffs||[]).reduce((sum,b)=> sum + (b.speedModPct||0), 0);
   const flatBonus = (u.relics && u.relics.DANRYOKU) ? (u.danryokuStacks||0) * 10 : 0;
   return (u.speed + flatBonus) * (1 + buffSpeedMod/100);
@@ -1374,7 +1373,7 @@ function openActionFor(unitId, arrivalType){
   //   実ゲームでは新しいターン扱いにならずバフが減らないため、ここでは減算をスキップする
   const isExtraTurnWithinSameTurn = (arrivalType||"").startsWith("追加ターン");
   if(!isExtraTurnWithinSameTurn){
-    u.buffs = u.buffs.map(b=>({...b, turns:b.turns-1})).filter(b=>b.turns>0);
+    u.buffs = u.buffs.map(b=> b.speedZeroLock ? b : ({...b, turns:b.turns-1})).filter(b=> b.speedZeroLock || b.turns>0);
   }
   // ターン開始処理：CT概念なし系トリガー（1ターン1回制限）の使用済みフラグをリセット
   if(u.onceUsed){ Object.keys(u.onceUsed).forEach(k=>{ u.onceUsed[k]=false; }); }
@@ -1382,6 +1381,13 @@ function openActionFor(unitId, arrivalType){
   // ※挟撃は他キャラの行動に反応するため、挟撃キャラ自身の番でなく「新しい行動（ターン）が始まるたび」に
   //   全ユニット分をリセットする（挟撃キャラの手番が来るまで持ち越されるのを防ぐ）
   state.units.forEach(x=>{ x.pincerUsedThisTurn = false; });
+  // 速度0固定デバフ（没落した思念等）：対象は自然にターンが来ないため、
+  // 「誰かのターンが開始するたび」に全ユニット分を対象に残ターンを減らす（追加ターンではカウントしない）
+  if(!isExtraTurnWithinSameTurn){
+    state.units.forEach(x=>{
+      x.buffs = x.buffs.map(b=> b.speedZeroLock ? {...b, turns:b.turns-1} : b).filter(b=> !(b.speedZeroLock && b.turns<=0));
+    });
+  }
 
   // 敵がブレイク中なら「本来のターン開始」で強靭度全回復＆解除（行動そのものはキャンセルせず、通常通り行動する）
   if(u.kind==="enemy" && u.broken){
@@ -1678,10 +1684,10 @@ function useEnemySkill(unitId, skillKey){
   });
 
   if(s.target==="all"){
-    state.pendingTriggerContext = { targetType:"selectHitAoe", evadeMap:{},
+    state.pendingTriggerContext = { targetType:"selectHitAoe", evadeMap:{}, sourceUnitId: unitId, skillKey,
       sourceLabel: u.name + "の「" + s.name + "」（全体攻撃）", thenExtraTurn:false };
   } else {
-    state.pendingTriggerContext = { targetType:"selectHit", hitAllyId:null, hitEvaded:false,
+    state.pendingTriggerContext = { targetType:"selectHit", hitAllyId:null, hitEvaded:false, sourceUnitId: unitId, skillKey,
       sourceLabel: u.name + "の「" + s.name + "」（単体攻撃）", thenExtraTurn:false };
   }
   renderBattle();
@@ -2045,22 +2051,77 @@ function dismissTriggerContext(){
   }
 }
 
+// 敵スキルの「対象がバリア状態でなければデバフ付与」を実際に適用する（モグルス等）
+function applyEnemyNoBarrierDebuff(sourceUnitId, skillKey, targetAllyId){
+  const u = state.units.find(x=>x.id===sourceUnitId);
+  const target = state.units.find(x=>x.id===targetAllyId);
+  if(!u || !target) return;
+  const s = u.skills[skillKey];
+  const eff = s && s.targetEffectIfNoBarrier;
+  if(!eff) return;
+  const hasBarrier = target.buffs.some(b=>b.name.includes("バリア"));
+  if(hasBarrier){
+    logAction(u, "被弾判定", "🛡 " + target.name + "はバリア状態のため" + eff.name + "は付与されず", "-", false, "");
+    return;
+  }
+  if(eff.dot){ target.buffs.push({name:eff.name, turns:eff.turns, type:"debuff", dot:true}); }
+  else { applyBuffWithMaxDuration(target.buffs, {name:eff.name, turns:eff.turns, type:"debuff"}); }
+  logAction(u, "被弾判定", "☠ " + target.name + "はバリアなしのため" + eff.name + "(" + eff.turns + "T)を付与", "-", false, "");
+}
+
 function confirmHitAlly(){
   const sel = document.getElementById("hitAllySelect");
   const evadeCheck = document.getElementById("hitEvadeCheck");
+  const barrierBreakCheck = document.getElementById("hitBarrierBreakCheck");
   if(!sel || !state.pendingTriggerContext) return;
+  const ctx = state.pendingTriggerContext;
+  const evaded = evadeCheck ? evadeCheck.checked : false;
+  if(!evaded && ctx.sourceUnitId && ctx.skillKey){
+    applyEnemyNoBarrierDebuff(ctx.sourceUnitId, ctx.skillKey, sel.value);
+  }
+  if(!evaded){
+    const hitUnit = state.units.find(x=>x.id===sel.value);
+    if(hitUnit && hitUnit.ultimateCtReduceOnHit && hitUnit.ct.ultimate>0){
+      hitUnit.ct.ultimate = Math.max(0, hitUnit.ct.ultimate - 1);
+      logAction(hitUnit, "被弾判定", "⏱ 被弾により究極CT-1", "-", false, `残CT:${hitUnit.ct.ultimate}`);
+    }
+  }
+  if(barrierBreakCheck && barrierBreakCheck.checked){
+    const target = state.units.find(x=>x.id===sel.value);
+    if(target){
+      const before = target.buffs.length;
+      target.buffs = target.buffs.filter(b=>!b.name.includes("バリア"));
+      if(target.buffs.length < before){ logAction(target, "被弾判定", "🛡 バリアが破壊された", "-", false, ""); }
+    }
+  }
   state.pendingTriggerContext.targetType = "single";
   state.pendingTriggerContext.hitAllyId = sel.value;
-  state.pendingTriggerContext.hitEvaded = evadeCheck ? evadeCheck.checked : false;
+  state.pendingTriggerContext.hitEvaded = evaded;
   renderBattle();
 }
 
 function confirmAoeEvade(){
   if(!state.pendingTriggerContext) return;
+  const ctx = state.pendingTriggerContext;
   const evadeMap = {};
   state.units.filter(x=>x.kind==="ally" && x.alive).forEach(u=>{
     const cb = document.getElementById("aoeEvade_" + u.id);
-    evadeMap[u.id] = cb ? cb.checked : false;
+    const evaded = cb ? cb.checked : false;
+    evadeMap[u.id] = evaded;
+    if(!evaded && ctx.sourceUnitId && ctx.skillKey){
+      applyEnemyNoBarrierDebuff(ctx.sourceUnitId, ctx.skillKey, u.id);
+    }
+    if(!evaded && u.ultimateCtReduceOnHit && u.ct.ultimate>0){
+      // 全体攻撃を受けた場合は追加で-1（合計-2）
+      u.ct.ultimate = Math.max(0, u.ct.ultimate - 2);
+      logAction(u, "被弾判定", "⏱ 全体被弾により究極CT-2", "-", false, `残CT:${u.ct.ultimate}`);
+    }
+    const barrierCb = document.getElementById("aoeBarrierBreak_" + u.id);
+    if(barrierCb && barrierCb.checked){
+      const before = u.buffs.length;
+      u.buffs = u.buffs.filter(b=>!b.name.includes("バリア"));
+      if(u.buffs.length < before){ logAction(u, "被弾判定", "🛡 バリアが破壊された", "-", false, ""); }
+    }
   });
   state.pendingTriggerContext.targetType = "all";
   state.pendingTriggerContext.evadeMap = evadeMap;
@@ -2459,12 +2520,13 @@ function renderBattle(){
 
     if(ctx.targetType==="selectHit"){
       const opts = state.units.filter(x=>x.kind==="ally"&&x.alive)
-        .map(x=>`<option value="${x.id}">${x.name}${x.evasionRatePct?`（回避率${x.evasionRatePct}%）`:""}</option>`).join("");
+        .map(x=>`<option value="${x.id}">${x.name}${x.evasionRatePct?`（回避率${x.evasionRatePct}%）`:""}${x.buffs.some(b=>b.name.includes("バリア"))?"🛡":""}</option>`).join("");
       panel.innerHTML = `<h3>${ctx.sourceLabel}：被弾した味方を選択</h3>
         <div class="row">
           <select id="hitAllySelect">${opts}</select>
         </div>
         <div class="checkline"><input type="checkbox" id="hitEvadeCheck"> EVADE（回避）成立：この味方は回避に成功した</div>
+        <div class="checkline"><input type="checkbox" id="hitBarrierBreakCheck"> 🛡バリアが破壊された（この味方がバリアを持っている場合のみ有効）</div>
         <div class="btn-row">
           <button class="btn-primary btn-small" onclick="confirmHitAlly()">決定して被弾トリガーを確認</button>
           <button class="btn-secondary btn-small" onclick="dismissTriggerContext()">確認せず続ける</button>
@@ -2472,8 +2534,8 @@ function renderBattle(){
     } else if(ctx.targetType==="selectHitAoe"){
       const aliveAllies = state.units.filter(x=>x.kind==="ally"&&x.alive);
       panel.innerHTML = `<h3>${ctx.sourceLabel}：味方それぞれのEVADE（回避）判定</h3>
-        <div class="smallnote" style="margin-bottom:8px;">全体攻撃のため、味方ひとりひとりに回避判定があります。回避に成功した味方はチェックしてください。</div>
-        ${aliveAllies.map(u=>`<div class="checkline"><input type="checkbox" id="aoeEvade_${u.id}"> ${u.name}${u.evasionRatePct?`（回避率${u.evasionRatePct}%）`:""}：EVADE成立</div>`).join("")}
+        <div class="smallnote" style="margin-bottom:8px;">全体攻撃のため、味方ひとりひとりに回避判定があります。回避に成功した味方はチェックしてください。バリアを持つ味方は、そのバリアが破壊されたかも合わせてチェックしてください。</div>
+        ${aliveAllies.map(u=>`<div class="checkline"><input type="checkbox" id="aoeEvade_${u.id}"> ${u.name}${u.evasionRatePct?`（回避率${u.evasionRatePct}%）`:""}：EVADE成立${u.buffs.some(b=>b.name.includes("バリア"))?` ｜ <input type="checkbox" id="aoeBarrierBreak_${u.id}"> 🛡バリア破壊`:""}</div>`).join("")}
         <div class="btn-row">
           <button class="btn-primary btn-small" onclick="confirmAoeEvade()">決定してトリガー確認</button>
           <button class="btn-secondary btn-small" onclick="dismissTriggerContext()">確認せず続ける</button>
