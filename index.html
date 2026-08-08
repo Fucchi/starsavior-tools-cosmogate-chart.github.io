@@ -245,21 +245,19 @@ select{ background:#0d1024; color:var(--text); border:1px solid var(--line); bor
 
   <div id="battleArea">
     <div class="topbar-wrap">
-      <div class="statusRow" style="justify-content:space-between; align-items:center; flex-wrap:wrap;">
-        <div style="display:flex; gap:6px; flex-wrap:wrap;">
-          <div class="pill-main">残りターン数：<b id="turnCountDisplay">50</b></div>
-          <div class="pill-main">行動数：<b id="actionCountDisplay">0</b></div>
-          <div class="pill-main" id="breakPointPill">ブレイクPT：<span id="breakPointDots"></span></div>
-          <div class="pill-main" id="burstPointPill">ノヴァフォース：<span id="burstPointDots"></span></div>
-        </div>
-        <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
-          <button class="btn-secondary btn-small" onclick="exportChart()" title="チャートを保存">💾</button>
-          <button class="btn-secondary btn-small" onclick="triggerImportChart()" title="チャートを読み込む">📂</button>
-          <button class="btn-secondary btn-small" onclick="undoLastTurn()">↩1T戻る</button>
-          <button class="btn-secondary btn-small" onclick="resetAll()">⚙設定</button>
-          <button class="btn-danger btn-small" onclick="restartBattle()">🔄再挑戦</button>
-          <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importChart(event)">
-        </div>
+      <div class="statusRow">
+        <div class="pill-main">残りターン数：<b id="turnCountDisplay">50</b></div>
+        <div class="pill-main">行動数：<b id="actionCountDisplay">0</b></div>
+        <div class="pill-main" id="breakPointPill">ブレイクPT：<span id="breakPointDots"></span></div>
+        <div class="pill-main" id="burstPointPill">ノヴァフォース：<span id="burstPointDots"></span></div>
+      </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; margin-bottom:6px;">
+        <button class="btn-secondary btn-small" onclick="exportChart()" title="チャートを保存">💾</button>
+        <button class="btn-secondary btn-small" onclick="triggerImportChart()" title="チャートを読み込む">📂</button>
+        <button class="btn-secondary btn-small" onclick="undoLastTurn()">↩1T戻る</button>
+        <button class="btn-secondary btn-small" onclick="resetAll()">⚙設定</button>
+        <button class="btn-danger btn-small" onclick="restartBattle()">🔄再挑戦</button>
+        <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importChart(event)">
       </div>
       <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px; justify-content:flex-end;" title="実際のゲーム画面では確認しづらい情報を手動で記録・補正するためのデバッグ用機能です">
         <span style="font-size:10px; color:var(--text-dim);">🐞Debug：</span>
@@ -346,6 +344,7 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
     consumeSenkohanabiForExtraHits: !!extraEffects.consumeSenkohanabiForExtraHits,
     battleStartDebuffFastestEnemy: extraEffects.battleStartDebuffFastestEnemy || null,
     selfCtReduceOnCritTrigger: !!extraEffects.selfCtReduceOnCritTrigger,
+    ctReduceBySevenBall: !!extraEffects.ctReduceBySevenBall,
     consumeAllTargetDebuffName: extraEffects.consumeAllTargetDebuffName || null,
     target: extraEffects.target || "single",
     enemyGaugeReductionPct: extraEffects.enemyGaugeReductionPct || 0,
@@ -665,7 +664,7 @@ const ALLY_PRESET_LIST = [
   // 太陽
   ["tyria","ティリア"], ["bunny_charle","バニーシャルル"], ["bride_epindel","花嫁エピンデル"],
   ["swimsuit_luna","水着ルナ"], ["marcille","マルシル"], ["charle","シャルル"],
-  ["petra","ペトラ"], ["kira","キラ"],
+  ["petra","ペトラ"], ["kira","キラ"], ["bunny_scarlet","バニースカーレット"],
   // 星
   ["roberta","ロベルタ"], ["ede","エデ"], ["clarissa","クラリッサ"], ["smile","スマイル"], ["swimsuit_smile","水着スマイル"],
   ["trish","トリッシュ"], ["tanya","ターニャ"], ["belriese","ベル・リース"],
@@ -785,6 +784,11 @@ function allyPreset(key){
       basic: defaultAllySkill("邪魔しないでください", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1 }),
       special: defaultAllySkill("守護の騎士", 2, 0, 0, 0, false, "none", "hasCT", 0, 0, false, true, false, { targetEffect:{name:"バリア", turns:2}, selfStackGain:2 }),
       ultimate: defaultAllySkill("ウェディング・マーチ", 4, 0, 0, 0, false, "none", "hasCT", 0, 0, false, true, false, { selfStackGain:3 }) },
+    "bunny_scarlet": { name:"バニースカーレット", speed:100, toughnessMax:3, evasionRatePct:0, attribute:"太陽", role:"レンジャー", usesSevenBallMechanic:true,
+      passiveNote:"ハイスコア！：会心率+15%(3凸)。攻撃時、点火スタックに比例してダメージ+7%ずつ(最大5スタック)。ターン開始時、自身にピンボールタイム！を3回発生させ(ノーマルボール/セブンボールを各1/2でランダム抽選、攻撃後に全解除)、セブンボール(解除不可)の数に応じて速度+1ずつ(最大10スタック、実装済み：セブンボール数欄に応じて自ターン開始時に自動加算)。ノーマルボール：ダメ+1%、セブンボール：ダメ+7%（本ツール未実装、ダメージ計算対象外のため）。セブンボールの数はランダム要素のため、実際のゲーム画面を見ながら下の「セブンボール数」欄を手動で0〜3にセットしてください（速度スタック増加・究極スキルのCT短縮の両方に使用）",
+      basic: defaultAllySkill("一気に行くのだ！", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, atkPct:65 }),
+      special: defaultAllySkill("これは無効なのだ！", 4, 0, 1, 1, true, "none", "hasCT", 0, 0, false, false, false, { targetEffect:{name:"回復量ダウン（-50%）", turns:2}, selfStackGain:1, atkPct:70 }),
+      ultimate: defaultAllySkill("とりあえず勝ったのだ！", 5, 0, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { target:"all", targetEffect:[{name:"速度ダウン（-20%）", turns:1, speedModPct:-20}, {name:"回復量ダウン（-50%）", turns:2}], selfStackGain:1, atkPct:40, ctReduceBySevenBall:true }) },
     "vesta": { name:"ベスタ", speed:95, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"ディフェンダー", passiveNote:"かすかな感情：最大HPが15%上がる(3凸)。攻撃を受けた後、自身の跳躍が最大スタックであれば自身に2Tバリアを発生させ跳躍を全消費(本ツール未実装)。全体攻撃を受けた後、40%でランダムな敵に「撃退」を追加発動(1ターンに1回のみ、ブレイク中でも発生。本ツール未実装)。ダメージ・バリアはHP参照(本ツールはダメージ計算未対応のためatkPctは目安値)",
       basic: defaultAllySkill("揺るぎなき槍", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, targetEffect:{name:"攻撃力ダウン（-30%・バースト時のみ）", turns:1}, burstOnlyTargetEffect:true, atkPct:32 }),
       special: defaultAllySkill("撃退", 3, 0, 1, 1, false, "none", "hasCT", 30, 0, false, false, false, { targetEffect:{name:"攻撃力ダウン（-30%）", turns:2}, selfStackGain:1, atkPct:45 }),
@@ -1028,6 +1032,7 @@ function renderAllySetup(){
       </div>
       ${(a.relics && a.relics.DANRYOKU && a.role!=="アサシン") ? `<div class="smallnote" style="color:var(--warn); margin-bottom:8px;">⚠ 弾力・加速はアサシン専用潜在です。このキャラのロールは「${a.role||"未設定"}」になっています</div>` : ""}
       ${(a.relics && a.relics.CAUTIOUS_TACTICS && a.role!=="ディフェンダー") ? `<div class="smallnote" style="color:var(--warn); margin-bottom:8px;">⚠ 慎重な戦術はディフェンダー専用潜在です。このキャラのロールは「${a.role||"未設定"}」になっています</div>` : ""}
+      ${(a.relics && a.relics.LUNA_ARCANA && a.role!=="ディフェンダー") ? `<div class="smallnote" style="color:var(--warn); margin-bottom:8px;">⚠ 水着ルナ専用アルカナはディフェンダー専用潜在です。このキャラのロールは「${a.role||"未設定"}」になっています</div>` : ""}
       ${allyDetailOpen[idx] ? `
       <div class="row">
         <div class="field grow"><label>名前</label><input type="text" value="${a.name}" oninput="allies[${idx}].name=this.value"></div>
@@ -1281,7 +1286,7 @@ document.getElementById("versionBadge").textContent = TOOL_VERSION;
 const VERIFIED_STATUS = {
   lastUpdated: "2026-08-08",
   bosses: ["デモライギス：アルファ", "不死王モグルス"],
-  characters: ["ドレスアセラ", "セイラ", "バニーシャルル", "ティリア", "水着スマイル"]
+  characters: ["ドレスアセラ", "セイラ", "バニーシャルル", "ティリア", "水着スマイル", "ロベルタ", "フェイ", "バニースカーレット", "エミリー"]
 };
 
 // 日付つき更新ログ（今後の更新はここに追加していく。過去分は無理に遡らない）
@@ -1310,7 +1315,13 @@ const DATED_LOG = [
   { date:"2026-08-08", version:"v0.2.2", text:"水着スマイルの究極で発動する追加クーリングシステム連打に、ブレイクスキルの「攻撃時強靭+1」ボーナスが乗っていなかった不具合を修正" },
   { date:"2026-08-08", version:"v0.2.3", text:"追加クーリングシステム連打の各ヒットに、被弾ギミック判定（デバフ数条件・味方デバフ条件）と被弾カウンタ加算を正しく反映するよう修正（ダメージ計算に関わる部分のみ実ヒットと同等に扱い、ゲージ増加やスタック獲得などの副次効果は仕様通り除外）" },
   { date:"2026-08-08", version:"v0.2.4", text:"敵の攻撃を受けた際の「被弾した味方を選択」パネルを、プルダウン選択からボタンタップ方式に変更（EVADE・バリア破壊の有無を先にチェックしてから、対象をワンタップで確定できるように）" },
-  { date:"2026-08-08", version:"v0.2.5", text:"スキル選択ボタン・各種候補選択ボタン（挟撃・EX・水爆弾リアクト・被弾トリガー・被弾対象等）を縦積みからflexレイアウトの横並びに変更。PC等の広い画面では複数ボタンが横に並び、スクロール量が減る" }
+  { date:"2026-08-08", version:"v0.2.5", text:"スキル選択ボタン・各種候補選択ボタン（挟撃・EX・水爆弾リアクト・被弾トリガー・被弾対象等）を縦積みからflexレイアウトの横並びに変更。PC等の広い画面では複数ボタンが横に並び、スクロール量が減る" },
+  { date:"2026-08-08", version:"v0.2.5", text:"バニースカーレットを新規実装（太陽・レンジャー）。ランダムなセブンボール数は手動入力欄で管理し、究極スキルのCT短縮（セブンボール数分-1、3個で即時リセット）に反映" },
+  { date:"2026-08-08", version:"v0.2.5", text:"バニースカーレットのターン開始時ピンボール速度スタック（セブンボール数分ずつ、最大10）を実装。手動設定したセブンボール数に応じて自ターン開始時に自動加算され、実効速度に反映される" },
+  { date:"2026-08-08", version:"v0.2.5", text:"バニースカーレットの究極スキルCT短縮を、スキル使用時ではなくターン開始時の処理に修正（セブンボール数分ずつCTが縮み、3個なら即時リセット）" },
+  { date:"2026-08-08", version:"v0.2.5", text:"バニースカーレットの初回ターンで究極が選択できない不具合を修正。セブンボール数を選択した瞬間に速度スタック・究極CT短縮が反映されるよう変更（同ターン内での選び直しによる二重適用も防止）" },
+  { date:"2026-08-08", version:"v0.2.5", text:"セブンボール数のプルダウンが前回選択値のまま残り、同じ値を選び直してもchangeイベントが発火せず反映されない不具合を修正（毎ターン選択肢を空白状態にリセット）。水着ルナ専用アルカナを修正：味方全体1ターンバリア→ディフェンダー専用・自身のみ2ターンバリアに訂正" },
+  { date:"2026-08-08", version:"v0.2.5", text:"動作確認済みボスにバニースカーレットを追加。動作確認済みキャラの表示に属性色アイコンを追加し、属性→名前の順でソートするよう改善" }
 ];
 
 // ===================== 更新履歴 =====================
@@ -1350,14 +1361,30 @@ const CHANGELOG = [
     "状態スナップショット表の列整理（無意味だった「バフ/デバフ」列を削除）"
   ]}
 ];
+function renderVerifiedCharList(names){
+  const ATTR_ORDER = ["太陽","星","月","秩序","混沌"];
+  const items = names.map(nm=>{
+    const found = ALLY_PRESET_LIST.find(([key,label])=>label===nm);
+    const attr = found ? (allyPreset(found[0])||{}).attribute : null;
+    return { name: nm, attribute: attr || "" };
+  }).sort((a,b)=>{
+    const ai = ATTR_ORDER.indexOf(a.attribute), bi = ATTR_ORDER.indexOf(b.attribute);
+    if(ai !== bi) return ai - bi;
+    return a.name.localeCompare(b.name, "ja");
+  });
+  return items.map(it=>`<span style="display:inline-flex; align-items:center; gap:4px; margin-right:10px; margin-bottom:4px;">
+    <span style="display:inline-block; width:9px; height:9px; border-radius:50%; background:${ATTRIBUTE_COLORS[it.attribute]||'#555b82'};"></span>${it.name}
+  </span>`).join("");
+}
 function toggleChangelog(){
   const panel = document.getElementById("changelogPanel");
   if(panel.style.display==="none"){
     const verifiedHtml = `
       <div style="margin-bottom:14px; padding:10px; border:1px solid var(--accent); border-radius:8px; background:rgba(110,231,216,0.06);">
         <div style="font-weight:700; color:var(--accent); margin-bottom:6px;">✅ 動作確認済み <span style="font-weight:400; color:var(--text-dim); font-size:11px;">（最終更新：${VERIFIED_STATUS.lastUpdated}）</span></div>
-        <div style="font-size:13px; margin-bottom:4px;"><b>ボス：</b>${VERIFIED_STATUS.bosses.length ? VERIFIED_STATUS.bosses.join("、") : "（未確認）"}</div>
-        <div style="font-size:13px;"><b>キャラ：</b>${VERIFIED_STATUS.characters.length ? VERIFIED_STATUS.characters.join("、") : "（未確認）"}</div>
+        <div style="font-size:13px; margin-bottom:6px;"><b>ボス：</b>${VERIFIED_STATUS.bosses.length ? VERIFIED_STATUS.bosses.join("、") : "（未確認）"}</div>
+        <div style="font-size:13px;"><b>キャラ：</b></div>
+        <div style="margin-top:2px;">${VERIFIED_STATUS.characters.length ? renderVerifiedCharList(VERIFIED_STATUS.characters) : "（未確認）"}</div>
       </div>`;
     const datedLogHtml = `
       <div style="margin-bottom:14px;">
@@ -1412,6 +1439,10 @@ function startBattle(){
       ultimateCtReduceOnHit: !!a.ultimateCtReduceOnHit,
       battleStartSelfBarrier: a.battleStartSelfBarrier || null,
       cautiousTacticsReady: true,
+      usesSevenBallMechanic: !!a.usesSevenBallMechanic,
+      pinballSpeedStacks: 0,
+      sevenBallAppliedThisTurn: false,
+      sevenBallCount: 0,
       gainStackOnHit: !!a.gainStackOnHit,
       envSpeedBonusPct: envBonus,
       passiveNote: a.passiveNote || "",
@@ -1504,18 +1535,28 @@ function startBattle(){
     applyBuffWithMaxDuration(ally.buffs, {name:`バリア（HP${bs.hpPct}%）`, turns:bs.turns, type:"buff"});
   });
 
-  // 戦闘開始時、水着ルナ専用アルカナを持つ味方がいれば、味方全体にバリアを付与
-  if(units.some(x=>x.kind==="ally" && x.relics && x.relics.LUNA_ARCANA)){
-    units.filter(x=>x.kind==="ally").forEach(ally=>{
-      applyBuffWithMaxDuration(ally.buffs, {name:"バリア（水着ルナ専用アルカナ）", turns:1, type:"buff"});
-    });
-  }
+  // 戦闘開始時、水着ルナ専用アルカナ（ディフェンダー専用）を持つ味方は、自身のみに2ターンバリアを付与
+  units.filter(x=>x.kind==="ally" && x.relics && x.relics.LUNA_ARCANA).forEach(ally=>{
+    applyBuffWithMaxDuration(ally.buffs, {name:"バリア（水着ルナ専用アルカナ）", turns:2, type:"buff"});
+  });
 
   document.getElementById("setupArea").classList.add("hidden");
   document.getElementById("battleArea").style.display = "block";
   renderBattle();
 }
 
+function applySevenBallForThisTurn(unitId, count){
+  const u = state.units.find(x=>x.id===unitId);
+  if(!u) return;
+  u.sevenBallCount = count;
+  if(u.sevenBallAppliedThisTurn) return; // このターンは既に適用済み（選択し直しても再適用しない）
+  u.sevenBallAppliedThisTurn = true;
+  u.pinballSpeedStacks = Math.min(10, (u.pinballSpeedStacks||0) + count);
+  if(u.skills.ultimate && u.skills.ultimate.ctReduceBySevenBall && u.ct.ultimate > 0){
+    u.ct.ultimate = count>=3 ? 0 : Math.max(0, u.ct.ultimate - count);
+  }
+  renderBattle();
+}
 function maxOutBurst(){
   if(!state){ alert("戦闘を開始してください"); return; }
   state.teamBurst = 12;
@@ -1607,9 +1648,10 @@ function effectiveSpeed(u){
   if((u.buffs||[]).some(b=>b.speedZeroLock)) return 0; // 速度0固定デバフ（没落した思念等）
   const buffSpeedMod = (u.buffs||[]).reduce((sum,b)=> sum + (b.speedModPct||0), 0);
   const flatBonus = (u.relics && u.relics.DANRYOKU) ? (u.danryokuStacks||0) * 10 : 0;
+  const pinballFlatBonus = u.pinballSpeedStacks || 0; // バニースカーレット：ピンボールタイムの速度スタック（固定値・最大10）
   // ★速度（星の挑戦）・環境バフ・スキルバフの速度%は、それぞれ別々に掛け算せず、全て加算してから1回だけ掛ける
   const totalPct = (u.starSpeedBonusPct||0) + (u.envSpeedBonusPct||0) + buffSpeedMod;
-  return (u.speed + flatBonus) * (1 + totalPct/100);
+  return (u.speed + flatBonus + pinballFlatBonus) * (1 + totalPct/100);
 }
 function rate(u){ return (effectiveSpeed(u) / state.baseline) * 100; } // %/tick
 
@@ -1726,6 +1768,12 @@ function openActionFor(unitId, arrivalType){
     } else {
       u.cautiousTacticsReady = true;
     }
+  }
+
+  // バニースカーレット：自ターン開始時にsevenBallAppliedThisTurnフラグをリセット
+  // （このターンのピンボール効果はまだ未適用の状態にする。実際の適用はセブンボール数選択時＝applySevenBallForThisTurn()で行う）
+  if(u.kind==="ally" && u.usesSevenBallMechanic){
+    u.sevenBallAppliedThisTurn = false;
   }
 
   // ターン開始時に自動で属性スタックが増えるキャラ（例：クラリッサ）
@@ -2804,6 +2852,7 @@ function renderBattle(){
     if(u.kind==="enemy" && u.immune) statusTags.push(`<span class="tag buff">免疫(残${u.immuneRemaining})</span>`);
     if(u.kind==="enemy" && u.starSpeedBonusPct) statusTags.push(`<span class="tag permanent">★速度+${u.starSpeedBonusPct}%</span>`);
     if(u.kind==="enemy" && (u.twistedWillStacks||0)>0) statusTags.push(`<span class="tag permanent">😈歪んだ意志:${u.twistedWillStacks}/3</span>`);
+    if(u.kind==="ally" && u.usesSevenBallMechanic) statusTags.push(`<span class="tag permanent">🎱ピンボール速度+${u.pinballSpeedStacks||0}/10</span>`);
     if(u.envSpeedBonusPct) statusTags.push(`<span class="tag permanent">環境速度+${u.envSpeedBonusPct}%</span>`);
     if(u.kind==="ally" && u.relics && u.relics.AX) statusTags.push(`<span class="tag buff">AX:ATK+${(u.axStacks||0)*8}%</span>`);
     if(u.kind==="ally" && u.relics && u.relics.EX) statusTags.push(`<span class="tag buff">EX装備</span>`);
@@ -3081,6 +3130,18 @@ function renderBattle(){
       <div class="checkline"><input type="checkbox" id="burstToggle" ${state.teamBurst<4?"disabled":""}> バースト強化を適用する（4pt消費／現在${state.teamBurst}pt）${state.teamBurst<4?'<span style="color:var(--text-dim)"> ※4pt未満のため使用不可</span>':""}</div>
       <div class="checkline"><input type="checkbox" id="evadeToggle"> EVADE（回避）成立：命中率ダウン／回避率アップの影響で敵に回避された（強靭度ダメージ0・会心にならない。味方対象バフには無関係）</div>
       <div class="checkline"><input type="checkbox" id="autoBuffToggle" checked> バフ/デバフを自動付与する（スキルに設定されている場合のみ有効。デフォルトON）</div>
+      ${u.usesSevenBallMechanic ? `
+      <div class="field" style="margin-bottom:10px;">
+        <label>🎰 セブンボール数（このターンの実際の画面を見て0〜3を選択。選択した瞬間に速度スタック・究極CT短縮が適用されます）</label>
+        <select onchange="applySevenBallForThisTurn('${u.id}', Number(this.value))">
+          ${!u.sevenBallAppliedThisTurn ? `<option value="" disabled selected>選択してください</option>` : ""}
+          <option value="0" ${u.sevenBallAppliedThisTurn && u.sevenBallCount===0?"selected":""}>0個</option>
+          <option value="1" ${u.sevenBallAppliedThisTurn && u.sevenBallCount===1?"selected":""}>1個</option>
+          <option value="2" ${u.sevenBallAppliedThisTurn && u.sevenBallCount===2?"selected":""}>2個</option>
+          <option value="3" ${u.sevenBallAppliedThisTurn && u.sevenBallCount===3?"selected":""}>3個（究極CT即時リセット）</option>
+        </select>
+        ${u.sevenBallAppliedThisTurn ? `<div class="smallnote">✅ このターン分は適用済み（速度スタック${u.pinballSpeedStacks||0}/10）</div>` : `<div class="smallnote" style="color:var(--warn);">⚠ まだ選択されていません。選ぶと即座に反映されます</div>`}
+      </div>` : ""}
       <div class="field grow" style="margin-bottom:10px; border-top:1px dashed var(--line); padding-top:8px;">
         <label>実測ダメージ（会心発生時の値を推奨・入力すると実効ATKを自動逆算してこのキャラにセットします）</label>
         <input type="number" id="observedDamageInput" placeholder="例：48000（未入力なら逆算しない）">
