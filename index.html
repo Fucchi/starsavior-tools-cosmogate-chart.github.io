@@ -173,7 +173,14 @@ select{ background:#0d1024; color:var(--text); border:1px solid var(--line); bor
       <h1>コスモゲート ターン進行シミュレーター <span class="badge" id="versionBadge">v0.1.0</span></h1>
       <div class="subtitle">設計ドキュメントv0.2準拠：味方→敵の与ダメ・強靭削り・行動順・バフ/デバフのみを扱います（被ダメ計算は対象外・全て会心判定）</div>
     </div>
-    <button class="btn-secondary btn-small" onclick="toggleChangelog()" style="white-space:nowrap;">📋 更新履歴</button>
+    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+      <button class="btn-secondary btn-small" onclick="toggleSpeedCompare()" style="white-space:nowrap;">⚡ 速度比較</button>
+      <button class="btn-secondary btn-small" onclick="toggleChangelog()" style="white-space:nowrap;">📋 更新履歴</button>
+    </div>
+  </div>
+  <div id="speedComparePanel" class="panel" style="display:none; margin-bottom:12px;">
+    <h2 style="margin-top:0;">⚡ どっちが先？ 速度比較ツール <span class="hint">基準速度・速度・バフ%・現在ゲージ%を入力すると、どちらが先に100%到達するか計算します（戦闘中もいつでも使えます）</span></h2>
+    <div id="speedCompareTool"></div>
   </div>
   <div id="changelogPanel" class="panel" style="display:none; max-height:400px; overflow-y:auto; margin-bottom:12px;"></div>
 
@@ -493,6 +500,85 @@ function computeDmgTestResult(e){
   if(denom<=0 || e.observedDamage==null) return null;
   return e.observedDamage / denom;
 }
+// ===================== ⚡ どっちが先？ 速度比較ツール =====================
+let speedCompareState = {
+  baseline: 225,
+  a: { name:"自分", speed:100, buffPct:0, gauge:0 },
+  b: { name:"相手", speed:100, buffPct:0, gauge:0 }
+};
+function updateSpeedCompare(who, field, value){
+  speedCompareState[who][field] = (field==="name") ? value : Number(value);
+  updateSpeedCompareResult(); // 入力欄は再描画せず、結果表示だけ更新（フォーカスが外れないように）
+}
+function toggleSpeedCompare(){
+  const panel = document.getElementById("speedComparePanel");
+  if(panel.style.display==="none"){
+    panel.style.display = "block";
+    renderSpeedCompareTool();
+  } else {
+    panel.style.display = "none";
+  }
+}
+function updateSpeedCompareResult(){
+  const resultWrap = document.getElementById("speedCompareResult");
+  if(!resultWrap) return;
+  const S = speedCompareState;
+  const effA = S.a.speed * (1 + S.a.buffPct/100);
+  const effB = S.b.speed * (1 + S.b.buffPct/100);
+  const rateA = (effA / S.baseline) * 100; // %/tick
+  const rateB = (effB / S.baseline) * 100;
+  let resultHtml = "";
+  if(rateA<=0 && rateB<=0){
+    resultHtml = `<div class="smallnote">両者とも速度0のため到達しません</div>`;
+  } else if(rateA<=0){
+    resultHtml = `<div class="smallnote" style="color:var(--warn);">${S.a.name}は速度0のため${S.b.name}が先着します</div>`;
+  } else if(rateB<=0){
+    resultHtml = `<div class="smallnote" style="color:var(--warn);">${S.b.name}は速度0のため${S.a.name}が先着します</div>`;
+  } else {
+    const ticksA = Math.max(0, (100 - S.a.gauge) / rateA);
+    const ticksB = Math.max(0, (100 - S.b.gauge) / rateB);
+    const winner = ticksA < ticksB ? S.a.name : (ticksB < ticksA ? S.b.name : "同着");
+    const diffTicks = Math.abs(ticksA - ticksB);
+    resultHtml = `
+      <div style="padding:10px; border:1px solid var(--accent); border-radius:8px; background:rgba(110,231,216,0.06); margin-top:6px;">
+        <div style="font-size:15px; font-weight:700; color:var(--accent);">🏁 ${winner==="同着" ? "同着（ゲージ同時到達）" : winner + " が先に到達"}</div>
+        <div class="smallnote" style="margin-top:4px;">
+          ${S.a.name}：実効速度${effA.toFixed(1)}／到達まで${ticksA.toFixed(3)}tick　｜　
+          ${S.b.name}：実効速度${effB.toFixed(1)}／到達まで${ticksB.toFixed(3)}tick
+          ${winner!=="同着" ? `　｜　差：${diffTicks.toFixed(3)}tick` : ""}
+        </div>
+      </div>`;
+  }
+  resultWrap.innerHTML = resultHtml;
+}
+function renderSpeedCompareTool(){
+  const wrap = document.getElementById("speedCompareTool");
+  if(!wrap) return;
+  const S = speedCompareState;
+  const rowHtml = (key)=>{
+    const u = S[key];
+    return `
+      <div class="unit-card" style="margin-bottom:8px;">
+        <div class="row">
+          <div class="field grow"><label>名前</label><input type="text" value="${u.name}" oninput="updateSpeedCompare('${key}','name',this.value)"></div>
+          <div class="field"><label>速度</label><input type="number" value="${u.speed}" style="width:70px" oninput="updateSpeedCompare('${key}','speed',this.value)"></div>
+          <div class="field"><label>速度バフ合計%</label><input type="number" value="${u.buffPct}" style="width:70px" oninput="updateSpeedCompare('${key}','buffPct',this.value)"></div>
+          <div class="field"><label>現在ゲージ%</label><input type="number" value="${u.gauge}" style="width:70px" min="0" max="100" oninput="updateSpeedCompare('${key}','gauge',this.value)"></div>
+        </div>
+      </div>`;
+  };
+  wrap.innerHTML = `
+    <div class="row">
+      <div class="field"><label>基準速度B</label><input type="number" value="${S.baseline}" style="width:80px" oninput="speedCompareState.baseline=Number(this.value); updateSpeedCompareResult();"></div>
+      <div class="field grow"><label>&nbsp;</label><div class="smallnote">基準速度Bは、戦闘中なら画面上部の「基準速度」と同じ値を入れてください（速度が最速の敵の実効速度など）</div></div>
+    </div>
+    ${rowHtml("a")}
+    ${rowHtml("b")}
+    <div id="speedCompareResult"></div>
+  `;
+  updateSpeedCompareResult();
+}
+
 function renderDmgTestPanel(){
   const wrap = document.getElementById("dmgTestPanel");
   if(!wrap) return;
@@ -1161,9 +1247,10 @@ renderAllySetup();
 renderEnemySetup();
 renderDmgTestPanel();
 renderEnvBuffSetup();
+renderSpeedCompareTool();
 
 // ===================== 動作確認済みステータス（配布用：ユーザー自身が実際にプレイして確認した内容。都度更新） =====================
-const TOOL_VERSION = "v0.1.1";
+const TOOL_VERSION = "v0.1.5";
 document.getElementById("versionBadge").textContent = TOOL_VERSION;
 const VERIFIED_STATUS = {
   lastUpdated: "2026-08-08",
@@ -1174,7 +1261,11 @@ const VERIFIED_STATUS = {
 // 日付つき更新ログ（今後の更新はここに追加していく。過去分は無理に遡らない）
 const DATED_LOG = [
   { date:"2026-08-08", version:"v0.1.0", text:"更新履歴・動作確認済みステータスパネルを追加" },
-  { date:"2026-08-08", version:"v0.1.1", text:"ティリアの究極スキルの追加ターンを、バースト強化時のみ発生するよう修正（extraTurnBurstOnlyフィールドを新設）" }
+  { date:"2026-08-08", version:"v0.1.1", text:"ティリアの究極スキルの追加ターンを、バースト強化時のみ発生するよう修正（extraTurnBurstOnlyフィールドを新設）" },
+  { date:"2026-08-08", version:"v0.1.2", text:"スマホ表示への軽量対応（viewportメタタグ・メディアクエリ追加）。補助ツール「⚡どっちが先？速度比較ツール」を追加" },
+  { date:"2026-08-08", version:"v0.1.3", text:"スキル選択パネルの並びを変更：対象選択の直後にスキル選択ボタンを配置し、バースト等のオプション設定は後ろに移動（モバイルでのスクロール量を削減）" },
+  { date:"2026-08-08", version:"v0.1.4", text:"速度比較ツールをヘッダーの独立ボタンに移動。セットアップ画面だけでなく戦闘中もいつでも開けるように変更" },
+  { date:"2026-08-08", version:"v0.1.5", text:"速度比較ツールで入力中にカーソルが外れる不具合を修正（入力欄を再描画せず、結果表示部分のみ更新するよう変更）" }
 ];
 
 // ===================== 更新履歴 =====================
@@ -2849,6 +2940,9 @@ function renderBattle(){
           <optgroup label="味方">${allyOptions}</optgroup>
         </select>
       </div>
+      ${renderSkillBtn(u,"basic")}
+      ${renderSkillBtn(u,"special")}
+      ${renderSkillBtn(u,"ultimate")}
       <div class="checkline"><input type="checkbox" id="burstToggle" ${state.teamBurst<4?"disabled":""}> バースト強化を適用する（4pt消費／現在${state.teamBurst}pt）${state.teamBurst<4?'<span style="color:var(--text-dim)"> ※4pt未満のため使用不可</span>':""}</div>
       <div class="checkline"><input type="checkbox" id="evadeToggle"> EVADE（回避）成立：命中率ダウン／回避率アップの影響で敵に回避された（強靭度ダメージ0・会心にならない。味方対象バフには無関係）</div>
       <div class="checkline"><input type="checkbox" id="autoBuffToggle" checked> バフ/デバフを自動付与する（スキルに設定されている場合のみ有効。デフォルトON）</div>
@@ -2857,9 +2951,6 @@ function renderBattle(){
         <input type="number" id="observedDamageInput" placeholder="例：48000（未入力なら逆算しない）">
         <div class="smallnote">現在の実効ATK：${u.effectiveAtk!=null ? Math.round(u.effectiveAtk) : "未算出"}／会心ダメ%：${u.critDmgPct||50}%（+バフ${computeCritDmgBuffPct(u)}%）／攻撃力バフ合計：${computeAtkBuffPct(u)}%</div>
       </div>
-      ${renderSkillBtn(u,"basic")}
-      ${renderSkillBtn(u,"special")}
-      ${renderSkillBtn(u,"ultimate")}
     `;
   } else {
     panel.innerHTML = `
