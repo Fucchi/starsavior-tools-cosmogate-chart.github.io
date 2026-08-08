@@ -102,8 +102,10 @@ th{ color:var(--text-dim); font-weight:normal; font-size:11px;}
   border-radius:10px; padding:16px; margin-bottom:16px;
 }
 .actionPanel h3{ margin:0 0 10px 0; font-size:14px; color:var(--accent);}
+.skillbtn-row{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
 .skillbtn{
-  display:block; width:100%; text-align:left; margin-bottom:8px;
+  display:block; text-align:left;
+  flex:1 1 220px; min-width:180px; max-width:100%;
   background:var(--bg-panel-2); border:1px solid var(--line); color:var(--text);
   padding:10px 12px; border-radius:8px;
 }
@@ -130,6 +132,8 @@ th{ color:var(--text-dim); font-weight:normal; font-size:11px;}
 .toolbarGroup .groupLabel{ font-size:10px; color:var(--text-dim); margin-right:2px; }
 .toolDivider{ width:1px; align-self:stretch; background:var(--line); margin:0 4px; }
 .pill{ font-size:11px; padding:4px 10px; border-radius:100px; background:var(--bg-panel-2); border:1px solid var(--line); color:var(--text-dim);}
+.pill-main{ font-size:15px; padding:8px 16px; border-radius:100px; background:var(--bg-panel-2); border:1px solid var(--line); color:var(--text-dim); font-weight:600; }
+.pill-main b, .pill-main span{ color:var(--accent); font-size:16px; }
 .badge-grid{ display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 10px; }
 .attr-badge{
   display:inline-flex; align-items:center; gap:6px;
@@ -179,7 +183,7 @@ select{ background:#0d1024; color:var(--text); border:1px solid var(--line); bor
     </div>
   </div>
   <div id="speedComparePanel" class="panel" style="display:none; margin-bottom:12px; max-width:420px;">
-    <h2 style="margin-top:0;">⚡ どっちが先？ 速度比較ツール <span class="hint">速度・バフ%・現在ゲージ%を入力すると、どちらが先に100%到達するか計算します（基準速度は比較結果に影響しないため不要です）</span></h2>
+    <h2 style="margin-top:0;">⚡ どっちが先？ 速度比較ツール <span class="hint">速度・バフ%・現在ゲージ%を入力すると、どちらが先に100%到達するか計算します</span></h2>
     <div id="speedCompareTool"></div>
   </div>
   <div id="changelogPanel" class="panel" style="display:none; max-height:400px; overflow-y:auto; margin-bottom:12px;"></div>
@@ -241,29 +245,29 @@ select{ background:#0d1024; color:var(--text); border:1px solid var(--line); bor
 
   <div id="battleArea">
     <div class="topbar-wrap">
-      <div class="statusRow" style="justify-content:space-between; align-items:flex-start;">
+      <div class="statusRow" style="justify-content:space-between; align-items:center; flex-wrap:wrap;">
         <div style="display:flex; gap:6px; flex-wrap:wrap;">
-          <div class="pill">残りターン数：<b id="turnCountDisplay">50</b></div>
-          <div class="pill">行動数：<b id="actionCountDisplay">0</b></div>
-          <div class="pill" id="breakPointPill">ブレイクPT：<span id="breakPointDots"></span></div>
-          <div class="pill" id="burstPointPill">ノヴァフォース：<span id="burstPointDots"></span></div>
+          <div class="pill-main">残りターン数：<b id="turnCountDisplay">50</b></div>
+          <div class="pill-main">行動数：<b id="actionCountDisplay">0</b></div>
+          <div class="pill-main" id="breakPointPill">ブレイクPT：<span id="breakPointDots"></span></div>
+          <div class="pill-main" id="burstPointPill">ノヴァフォース：<span id="burstPointDots"></span></div>
         </div>
-        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
-          <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
-            <button class="btn-secondary btn-small" onclick="exportChart()">💾 保存</button>
-            <button class="btn-secondary btn-small" onclick="triggerImportChart()">📂 読み込む</button>
-            <button class="btn-secondary btn-small" onclick="undoLastTurn()">↩ 1ターン戻る</button>
-            <button class="btn-secondary btn-small" onclick="resetAll()">⚙ 設定画面に戻る</button>
-            <button class="btn-danger btn-small" onclick="restartBattle()">🔄 再挑戦</button>
-            <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importChart(event)">
-          </div>
-          <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;" title="実際のゲーム画面では確認しづらい情報を手動で記録・補正するためのデバッグ用機能です">
-            <span style="font-size:10px; color:var(--text-dim);">🐞デバッグ用：</span>
-            <button class="btn-secondary btn-small" onclick="openBuffForm()">バフ/デバフ付与</button>
-            <button class="btn-secondary btn-small" onclick="openAllyToughnessDamageForm()">強靭ダメージ記録</button>
-            <button class="btn-secondary btn-small" onclick="openExtraTurn()">追加ターン付与</button>
-          </div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+          <button class="btn-secondary btn-small" onclick="exportChart()" title="チャートを保存">💾</button>
+          <button class="btn-secondary btn-small" onclick="triggerImportChart()" title="チャートを読み込む">📂</button>
+          <button class="btn-secondary btn-small" onclick="undoLastTurn()">↩1T戻る</button>
+          <button class="btn-secondary btn-small" onclick="resetAll()">⚙設定</button>
+          <button class="btn-danger btn-small" onclick="restartBattle()">🔄再挑戦</button>
+          <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importChart(event)">
         </div>
+      </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px; justify-content:flex-end;" title="実際のゲーム画面では確認しづらい情報を手動で記録・補正するためのデバッグ用機能です">
+        <span style="font-size:10px; color:var(--text-dim);">🐞Debug：</span>
+        <button class="btn-secondary btn-small" onclick="openBuffForm()">バフ付与</button>
+        <button class="btn-secondary btn-small" onclick="openAllyToughnessDamageForm()">強靭記録</button>
+        <button class="btn-secondary btn-small" onclick="openExtraTurn()">追加ターン</button>
+        <button class="btn-secondary btn-small" onclick="maxOutBurst()">ノヴァMAX</button>
+        <button class="btn-secondary btn-small" onclick="maxOutBreakPoints()">PT MAX</button>
       </div>
 
       <div class="toolSection">
@@ -341,6 +345,7 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
     selfSenkohanabiGain: extraEffects.selfSenkohanabiGain || 0,
     consumeSenkohanabiForExtraHits: !!extraEffects.consumeSenkohanabiForExtraHits,
     battleStartDebuffFastestEnemy: extraEffects.battleStartDebuffFastestEnemy || null,
+    selfCtReduceOnCritTrigger: !!extraEffects.selfCtReduceOnCritTrigger,
     consumeAllTargetDebuffName: extraEffects.consumeAllTargetDebuffName || null,
     target: extraEffects.target || "single",
     enemyGaugeReductionPct: extraEffects.enemyGaugeReductionPct || 0,
@@ -710,9 +715,9 @@ function allyPreset(key){
       basic: defaultAllySkill("ベル・ラーム", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, clearAllyDebuffCount:1, clearAllyDebuffBurstOnly:true }),
       special: defaultAllySkill("バル・ドレ", 3, 1, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"星灯りの願い（速度+10%/効果耐性+30%・解除不可）", turns:2, speedModPct:10}, selfStackGain:1 }),
       ultimate: defaultAllySkill("ルミエール・ソネット", 4, 0, 0, 1, false, "none", "hasCT", 0, 0, false, true, false, { teamGaugeGainPct:15, teamGaugeGainExcludeSelf:true }) },
-    "roberta": { name:"ロベルタ", speed:105, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"ストライカー", passiveNote:"攻撃時会心率+50%(ほぼ無条件)。HP50%以上でダメ+8%/50%未満でダメ+16%",
+    "roberta": { name:"ロベルタ", speed:105, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"ストライカー", passiveNote:"攻撃時会心率+50%(ほぼ無条件)。HP50%以上でダメ+8%/50%未満でダメ+16%。会心発生時、特殊「ファストトラック」自身のCTがさらに-1される(本ツールは会心前提のため常時適用、実装済み)",
       basic: defaultAllySkill("作戦開始", 0, 0, 1, 0, false, "none", "hasCT", 0, 20, false, false, false, { selfStackGain:1 }),
-      special: defaultAllySkill("ファストトラック", 2, 1, 0, 1, false, "aoe", "hasCT", 30, 0, false, false, false, { selfStackGain:1 }),
+      special: defaultAllySkill("ファストトラック", 2, 1, 0, 1, false, "aoe", "hasCT", 30, 0, false, false, false, { selfStackGain:1, selfCtReduceOnCritTrigger:true }),
       ultimate: defaultAllySkill("緊急現場判断", 4, 2, 1, 1, false, "none", "hasCT", 30, 0, false, false, false, { selfBuff:{name:"攻撃力アップ（+30%）", turns:2}, selfStackConsumeAll:true }) },
     "fei": { name:"フェイ", speed:90, toughnessMax:3, evasionRatePct:50, attribute:"月", role:"アサシン", passiveNote:"戦闘開始時・ターン終了時に回避率+50%(常時回避50%)。回避成功時ATK+4%スタック(最大5)",
       basic: defaultAllySkill("月食", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, selfBuff:{name:"攻撃力アップ", turns:1}, burstOnlySelfBuff:true }),
@@ -1271,7 +1276,7 @@ renderEnvBuffSetup();
 renderSpeedCompareTool();
 
 // ===================== 動作確認済みステータス（配布用：ユーザー自身が実際にプレイして確認した内容。都度更新） =====================
-const TOOL_VERSION = "v0.2.3";
+const TOOL_VERSION = "v0.2.5";
 document.getElementById("versionBadge").textContent = TOOL_VERSION;
 const VERIFIED_STATUS = {
   lastUpdated: "2026-08-08",
@@ -1303,7 +1308,9 @@ const DATED_LOG = [
   { date:"2026-08-08", version:"v0.2.0", text:"バージョン表記をv0.2系に更新" },
   { date:"2026-08-08", version:"v0.2.1", text:"水着スマイルの線香花火スタックが内部では正しく蓄積されていたが、状態スナップショット表に表示されていなかった不具合を修正（「🎇線香花火:X/3」を状態欄に追加）" },
   { date:"2026-08-08", version:"v0.2.2", text:"水着スマイルの究極で発動する追加クーリングシステム連打に、ブレイクスキルの「攻撃時強靭+1」ボーナスが乗っていなかった不具合を修正" },
-  { date:"2026-08-08", version:"v0.2.3", text:"追加クーリングシステム連打の各ヒットに、被弾ギミック判定（デバフ数条件・味方デバフ条件）と被弾カウンタ加算を正しく反映するよう修正（ダメージ計算に関わる部分のみ実ヒットと同等に扱い、ゲージ増加やスタック獲得などの副次効果は仕様通り除外）" }
+  { date:"2026-08-08", version:"v0.2.3", text:"追加クーリングシステム連打の各ヒットに、被弾ギミック判定（デバフ数条件・味方デバフ条件）と被弾カウンタ加算を正しく反映するよう修正（ダメージ計算に関わる部分のみ実ヒットと同等に扱い、ゲージ増加やスタック獲得などの副次効果は仕様通り除外）" },
+  { date:"2026-08-08", version:"v0.2.4", text:"敵の攻撃を受けた際の「被弾した味方を選択」パネルを、プルダウン選択からボタンタップ方式に変更（EVADE・バリア破壊の有無を先にチェックしてから、対象をワンタップで確定できるように）" },
+  { date:"2026-08-08", version:"v0.2.5", text:"スキル選択ボタン・各種候補選択ボタン（挟撃・EX・水爆弾リアクト・被弾トリガー・被弾対象等）を縦積みからflexレイアウトの横並びに変更。PC等の広い画面では複数ボタンが横に並び、スクロール量が減る" }
 ];
 
 // ===================== 更新履歴 =====================
@@ -1509,6 +1516,16 @@ function startBattle(){
   renderBattle();
 }
 
+function maxOutBurst(){
+  if(!state){ alert("戦闘を開始してください"); return; }
+  state.teamBurst = 12;
+  renderBattle();
+}
+function maxOutBreakPoints(){
+  if(!state){ alert("戦闘を開始してください"); return; }
+  state.breakPoints = 3;
+  renderBattle();
+}
 function resetAll(){
   document.getElementById("setupArea").classList.remove("hidden");
   document.getElementById("battleArea").style.display = "none";
@@ -2375,18 +2392,17 @@ function applyEnemyNoBarrierDebuff(sourceUnitId, skillKey, targetAllyId){
   logAction(u, "被弾判定", "☠ " + target.name + "はバリアなしのため" + eff.name + "(" + eff.turns + "T)を付与", "-", false, "");
 }
 
-function confirmHitAlly(){
-  const sel = document.getElementById("hitAllySelect");
+function confirmHitAlly(allyId){
   const evadeCheck = document.getElementById("hitEvadeCheck");
   const barrierBreakCheck = document.getElementById("hitBarrierBreakCheck");
-  if(!sel || !state.pendingTriggerContext) return;
+  if(!allyId || !state.pendingTriggerContext) return;
   const ctx = state.pendingTriggerContext;
   const evaded = evadeCheck ? evadeCheck.checked : false;
   if(!evaded && ctx.sourceUnitId && ctx.skillKey){
-    applyEnemyNoBarrierDebuff(ctx.sourceUnitId, ctx.skillKey, sel.value);
+    applyEnemyNoBarrierDebuff(ctx.sourceUnitId, ctx.skillKey, allyId);
   }
   if(!evaded){
-    const hitUnit = state.units.find(x=>x.id===sel.value);
+    const hitUnit = state.units.find(x=>x.id===allyId);
     if(hitUnit && hitUnit.ultimateCtReduceOnHit && hitUnit.ct.ultimate>0){
       hitUnit.ct.ultimate = Math.max(0, hitUnit.ct.ultimate - 1);
       logAction(hitUnit, "被弾判定", "⏱ 被弾により究極CT-1", "-", false, `残CT:${hitUnit.ct.ultimate}`);
@@ -2398,7 +2414,7 @@ function confirmHitAlly(){
     }
   }
   if(barrierBreakCheck && barrierBreakCheck.checked){
-    const target = state.units.find(x=>x.id===sel.value);
+    const target = state.units.find(x=>x.id===allyId);
     if(target){
       const before = target.buffs.length;
       target.buffs = target.buffs.filter(b=>!b.name.includes("バリア"));
@@ -2406,7 +2422,7 @@ function confirmHitAlly(){
     }
   }
   state.pendingTriggerContext.targetType = "single";
-  state.pendingTriggerContext.hitAllyId = sel.value;
+  state.pendingTriggerContext.hitAllyId = allyId;
   state.pendingTriggerContext.hitEvaded = evaded;
   renderBattle();
 }
@@ -2488,6 +2504,10 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded){
 
   if(s.triggerCtMode==="hasCT"){
     if(skillKey!=="basic") u.ct[skillKey] = s.ct;
+    // 会心発生時、自身のCTがさらに-1されるスキル（ロベルタ「ファストトラック」等。本ツールは会心前提のため常時適用）
+    if(!evaded && s.selfCtReduceOnCritTrigger && skillKey!=="basic" && u.ct[skillKey]>0){
+      u.ct[skillKey] = Math.max(0, u.ct[skillKey] - 1);
+    }
   } else {
     if(u.onceUsed) u.onceUsed[skillKey] = true;
   }
@@ -2740,14 +2760,14 @@ function renderPointDots(elId, current, visualMax, groupSize, color, showMaxLabe
   let html = "";
   for(let i=0; i<visualMax; i++){
     const on = i < shown;
-    if(i>0 && i%groupSize===0) html += `<span style="display:inline-block; width:5px;"></span>`;
-    html += `<span style="display:inline-block; width:9px; height:9px; border-radius:50%; margin:0 1px;
-      background:${on?color:"transparent"}; border:1.5px solid ${on?color:"var(--line)"};"></span>`;
+    if(i>0 && i%groupSize===0) html += `<span style="display:inline-block; width:7px;"></span>`;
+    html += `<span style="display:inline-block; width:13px; height:13px; border-radius:50%; margin:0 2px;
+      background:${on?color:"transparent"}; border:2px solid ${on?color:"var(--line)"};"></span>`;
   }
   if(current > visualMax){
-    html += ` <b style="color:${color}; font-size:11px;">+${current-visualMax}</b>`;
+    html += ` <b style="color:${color}; font-size:15px;">+${current-visualMax}</b>`;
   } else {
-    html += ` <span style="color:var(--text-dim); font-size:10px;">${current}${showMaxLabel?"/"+visualMax:""}</span>`;
+    html += ` <span style="color:var(--text-dim); font-size:13px;">${current}${showMaxLabel?"/"+visualMax:""}</span>`;
   }
   el.innerHTML = html;
 }
@@ -2839,18 +2859,16 @@ function renderBattle(){
     panel.className = "actionPanel";
 
     if(ctx.targetType==="selectHit"){
-      const opts = state.units.filter(x=>x.kind==="ally"&&x.alive)
-        .map(x=>`<option value="${x.id}">${x.name}${x.evasionRatePct?`（回避率${x.evasionRatePct}%）`:""}${x.buffs.some(b=>b.name.includes("バリア"))?"🛡":""}</option>`).join("");
+      const buttons = state.units.filter(x=>x.kind==="ally"&&x.alive)
+        .map(x=>`<button class="skillbtn" onclick="confirmHitAlly('${x.id}')">
+          <div class="name">${x.name}${x.evasionRatePct?`（回避率${x.evasionRatePct}%）`:""}${x.buffs.some(b=>b.name.includes("バリア"))?" 🛡":""}</div>
+        </button>`).join("");
       panel.innerHTML = `<h3>${ctx.sourceLabel}：被弾した味方を選択</h3>
-        <div class="row">
-          <select id="hitAllySelect">${opts}</select>
-        </div>
+        <div class="smallnote" style="margin-bottom:6px;">先にEVADE・バリア破壊があれば下でチェックしてから、被弾した味方を選んでください</div>
         <div class="checkline"><input type="checkbox" id="hitEvadeCheck"> EVADE（回避）成立：この味方は回避に成功した</div>
         <div class="checkline"><input type="checkbox" id="hitBarrierBreakCheck"> 🛡バリアが破壊された（この味方がバリアを持っている場合のみ有効）</div>
-        <div class="btn-row">
-          <button class="btn-primary btn-small" onclick="confirmHitAlly()">決定して被弾トリガーを確認</button>
-          <button class="btn-secondary btn-small" onclick="dismissTriggerContext()">確認せず続ける</button>
-        </div>`;
+        <div class="skillbtn-row">${buttons}</div>
+        <button class="btn-secondary btn-small" style="margin-top:4px;" onclick="dismissTriggerContext()">確認せず続ける</button>`;
     } else if(ctx.targetType==="selectHitAoe"){
       const aliveAllies = state.units.filter(x=>x.kind==="ally"&&x.alive);
       panel.innerHTML = `<h3>${ctx.sourceLabel}：味方それぞれのEVADE（回避）判定</h3>
@@ -2880,9 +2898,9 @@ function renderBattle(){
       panel.innerHTML = `<h3>${ctx.sourceLabel}：トリガースキル発動チェック</h3>
         <div class="smallnote" style="margin-bottom:8px;">発動条件を満たしていそうなら、下のボタンから発動を記録できます（発動しない場合はスキップしてください）。</div>
         ${offers.length===0 ? '<div class="smallnote">発動可能なトリガースキルは見つかりませんでした</div>' : ""}
-        ${offers.map(o=>`<button class="skillbtn" onclick="openTriggerFireForm('${o.allyId}','${o.key}')">
+        <div class="skillbtn-row">${offers.map(o=>`<button class="skillbtn" onclick="openTriggerFireForm('${o.allyId}','${o.key}')">
           <div class="name">🔔 ${o.allyName} - ${o.skillName}</div>
-        </button>`).join("")}
+        </button>`).join("")}</div>
         <button class="btn-secondary" style="margin-top:6px;" onclick="dismissTriggerContext()">これ以上発動しない・続ける</button>`;
     }
     area.appendChild(panel);
@@ -2900,7 +2918,7 @@ function renderBattle(){
     panel.innerHTML = `<h3>ブレイクスキル発動：対象の敵を選択（${typeInfo.label}）</h3>
       <div class="smallnote">効果：${typeInfo.note}</div>
       <div class="smallnote">${typeInfo.hasHitJudgement ? "発動自体が強靭削りなしの1ヒット攻撃として扱われます（被弾カウンタ+1）" : "このスキルには攻撃判定がありません（被弾カウンタは増えません）"}</div>
-      ${enemyOptions}
+      <div class="skillbtn-row">${enemyOptions}</div>
       <button class="btn-secondary" style="margin-top:6px;" onclick="cancelBreakSkillTarget()">キャンセル</button>`;
     area.appendChild(panel);
     return;
@@ -2935,7 +2953,7 @@ function renderBattle(){
     }).join("");
     panel.innerHTML = `<h3>水爆弾リアクト攻撃判定</h3>
       <div class="smallnote">${targetEnemy?targetEnemy.name:""}は水爆弾状態です。跳躍2以上の候補がいれば反応攻撃が発動します。</div>
-      ${buttons}
+      <div class="skillbtn-row">${buttons}</div>
       <button class="btn-secondary" style="margin-top:6px;" onclick="dismissWaterBombReact()">発動しなかった・続ける</button>`;
     area.appendChild(panel);
     return;
@@ -2953,7 +2971,7 @@ function renderBattle(){
     }).join("");
     panel.innerHTML = `<h3>ボス被弾トリガー判定</h3>
       <div class="smallnote">被弾カウントが規定回数に達した敵がいます。実際にボスの特殊がトリガーで割り込み発動しましたか？</div>
-      ${buttons}
+      <div class="skillbtn-row">${buttons}</div>
       <button class="btn-secondary" style="margin-top:6px;" onclick="dismissBossHitTrigger('${ctx.candidates[0]}')">発動しなかった・続ける</button>`;
     area.appendChild(panel);
     return;
@@ -2989,9 +3007,9 @@ function renderBattle(){
       const others = state.units.filter(x=>x.kind==="ally" && x.alive && x.id!==ctx.sourceUnitId);
       const candidates = others.length>0 ? others : state.units.filter(x=>x.kind==="ally" && x.alive && x.id===ctx.sourceUnitId);
       panel.innerHTML = `<h3>${sourceUnit?sourceUnit.name:""}の通常攻撃：EX発動 - 誰が誘発されましたか？</h3>
-        ${candidates.map(c=>`<button class="skillbtn" onclick="openExFireForm('${c.id}')">
+        <div class="skillbtn-row">${candidates.map(c=>`<button class="skillbtn" onclick="openExFireForm('${c.id}')">
           <div class="name">⚡ ${c.name} が通常攻撃で誘発</div>
-        </button>`).join("")}`;
+        </button>`).join("")}</div>`;
     }
     area.appendChild(panel);
     return;
@@ -3018,9 +3036,9 @@ function renderBattle(){
     } else {
       panel.innerHTML = `<h3>味方の通常スキル使用後：挟撃発動判定</h3>
         <div class="smallnote" style="margin-bottom:8px;">対象キャラの属性スタック数に応じた確率で挟撃が発動する設定です。発動したと判断した場合はボタンを押してください。</div>
-        ${ctx.candidates.map(c=>`<button class="skillbtn" onclick="openPincerFireForm('${c.id}')">
+        <div class="skillbtn-row">${ctx.candidates.map(c=>`<button class="skillbtn" onclick="openPincerFireForm('${c.id}')">
           <div class="name">⚔ ${c.name} が挟撃発動（発生率目安：${c.chancePct}%）</div>
-        </button>`).join("")}
+        </button>`).join("")}</div>
         <button class="btn-secondary" style="margin-top:6px;" onclick="dismissPincerCheck()">発動しなかった・続ける</button>`;
     }
     area.appendChild(panel);
@@ -3055,9 +3073,11 @@ function renderBattle(){
           <optgroup label="味方">${allyOptions}</optgroup>
         </select>
       </div>
-      ${renderSkillBtn(u,"basic")}
-      ${renderSkillBtn(u,"special")}
-      ${renderSkillBtn(u,"ultimate")}
+      <div class="skillbtn-row">
+        ${renderSkillBtn(u,"basic")}
+        ${renderSkillBtn(u,"special")}
+        ${renderSkillBtn(u,"ultimate")}
+      </div>
       <div class="checkline"><input type="checkbox" id="burstToggle" ${state.teamBurst<4?"disabled":""}> バースト強化を適用する（4pt消費／現在${state.teamBurst}pt）${state.teamBurst<4?'<span style="color:var(--text-dim)"> ※4pt未満のため使用不可</span>':""}</div>
       <div class="checkline"><input type="checkbox" id="evadeToggle"> EVADE（回避）成立：命中率ダウン／回避率アップの影響で敵に回避された（強靭度ダメージ0・会心にならない。味方対象バフには無関係）</div>
       <div class="checkline"><input type="checkbox" id="autoBuffToggle" checked> バフ/デバフを自動付与する（スキルに設定されている場合のみ有効。デフォルトON）</div>
@@ -3071,9 +3091,11 @@ function renderBattle(){
     panel.innerHTML = `
       <h3>${u.name}（敵）の行動（行動種別：${state.pendingArrivalType}）</h3>
       <div class="smallnote" style="margin-bottom:8px;">敵の攻撃は被ダメ計算の対象外です。使用スキルの記録とCT管理・自己バフ付与のメモのみ行います。</div>
-      ${renderEnemySkillBtn(u,"basic")}
-      ${renderEnemySkillBtn(u,"special")}
-      ${renderEnemySkillBtn(u,"ultimate")}
+      <div class="skillbtn-row">
+        ${renderEnemySkillBtn(u,"basic")}
+        ${renderEnemySkillBtn(u,"special")}
+        ${renderEnemySkillBtn(u,"ultimate")}
+      </div>
     `;
   }
   area.appendChild(panel);
