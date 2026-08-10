@@ -345,6 +345,9 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
     battleStartDebuffFastestEnemy: extraEffects.battleStartDebuffFastestEnemy || null,
     selfCtReduceOnCritTrigger: !!extraEffects.selfCtReduceOnCritTrigger,
     ctReduceBySevenBall: !!extraEffects.ctReduceBySevenBall,
+    extraTurnIfStackMaxConsumeAll: !!extraEffects.extraTurnIfStackMaxConsumeAll,
+    consumeStackOnlyIfMax: !!extraEffects.consumeStackOnlyIfMax,
+    firesAfterAnyOwnAttack: !!extraEffects.firesAfterAnyOwnAttack,
     consumeAllTargetDebuffName: extraEffects.consumeAllTargetDebuffName || null,
     target: extraEffects.target || "single",
     enemyGaugeReductionPct: extraEffects.enemyGaugeReductionPct || 0,
@@ -385,6 +388,12 @@ function isBossImmuneDebuffName(name){
   return BOSS_IMMUNE_DEBUFF_NAMES.some(n=>String(name||"").includes(n));
 }
 
+// 出血／凍結／燃焼はドットダメージ系で、重複せず「2個、3個…」と独立した別枠として数える・表示する
+const INDEPENDENT_STACK_DEBUFF_NAMES = ["出血", "凍結", "燃焼"];
+function isIndependentStackDebuff(name){
+  return INDEPENDENT_STACK_DEBUFF_NAMES.some(n=>String(name||"").includes(n));
+}
+
 // ===================== 属性相性 =====================
 // 三すくみ（太陽→星→月→太陽）と秩序⇔混沌の相互有利のみ判定する
 function hasElementAdvantage(attackerAttr, defenderAttr){
@@ -406,8 +415,6 @@ function checkGaugeOnHitGimmick(target){
   // ・出血／凍結／燃焼はドットダメージ系で、重複せず「2個、3個…」と独立した別枠として数える
   // ・それ以外の通常デバフ（惨劇の棘のような複数スタック可能な特殊デバフも含む）は、
   //   種類（名前）が同じなら何スタックあっても1個として数える（速度ダウン等は残ターン数の長い方が維持されるため元々1枠）
-  const INDEPENDENT_STACK_DEBUFF_NAMES = ["出血", "凍結", "燃焼"];
-  const isIndependentStackDebuff = (name)=> INDEPENDENT_STACK_DEBUFF_NAMES.some(n=>String(name||"").includes(n));
   const debuffs = (target.buffs||[]).filter(b=>b.type==="debuff");
   const independentCount = debuffs.filter(b=>isIndependentStackDebuff(b.name)).length;
   const otherNameSet = new Set(debuffs.filter(b=>!isIndependentStackDebuff(b.name)).map(b=>b.name));
@@ -678,7 +685,7 @@ const ALLY_PRESET_LIST = [
   // 太陽
   ["tyria","ティリア"], ["bunny_charle","バニーシャルル"], ["bride_epindel","花嫁エピンデル"],
   ["swimsuit_luna","水着ルナ"], ["marcille","マルシル"], ["charle","シャルル"],
-  ["petra","ペトラ"], ["kira","キラ"], ["bunny_scarlet","バニースカーレット"],
+  ["petra","ペトラ"], ["kira","キラ"], ["bunny_scarlet","バニースカーレット"], ["scarlet","スカーレット"],
   // 星
   ["roberta","ロベルタ"], ["ede","エデ"], ["clarissa","クラリッサ"], ["smile","スマイル"], ["swimsuit_smile","水着スマイル"],
   ["trish","トリッシュ"], ["tanya","ターニャ"], ["belriese","ベル・リース"],
@@ -736,9 +743,11 @@ function allyPreset(key){
       basic: defaultAllySkill("月食", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, selfBuff:{name:"攻撃力アップ", turns:1}, burstOnlySelfBuff:true }),
       special: defaultAllySkill("月食（反撃）", 0, 1, 1, 1, false, "any", "oncePerTurn", 0, 0, true, false, false, { selfStackGain:2 }),
       ultimate: defaultAllySkill("清風朗月", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"攻撃力アップ（+30%）", turns:2}, selfStackConsumeAll:true }) },
-    "ede": { name:"エデ", speed:95, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"ディフェンダー", passiveNote:"戦闘開始時に自身へ守護+バリア。被弾後、確率で跳躍+1。守護=味方の被ダメ30%肩代わり",
-      basic: defaultAllySkill("鋼鉄の雹", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1 }),
-      special: defaultAllySkill("錐の鎧", 3, 0, 0, 1, true, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"バリア＋防御力アップ（+30%）", turns:3}, selfStackConsumeAll:true }),
+    "ede": { name:"エデ", speed:95, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"ディフェンダー",
+      battleStartSelfBuffs:[{name:"守護", turns:1}, {name:"バリア", turns:1}], gainStackOnHit:true,
+      passiveNote:"戦闘開始時に自身へ1ターン守護＋バリアを発生(実装済み)。攻撃を受けた後、跳躍スタック+1(実装済み)。守護=味方の被ダメ30%肩代わり(本ツールはダメージ計算対象外のため参考情報)",
+      basic: defaultAllySkill("鋼鉄の雹", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, selfBuff:{name:"バリア（バースト時のみ）", turns:1}, burstOnlySelfBuff:true }),
+      special: defaultAllySkill("錐の鎧", 3, 0, 0, 1, false, "none", "hasCT", 0, 0, false, true, false, { selfBuff:{name:"守護＋防御力アップ（+30%）", turns:3}, extraTurnIfStackMaxConsumeAll:true }),
       ultimate: defaultAllySkill("棘の墓", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"守護", turns:3}, targetEffect:{name:"命中率ダウン（-30%）", turns:2} }) },
     "emily": { name:"エミリー", speed:95, toughnessMax:3, evasionRatePct:0, attribute:"月", role:"ディフェンダー", ultimateCtReduceOnHit:true, gainStackOnHit:true,
       battleStartSelfBarrier: { turns:1, hpPct:18 },
@@ -803,6 +812,11 @@ function allyPreset(key){
       basic: defaultAllySkill("一気に行くのだ！", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, atkPct:65 }),
       special: defaultAllySkill("これは無効なのだ！", 4, 0, 1, 1, true, "none", "hasCT", 0, 0, false, false, false, { targetEffect:{name:"回復量ダウン（-50%）", turns:2}, selfStackGain:1, atkPct:70 }),
       ultimate: defaultAllySkill("とりあえず勝ったのだ！", 5, 0, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { target:"all", targetEffect:[{name:"速度ダウン（-20%）", turns:1, speedModPct:-20}, {name:"回復量ダウン（-50%）", turns:2}], selfStackGain:1, atkPct:40, ctReduceBySevenBall:true }) },
+    "scarlet": { name:"スカーレット", speed:100, toughnessMax:3, evasionRatePct:0, attribute:"太陽", role:"ストライカー",
+      passiveNote:"わがはいが相手してやるのだ！：最大HPが15%上がる(3凸)。基本(裁断してやるのだ！)使用後、敵に100%で2ターン燃焼を発生(実装済み)。攻撃時、自身の点火が最大スタックであれば、スタックを全消去した後、特殊(思い切って行くのだ！)を発動(自身のターンに1回のみ、実装済み：afterOwnトリガーとして候補提示)。特殊の「敵の燃焼スタックに応じてダメ+15%ずつ(最大3)」・究極バーストの「燃焼追加発生」はダメージ計算対象外のため注記のみ",
+      basic: defaultAllySkill("裁断してやるのだ！", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, targetEffect:{name:"燃焼", turns:2, dot:true}, atkPct:65 }),
+      special: defaultAllySkill("思い切って行くのだ！", 3, 1, 1, 1, false, "afterOwn", "oncePerTurn", 0, 0, false, false, false, { selfBuff:{name:"攻撃力アップ（+30%）", turns:2}, triggerRequiresSelfStackMax:true, consumeStackOnlyIfMax:true, firesAfterAnyOwnAttack:true, atkPct:90 }),
+      ultimate: defaultAllySkill("耐えられるかのう？", 5, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { targetEffect:[{name:"燃焼", turns:2, dot:true}, {name:"燃焼", turns:2, dot:true}], selfBuff:{name:"チョキチョキ！（攻撃力+効果命中+15%）", turns:2}, selfStackGain:3, atkPct:115 }) },
     "vesta": { name:"ベスタ", speed:95, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"ディフェンダー", passiveNote:"かすかな感情：最大HPが15%上がる(3凸)。攻撃を受けた後、自身の跳躍が最大スタックであれば自身に2Tバリアを発生させ跳躍を全消費(本ツール未実装)。全体攻撃を受けた後、40%でランダムな敵に「撃退」を追加発動(1ターンに1回のみ、ブレイク中でも発生。実装済み：候補として提示されるので、実際の40%抽選結果に応じて発動するか選んでください)。ダメージ・バリアはHP参照(本ツールはダメージ計算未対応のためatkPctは目安値)",
       basic: defaultAllySkill("揺るぎなき槍", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, targetEffect:{name:"攻撃力ダウン（-30%・バースト時のみ）", turns:1}, burstOnlyTargetEffect:true, atkPct:32 }),
       special: defaultAllySkill("撃退", 3, 0, 1, 1, false, "aoe", "hasCT", 30, 0, false, false, false, { targetEffect:{name:"攻撃力ダウン（-30%）", turns:2}, selfStackGain:1, atkPct:45 }),
@@ -1295,7 +1309,7 @@ renderEnvBuffSetup();
 renderSpeedCompareTool();
 
 // ===================== 動作確認済みステータス（配布用：ユーザー自身が実際にプレイして確認した内容。都度更新） =====================
-const TOOL_VERSION = "v0.2.16";
+const TOOL_VERSION = "v0.2.27";
 document.getElementById("versionBadge").textContent = TOOL_VERSION;
 const VERIFIED_STATUS = {
   lastUpdated: "2026-08-10",
@@ -1349,7 +1363,18 @@ const DATED_LOG = [
   { date:"2026-08-08", version:"v0.2.13", text:"ドレスアセラ自身の通常攻撃で、自分自身の挟撃が誤って候補に出てしまう不具合を修正（攻撃者自身を挟撃候補から除外）" },
   { date:"2026-08-10", version:"v0.2.14", text:"ボスは特定のデバフ（挑発・気絶・睡眠・沈黙・強化不可・スキルクールタイム増加）に常時免疫であることを実装。★開幕免疫とは別枠で、現状すべてのボスに共通適用" },
   { date:"2026-08-10", version:"v0.2.15", text:"ベスタのパッシブ「全体攻撃被弾時、40%で特殊スキル『撃退』をトリガーで反撃発動」を実装（特殊のトリガータイプをaoeに変更し、ロベルタ・フェイと同じ仕組みで候補提示されるように）" },
-  { date:"2026-08-10", version:"v0.2.16", text:"動作確認済みキャラに「⚠️注意マーク」を付けられるよう対応。一部の効果のみ未実装のキャラは、名前の横にマークが付き、下に注釈（どの部分が未実装か）が表示される。ベスタに「2Tバリア発生は未実装」の注釈を追加" }
+  { date:"2026-08-10", version:"v0.2.16", text:"動作確認済みキャラに「⚠️注意マーク」を付けられるよう対応。一部の効果のみ未実装のキャラは、名前の横にマークが付き、下に注釈（どの部分が未実装か）が表示される。ベスタに「2Tバリア発生は未実装」の注釈を追加" },
+  { date:"2026-08-10", version:"v0.2.17", text:"エデを実装：戦闘開始時1ターン守護+バリア、被弾時跳躍+1（汎用機構battleStartSelfBuffs/gainStackOnHitで実装）、通常はバースト時1ターンバリア、特殊は跳躍最大時に全消費して追加ターン（extraTurnIfStackMaxConsumeAllを新設）、究極は3T守護＋敵に2T命中率ダウン。実装中、跳躍最大チェックが既存のスタック消費処理より後に評価され常に不発になっていた不具合も合わせて修正" },
+  { date:"2026-08-10", version:"v0.2.18", text:"エデの特殊「錐の鎧」を敵対象から味方対象（自己バフ）に修正" },
+  { date:"2026-08-10", version:"v0.2.19", text:"味方対象（自己バフ等）スキルで追加ターンが発生する際、CT減算処理（finalizeActionChain）を経由せず直接次のターンへ進んでいたため、他スキルのCTが減らない不具合を修正。エデの特殊使用時に発覚" },
+  { date:"2026-08-10", version:"v0.2.20", text:"スカーレット（通常版、太陽・ストライカー）を新規実装。基本使用後に燃焼付与、点火最大スタック時に特殊が自動発動（スマイルと同じafterOwnトリガー方式）" },
+  { date:"2026-08-10", version:"v0.2.21", text:"状態スナップショット表で、燃焼・凍結・出血が名前でまとめられ「燃焼×3(最大ターン数)」のように表示されていた不具合を修正。仕様通り重複しない独立枠のため「燃焼(2) 燃焼(2) 燃焼(1)」のように各スタックを個別に表示するよう変更（それ以外の通常デバフは引き続きグループ表示）" },
+  { date:"2026-08-10", version:"v0.2.22", text:"スカーレットの点火最大スタック時トリガーが、通常攻撃後にしか判定されず特殊・究極使用後には発動しなかった不具合を修正。firesAfterAnyOwnAttackという新しいフラグを追加し、このスキルだけ基本以外の攻撃後も判定対象になるよう対応（他キャラのafterOwnトリガーの基本限定仕様には影響なし）" },
+  { date:"2026-08-10", version:"v0.2.23", text:"スカーレットの特殊「思い切って行くのだ！」が、点火スタックの多寡に関わらず使用のたびに無条件で全消費してしまう不具合を修正。consumeStackOnlyIfMaxという新フィールドを追加し、点火が最大（5）の時のみスタックを消費するよう変更（CTで手動発動した場合、点火が最大でなければスタックは維持される）" },
+  { date:"2026-08-10", version:"v0.2.24", text:"スカーレットのトリガー発動ボタンがエラーで反応しない不具合を修正。前回の修正で追加した変数（stackMaxConsumedForExtraTurn等）をuseAllySkill内にしか宣言しておらず、トリガー発動経路のfireTrigger関数で参照エラーが発生していた。fireTrigger側にも同じ判定ロジックを追加" },
+  { date:"2026-08-10", version:"v0.2.25", text:"スカーレットの特殊が「クールタイム中は発動できない」設定（triggerCtMode:hasCT）になっており、点火最大でもトリガーが候補に出ない不具合を修正。triggerCtModeをoncePerTurnに変更し、CTとは無関係に「自身のターンに1回」の条件だけで発動するよう修正（発動してもCTには影響しない）" },
+  { date:"2026-08-10", version:"v0.2.26", text:"triggerRequiresSelfStackMax（点火・跳躍等が最大スタック時に自動発動するトリガー）の判定タイミングを修正。従来はその行動自身のスタック増加が反映された後の値で判定していたため、攻撃前は最大未満でも攻撃自体の増加で最大に達したケースまで誤って発動していた。攻撃前（行動によるスタック増加が反映される前）の値で判定するよう修正。スマイル・キラ等、同じ機構を使う他キャラにも影響" },
+  { date:"2026-08-10", version:"v0.2.27", text:"スカーレットの特殊・究極の強靭削り基礎値が0になっていた不具合を修正（特殊1・究極2に修正）" }
 ];
 
 // ===================== 更新履歴 =====================
@@ -1473,6 +1498,7 @@ function startBattle(){
       waterBombReactDebuffName: a.waterBombReactDebuffName||"水爆弾",
       ultimateCtReduceOnHit: !!a.ultimateCtReduceOnHit,
       battleStartSelfBarrier: a.battleStartSelfBarrier || null,
+      battleStartSelfBuffs: a.battleStartSelfBuffs || null,
       cautiousTacticsReady: true,
       usesSevenBallMechanic: !!a.usesSevenBallMechanic,
       pinballSpeedStacks: 0,
@@ -1568,6 +1594,13 @@ function startBattle(){
   units.filter(x=>x.kind==="ally" && x.battleStartSelfBarrier).forEach(ally=>{
     const bs = ally.battleStartSelfBarrier;
     applyBuffWithMaxDuration(ally.buffs, {name:`バリア（HP${bs.hpPct}%）`, turns:bs.turns, type:"buff"});
+  });
+
+  // 戦闘開始時、自身に複数のバフをまとめて発生させる味方（エデ等：守護+バリア等）
+  units.filter(x=>x.kind==="ally" && x.battleStartSelfBuffs).forEach(ally=>{
+    ally.battleStartSelfBuffs.forEach(b=>{
+      applyBuffWithMaxDuration(ally.buffs, {name:b.name, turns:b.turns, type:"buff", speedModPct:b.speedModPct||0, atkModPct:b.atkModPct||0, critDmgModPct:b.critDmgModPct||0});
+    });
   });
 
   // 戦闘開始時、水着ルナ専用アルカナ（ディフェンダー専用）を持つ味方は、自身のみに2ターンバリアを付与
@@ -1834,6 +1867,16 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
     return;
   }
 
+  // 跳躍等の属性スタックが最大の場合のみ、それを全消費して追加ターンを得るスキル（エデの特殊等）
+  // ※後続のスキル解決処理でスタックが消費される前に、この時点の値で判定・フラグ確定しておく
+  const stackMaxConsumedForExtraTurn = !!(s.extraTurnIfStackMaxConsumeAll && (u.elementStack||0) >= ELEMENT_STACK_MAX);
+  // 属性スタックが最大の場合のみ全消費するが、追加ターンは発生しないスキル（スカーレットの特殊等：
+  // パッシブのトリガー条件「点火最大時に自動発動」を満たした場合のみ消費し、CTで手動発動した場合は消費しない）
+  const stackMaxConsumedNoExtraTurn = !!(s.consumeStackOnlyIfMax && (u.elementStack||0) >= ELEMENT_STACK_MAX);
+  // afterOwnトリガーの「自身の属性スタックが最大か」の判定は、この行動自体によるスタック増加が
+  // 反映される前の値（＝攻撃時点で既に最大だったか）を見る必要があるため、ここでスナップショットを保存する
+  u._preActionElementStackSnapshot = u.elementStack||0;
+
   const isEvaded = s.targetsAlly ? false : evaded; // 味方対象バフはEVADE無関係
 
   // ---- 対象決定 ----
@@ -1883,7 +1926,7 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
     const stackName = stackNameForAttribute(u.attribute);
     if(s.selfStackGain > 0){ u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0)+s.selfStackGain); stackMemo += `／自身${stackName}+${s.selfStackGain}(${u.elementStack}/${ELEMENT_STACK_MAX})`; }
     if(s.selfSenkohanabiGain > 0){ u.senkohanabiStacks = Math.min(3, (u.senkohanabiStacks||0) + s.selfSenkohanabiGain); stackMemo += `／自身線香花火+${s.selfSenkohanabiGain}(${u.senkohanabiStacks})`; }
-    if(s.selfStackConsumeAll && (u.elementStack||0)>0){ stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)`; u.elementStack = 0; }
+    if((s.selfStackConsumeAll || stackMaxConsumedForExtraTurn || stackMaxConsumedNoExtraTurn) && (u.elementStack||0)>0){ stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)`; u.elementStack = 0; }
 
     logAction(u, state.pendingArrivalType, skillCategoryLabel(skillKey) + "：" + s.name + (burstOn?"（バースト）":""), "-", false,
       `対象:${allyTarget.name}（味方）／バフ・回復等の効果（強靭計算対象外）${(s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0))>0 ? `／${s.gaugeToTarget?"対象":"自身"}ゲージ+${s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0)}%`:""}${burstOn?"／BP-4":""}${s.burstGain>0?`／BP+${s.burstGain}`:""}（BP残${state.teamBurst}）${buffMemo}${stackMemo}`);
@@ -1997,7 +2040,7 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       const stackName = stackNameForAttribute(u.attribute);
       if(s.selfStackGain > 0){ u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0)+s.selfStackGain); stackMemo += `／自身${stackName}+${s.selfStackGain}(${u.elementStack}/${ELEMENT_STACK_MAX})`; }
     if(s.selfSenkohanabiGain > 0){ u.senkohanabiStacks = Math.min(3, (u.senkohanabiStacks||0) + s.selfSenkohanabiGain); stackMemo += `／自身線香花火+${s.selfSenkohanabiGain}(${u.senkohanabiStacks})`; }
-      if(s.selfStackConsumeAll && (u.elementStack||0)>0){ stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)`; u.elementStack = 0; }
+      if((s.selfStackConsumeAll || stackMaxConsumedForExtraTurn || stackMaxConsumedNoExtraTurn) && (u.elementStack||0)>0){ stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)`; u.elementStack = 0; }
     }
 
     logAction(u, state.pendingArrivalType, skillCategoryLabel(skillKey) + "：" + s.name + (burstOn&&!isEvaded?"（バースト）":"") + (isEvaded?"（EVADE）":""), String(toughnessDmgSum), brokeAny,
@@ -2036,7 +2079,11 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
 
   state.pendingActor = null;
 
-  const extra = s.extraTurn && (!s.extraTurnBurstOnly || burstOn);
+  let extra = s.extraTurn && (!s.extraTurnBurstOnly || burstOn);
+  // 跳躍等の属性スタックが最大の場合のみ、それを全消費して追加ターンを得るスキル（エデの特殊等）
+  if(s.extraTurnIfStackMaxConsumeAll){
+    extra = stackMaxConsumedForExtraTurn;
+  }
   // ※CTの「行動のたびに他の全スキルのCTが1減る」処理は、この場では行わず、
   //   行動チェーン全体が完了するタイミング（finalizeActionChain）に移動した。
   //   理由：ここで即座に減算すると、同じ行動チェーン内で発生する割り込み（ボス被弾トリガー等）の
@@ -2055,12 +2102,10 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
     // 水爆弾リアクト攻撃（水着スマイル等）は「攻撃した後」が条件のため、特殊・究極スキルでも判定する
     // （挟撃・GXは基本スキル限定の仕様のためここでは対象外）
     checkWaterBombReact(unitId, targetEnemyId, extra, false);
-  } else if(extra){
-    // afterOwnトリガー（自分のスキル使用後に自動発動する系）は「基本スキル使用後」のみ判定対象とする。
-    // 特殊・究極スキル使用後はafterOwnトリガーの候補提示は行わず、追加ターンの処理のみ行う。
-    openActionFor(unitId, "追加ターン(誘発)");
   } else {
-    renderBattle();
+    // 味方対象（自己バフ等）スキルや、その他の残りケースは、CT減算を含むfinalizeActionChainを必ず経由する
+    // （※以前は追加ターンがある場合に直接openActionForを呼んでおり、CT減算処理が飛ばされていた）
+    finalizeActionChain(unitId, extra);
   }
 }
 
@@ -2173,7 +2218,11 @@ function computeOffers(targetType, ctx){
         const lastTarget = state.units.find(x=>x.id===u.lastBasicTargetId);
         if(!lastTarget || countDebuffStacks(lastTarget, s.triggerRequiresEnemyStackName) < (s.triggerRequiresEnemyStackCount||1)) return;
       }
-      if(s.triggerRequiresSelfStackMax && (u.elementStack||0) < ELEMENT_STACK_MAX) return;
+      if(s.triggerRequiresSelfStackMax){
+        // 「攻撃時、点火が最大スタックであれば」＝この行動自体のスタック増加が反映される前の値で判定する
+        const preActionStack = (u._preActionElementStackSnapshot!=null) ? u._preActionElementStackSnapshot : (u.elementStack||0);
+        if(preActionStack < ELEMENT_STACK_MAX) return;
+      }
       if(s.requiresEvade){
         if(targetType==="single" && !ctx.hitEvaded) return;
         if(targetType==="all" && !(ctx.evadeMap && ctx.evadeMap[u.id])) return;
@@ -2201,7 +2250,13 @@ function finalizeActionChain(unitId, extraTurnFlag){
 }
 
 function afterOwnCheck(unitId, extraTurnFlag, wasBasicSkill){
-  const offers = (wasBasicSkill===false) ? [] : computeOffers("afterOwn", {hitAllyId:unitId});
+  // 通常は「afterOwnトリガーは基本スキル使用後のみ」だが、firesAfterAnyOwnAttack:trueを持つスキルは
+  // 特殊・究極使用後でも判定対象とする（例：スカーレットの点火最大スタック時の自動発動）
+  let offers = computeOffers("afterOwn", {hitAllyId:unitId});
+  if(wasBasicSkill===false){
+    const u = state.units.find(x=>x.id===unitId);
+    offers = offers.filter(o=> u && u.skills[o.key] && u.skills[o.key].firesAfterAnyOwnAttack);
+  }
   if(offers.length>0){
     const u = state.units.find(x=>x.id===unitId);
     state.pendingTriggerContext = { targetType:"afterOwn", hitAllyId:unitId,
@@ -2607,6 +2662,11 @@ function confirmTriggerFire(){
 function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded){
   const u = state.units.find(x=>x.id===allyId);
   const s = u.skills[skillKey];
+  // トリガー発動時も、属性スタックが最大の場合のみ全消費するスキル（エデ・スカーレット等）の判定を行う
+  // ※後続の解決処理でスタックが消費される前に、この時点の値で判定・フラグ確定しておく
+  const stackMaxConsumedForExtraTurn = !!(s.extraTurnIfStackMaxConsumeAll && (u.elementStack||0) >= ELEMENT_STACK_MAX);
+  const stackMaxConsumedNoExtraTurn = !!(s.consumeStackOnlyIfMax && (u.elementStack||0) >= ELEMENT_STACK_MAX);
+  u._preActionElementStackSnapshot = u.elementStack||0;
 
   let targets = [];
   if(s.target === "all"){
@@ -2726,7 +2786,7 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded){
       u.senkohanabiStacks = Math.min(3, (u.senkohanabiStacks||0) + s.selfSenkohanabiGain);
       stackMemo += `／自身線香花火+${s.selfSenkohanabiGain}(${u.senkohanabiStacks})`;
     }
-    if(s.selfStackConsumeAll && (u.elementStack||0) > 0){
+    if((s.selfStackConsumeAll || stackMaxConsumedForExtraTurn || stackMaxConsumedNoExtraTurn) && (u.elementStack||0) > 0){
       stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)`;
       u.elementStack = 0;
     }
@@ -2938,10 +2998,16 @@ function renderBattle(){
     (function(){
       const grouped = {};
       u.buffs.forEach(b=>{
-        const key = b.name + "|" + b.type;
-        if(!grouped[key]) grouped[key] = { ...b, count:0, maxTurns:b.turns };
-        grouped[key].count++;
-        grouped[key].maxTurns = Math.max(grouped[key].maxTurns, b.turns);
+        if(isIndependentStackDebuff(b.name)){
+          // 燃焼・凍結・出血は重複せず、各スタックを個別に表示する（燃焼(2)、燃焼(2)、燃焼(1)のように）
+          const key = b.name + "|" + b.type + "|" + Math.random(); // 常に別エントリとして扱う
+          grouped[key] = { ...b, count:1, maxTurns:b.turns };
+        } else {
+          const key = b.name + "|" + b.type;
+          if(!grouped[key]) grouped[key] = { ...b, count:0, maxTurns:b.turns };
+          grouped[key].count++;
+          grouped[key].maxTurns = Math.max(grouped[key].maxTurns, b.turns);
+        }
       });
       Object.values(grouped).forEach(g=>{
         const stackLabel = g.count>1 ? `×${g.count}` : "";
