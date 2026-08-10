@@ -366,10 +366,24 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
 }
 
 // ===================== 属性スタック（点火/冷却/跳躍/洞察/激動） =====================
+// 命中率ダウン等、EVADE判定の参考になるデバフを備考として表示するための取得関数
+// （命中率ダウンは回避率と対になるステータスのため、攻撃側にこのデバフがあると相手に回避されやすくなる）
+function findAccuracyRelatedDebuffNote(u){
+  if(!u || !u.buffs) return "";
+  const found = u.buffs.filter(b=>b.type==="debuff" && (b.name.includes("命中率ダウン") || b.name.includes("回避率アップ")));
+  if(found.length===0) return "";
+  return found.map(b=>`${b.name}(残${b.turns}T)`).join("、");
+}
 function stackNameForAttribute(attr){
   return {"太陽":"点火", "月":"冷却", "星":"跳躍", "秩序":"洞察", "混沌":"激動"}[attr] || "スタック";
 }
 const ELEMENT_STACK_MAX = 5;
+
+// コスモゲートのボスは以下のデバフに常時免疫（★開幕免疫とは別枠。現状すべてのボスで共通）
+const BOSS_IMMUNE_DEBUFF_NAMES = ["挑発", "気絶", "睡眠", "沈黙", "強化不可", "スキルクールタイム増加"];
+function isBossImmuneDebuffName(name){
+  return BOSS_IMMUNE_DEBUFF_NAMES.some(n=>String(name||"").includes(n));
+}
 
 // ===================== 属性相性 =====================
 // 三すくみ（太陽→星→月→太陽）と秩序⇔混沌の相互有利のみ判定する
@@ -789,9 +803,9 @@ function allyPreset(key){
       basic: defaultAllySkill("一気に行くのだ！", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, atkPct:65 }),
       special: defaultAllySkill("これは無効なのだ！", 4, 0, 1, 1, true, "none", "hasCT", 0, 0, false, false, false, { targetEffect:{name:"回復量ダウン（-50%）", turns:2}, selfStackGain:1, atkPct:70 }),
       ultimate: defaultAllySkill("とりあえず勝ったのだ！", 5, 0, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { target:"all", targetEffect:[{name:"速度ダウン（-20%）", turns:1, speedModPct:-20}, {name:"回復量ダウン（-50%）", turns:2}], selfStackGain:1, atkPct:40, ctReduceBySevenBall:true }) },
-    "vesta": { name:"ベスタ", speed:95, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"ディフェンダー", passiveNote:"かすかな感情：最大HPが15%上がる(3凸)。攻撃を受けた後、自身の跳躍が最大スタックであれば自身に2Tバリアを発生させ跳躍を全消費(本ツール未実装)。全体攻撃を受けた後、40%でランダムな敵に「撃退」を追加発動(1ターンに1回のみ、ブレイク中でも発生。本ツール未実装)。ダメージ・バリアはHP参照(本ツールはダメージ計算未対応のためatkPctは目安値)",
+    "vesta": { name:"ベスタ", speed:95, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"ディフェンダー", passiveNote:"かすかな感情：最大HPが15%上がる(3凸)。攻撃を受けた後、自身の跳躍が最大スタックであれば自身に2Tバリアを発生させ跳躍を全消費(本ツール未実装)。全体攻撃を受けた後、40%でランダムな敵に「撃退」を追加発動(1ターンに1回のみ、ブレイク中でも発生。実装済み：候補として提示されるので、実際の40%抽選結果に応じて発動するか選んでください)。ダメージ・バリアはHP参照(本ツールはダメージ計算未対応のためatkPctは目安値)",
       basic: defaultAllySkill("揺るぎなき槍", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, targetEffect:{name:"攻撃力ダウン（-30%・バースト時のみ）", turns:1}, burstOnlyTargetEffect:true, atkPct:32 }),
-      special: defaultAllySkill("撃退", 3, 0, 1, 1, false, "none", "hasCT", 30, 0, false, false, false, { targetEffect:{name:"攻撃力ダウン（-30%）", turns:2}, selfStackGain:1, atkPct:45 }),
+      special: defaultAllySkill("撃退", 3, 0, 1, 1, false, "aoe", "hasCT", 30, 0, false, false, false, { targetEffect:{name:"攻撃力ダウン（-30%）", turns:2}, selfStackGain:1, atkPct:45 }),
       ultimate: defaultAllySkill("止まらぬ突撃", 4, 0, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { teamBuff:{name:"防御力アップ（+30%）", turns:2}, selfBuff:{name:"バリア", turns:2}, selfStackGain:1, atkPct:55 }) },
     "swimsuit_luna": { name:"水着ルナ", speed:95, toughnessMax:3, evasionRatePct:0, attribute:"太陽", role:"ディフェンダー", passiveNote:"戦闘開始時、点火5スタック＋自身以外の味方全体にウォータープルーフ日焼け止め(会心ダメ耐性+50%)3T付与。特殊は「自分以外の味方が会心被弾した後」に自動発動するトリガー(対象を問わない広域型のため、本ツールでは通常スキルとして手動発動に読み替え)",
       basic: defaultAllySkill("バブル・スイング！", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, atkPct:60 }),
@@ -1281,12 +1295,14 @@ renderEnvBuffSetup();
 renderSpeedCompareTool();
 
 // ===================== 動作確認済みステータス（配布用：ユーザー自身が実際にプレイして確認した内容。都度更新） =====================
-const TOOL_VERSION = "v0.2.5";
+const TOOL_VERSION = "v0.2.16";
 document.getElementById("versionBadge").textContent = TOOL_VERSION;
 const VERIFIED_STATUS = {
-  lastUpdated: "2026-08-08",
-  bosses: ["デモライギス：アルファ", "不死王モグルス"],
-  characters: ["ドレスアセラ", "セイラ", "バニーシャルル", "ティリア", "水着スマイル", "ロベルタ", "フェイ", "バニースカーレット", "エミリー"]
+  lastUpdated: "2026-08-10",
+  bosses: ["デモライギス：アルファ", "デモライギス：ベータ", "不死王モグルス"],
+  characters: ["ドレスアセラ", "セイラ", "バニーシャルル", "ティリア", "水着スマイル", "ロベルタ", "フェイ", "バニースカーレット", "エミリー",
+    { name:"ベスタ", caution:"全体攻撃被弾時40%で「撃退」トリガー反撃は確認済み。ただし被弾後・跳躍最大時の2Tバリア発生は本ツール未実装" }
+  ]
 };
 
 // 日付つき更新ログ（今後の更新はここに追加していく。過去分は無理に遡らない）
@@ -1321,7 +1337,19 @@ const DATED_LOG = [
   { date:"2026-08-08", version:"v0.2.5", text:"バニースカーレットの究極スキルCT短縮を、スキル使用時ではなくターン開始時の処理に修正（セブンボール数分ずつCTが縮み、3個なら即時リセット）" },
   { date:"2026-08-08", version:"v0.2.5", text:"バニースカーレットの初回ターンで究極が選択できない不具合を修正。セブンボール数を選択した瞬間に速度スタック・究極CT短縮が反映されるよう変更（同ターン内での選び直しによる二重適用も防止）" },
   { date:"2026-08-08", version:"v0.2.5", text:"セブンボール数のプルダウンが前回選択値のまま残り、同じ値を選び直してもchangeイベントが発火せず反映されない不具合を修正（毎ターン選択肢を空白状態にリセット）。水着ルナ専用アルカナを修正：味方全体1ターンバリア→ディフェンダー専用・自身のみ2ターンバリアに訂正" },
-  { date:"2026-08-08", version:"v0.2.5", text:"動作確認済みボスにバニースカーレットを追加。動作確認済みキャラの表示に属性色アイコンを追加し、属性→名前の順でソートするよう改善" }
+  { date:"2026-08-08", version:"v0.2.5", text:"動作確認済みボスにバニースカーレットを追加。動作確認済みキャラの表示に属性色アイコンを追加し、属性→名前の順でソートするよう改善" },
+  { date:"2026-08-08", version:"v0.2.5", text:"デモライギス：ベータ等、被弾カウントトリガーを持つ敵の状態欄に「🎯被弾:X/N」を表示するよう追加（これまでログでしか確認できなかった）" },
+  { date:"2026-08-08", version:"v0.2.6", text:"敵スキルのselfGaugeGainPct（自身ゲージ増加）が、ログのスナップショットに反映されずゲージ増加していないように見えていた不具合を修正（ログ記録がゲージ更新より先に呼ばれていたため。デモライギス：ベータの特殊で発覚）" },
+  { date:"2026-08-08", version:"v0.2.7", text:"ボス被弾カウントトリガー発動時、特殊スキルの自ゲージ増加（歪んだ意志による自己バフ含む）が適用されず、カウンタ持ち越し処理とログのみだった不具合を修正。トリガー発動確定時にこれらの効果を実際に適用するよう変更" },
+  { date:"2026-08-08", version:"v0.2.8", text:"ボス被弾カウントトリガー（デモライギス：ベータ等）の割り込み攻撃が、EVADE判定・味方トリガー発動チェック（ロベルタのファストトラック等）を一切経由せずに終わっていた不具合を修正。実際の攻撃と同様にEVADE判定→味方トリガー候補提示のフローを通り、その後もとのキャラの行動チェーンへ正しく戻るよう再設計" },
+  { date:"2026-08-08", version:"v0.2.9", text:"フェイの「月食（反撃）」等、1ターン1回制限（onceUsed）を持つトリガースキルが、そのキャラ自身のターンが来るまでリセットされず、他キャラの行動を挟むと発動できなくなっていた不具合を修正（ドレスアセラの挟撃で以前修正したのと同種の問題）。誰のターン開始でも全ユニット分リセットするよう変更" },
+  { date:"2026-08-08", version:"v0.2.10", text:"攻撃判定ありのブレイクスキル発動によって被弾カウントが閾値に到達した際、発動直後にその場でボス被弾トリガーのパネルが出てしまう不具合を修正。ブレイクスキル発動はキャラの行動ではないため、実際にキャラが攻撃するまでトリガー判定を持ち越すよう変更" },
+  { date:"2026-08-08", version:"v0.2.11", text:"CT減算（行動のたびに他の全スキルのCTが1減る処理）のタイミングを、行動開始直後から行動チェーン全体が完了した後に変更。これにより、ロベルタの特殊トリガーのように「1回行動すればCTが開通する」スキルが、その行動自体から派生したボス被弾トリガー等の判定内で誤って即座に利用可能扱いされてしまう不具合を修正（実際にはそのターンが終わるまでCTは開通しない）" },
+  { date:"2026-08-08", version:"v0.2.12", text:"EVADE判定パネル（味方→敵・敵→味方の両方）に、攻撃側が現在持つ「命中率ダウン／回避率アップ」デバフを参考情報として表示するよう追加" },
+  { date:"2026-08-08", version:"v0.2.13", text:"ドレスアセラ自身の通常攻撃で、自分自身の挟撃が誤って候補に出てしまう不具合を修正（攻撃者自身を挟撃候補から除外）" },
+  { date:"2026-08-10", version:"v0.2.14", text:"ボスは特定のデバフ（挑発・気絶・睡眠・沈黙・強化不可・スキルクールタイム増加）に常時免疫であることを実装。★開幕免疫とは別枠で、現状すべてのボスに共通適用" },
+  { date:"2026-08-10", version:"v0.2.15", text:"ベスタのパッシブ「全体攻撃被弾時、40%で特殊スキル『撃退』をトリガーで反撃発動」を実装（特殊のトリガータイプをaoeに変更し、ロベルタ・フェイと同じ仕組みで候補提示されるように）" },
+  { date:"2026-08-10", version:"v0.2.16", text:"動作確認済みキャラに「⚠️注意マーク」を付けられるよう対応。一部の効果のみ未実装のキャラは、名前の横にマークが付き、下に注釈（どの部分が未実装か）が表示される。ベスタに「2Tバリア発生は未実装」の注釈を追加" }
 ];
 
 // ===================== 更新履歴 =====================
@@ -1361,19 +1389,21 @@ const CHANGELOG = [
     "状態スナップショット表の列整理（無意味だった「バフ/デバフ」列を削除）"
   ]}
 ];
-function renderVerifiedCharList(names){
+function renderVerifiedCharList(entries){
   const ATTR_ORDER = ["太陽","星","月","秩序","混沌"];
-  const items = names.map(nm=>{
+  const items = entries.map(entry=>{
+    const nm = typeof entry === "string" ? entry : entry.name;
+    const caution = typeof entry === "string" ? null : (entry.caution || null);
     const found = ALLY_PRESET_LIST.find(([key,label])=>label===nm);
     const attr = found ? (allyPreset(found[0])||{}).attribute : null;
-    return { name: nm, attribute: attr || "" };
+    return { name: nm, attribute: attr || "", caution };
   }).sort((a,b)=>{
     const ai = ATTR_ORDER.indexOf(a.attribute), bi = ATTR_ORDER.indexOf(b.attribute);
     if(ai !== bi) return ai - bi;
     return a.name.localeCompare(b.name, "ja");
   });
   return items.map(it=>`<span style="display:inline-flex; align-items:center; gap:4px; margin-right:10px; margin-bottom:4px;">
-    <span style="display:inline-block; width:9px; height:9px; border-radius:50%; background:${ATTRIBUTE_COLORS[it.attribute]||'#555b82'};"></span>${it.name}
+    <span style="display:inline-block; width:9px; height:9px; border-radius:50%; background:${ATTRIBUTE_COLORS[it.attribute]||'#555b82'};"></span>${it.name}${it.caution ? `<span title="${it.caution.replace(/"/g,'&quot;')}" style="cursor:help; color:var(--warn);">⚠️</span>` : ""}
   </span>`).join("");
 }
 function toggleChangelog(){
@@ -1385,6 +1415,11 @@ function toggleChangelog(){
         <div style="font-size:13px; margin-bottom:6px;"><b>ボス：</b>${VERIFIED_STATUS.bosses.length ? VERIFIED_STATUS.bosses.join("、") : "（未確認）"}</div>
         <div style="font-size:13px;"><b>キャラ：</b></div>
         <div style="margin-top:2px;">${VERIFIED_STATUS.characters.length ? renderVerifiedCharList(VERIFIED_STATUS.characters) : "（未確認）"}</div>
+        ${VERIFIED_STATUS.characters.some(c=>typeof c!=="string" && c.caution) ? `
+        <div style="margin-top:6px; font-size:11px; color:var(--text-dim); border-top:1px dashed var(--line); padding-top:6px;">
+          ⚠️の注釈：
+          ${VERIFIED_STATUS.characters.filter(c=>typeof c!=="string" && c.caution).map(c=>`<div style="margin-top:2px;">・${c.name}：${c.caution}</div>`).join("")}
+        </div>` : ""}
       </div>`;
     const datedLogHtml = `
       <div style="margin-bottom:14px;">
@@ -1709,7 +1744,9 @@ function openActionFor(unitId, arrivalType){
     u.buffs = u.buffs.map(b=> b.speedZeroLock ? b : ({...b, turns:b.turns-1})).filter(b=> b.speedZeroLock || b.turns>0);
   }
   // ターン開始処理：CT概念なし系トリガー（1ターン1回制限）の使用済みフラグをリセット
-  if(u.onceUsed){ Object.keys(u.onceUsed).forEach(k=>{ u.onceUsed[k]=false; }); }
+  // ※フェイの反撃等は他キャラの行動（被弾）に反応するため、そのキャラ自身の番でなく「新しい行動（ターン）が始まるたび」に
+  //   全ユニット分をリセットする（該当キャラの手番が来るまで持ち越されるのを防ぐ）
+  state.units.forEach(x=>{ if(x.onceUsed){ Object.keys(x.onceUsed).forEach(k=>{ x.onceUsed[k]=false; }); } });
   // ドレスアセラ等の挟撃：1ターンに1回までの制限フラグをリセット（EXの誘発カウントとは別枠）
   // ※挟撃は他キャラの行動に反応するため、挟撃キャラ自身の番でなく「新しい行動（ターン）が始まるたび」に
   //   全ユニット分をリセットする（挟撃キャラの手番が来るまで持ち越されるのを防ぐ）
@@ -1903,6 +1940,7 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       if(autoApplyBuffs !== false && !isEvaded){
         targetEffectList.forEach(eff=>{
           if(s.burstOnlyTargetEffect && !burstOn) return;
+          if(target.kind==="enemy" && isBossImmuneDebuffName(eff.name)){ effText += `／${eff.name}はボスに常時免疫のため付与できず`; return; }
           if(target.immune && !eff.ignoresImmune){ effText += `／${eff.name}は免疫中のため付与できず`; return; }
           if(eff.dot){ target.buffs.push({name:eff.name, turns:eff.turns, type:"debuff", speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, dot:true}); effText += `／${eff.name}を追加スタック付与`; }
           else { const applied = applyBuffWithMaxDuration(target.buffs, {name:eff.name, turns:eff.turns, type:"debuff", speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0}); effText += `／${eff.name}(残${applied.turns}T)付与`; }
@@ -1999,12 +2037,10 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
   state.pendingActor = null;
 
   const extra = s.extraTurn && (!s.extraTurnBurstOnly || burstOn);
-  // CTを1つ進める（自分が今使ったスキル自身も含めて、行動のたびに他の全スキルのCTが1減る。
-  // ただし特殊/究極を使った直後はCTが基礎値にセットされた直後にこの減算が入るため、
-  // 結果的に「セット値-1」が使用直後の表示値になる）
-  ["special","ultimate"].forEach(k=>{
-    if(u.ct[k]>0) u.ct[k] = Math.max(0, u.ct[k]-1);
-  });
+  // ※CTの「行動のたびに他の全スキルのCTが1減る」処理は、この場では行わず、
+  //   行動チェーン全体が完了するタイミング（finalizeActionChain）に移動した。
+  //   理由：ここで即座に減算すると、同じ行動チェーン内で発生する割り込み（ボス被弾トリガー等）の
+  //   判定時に「まだそのターンが終わっていないのにCTが開通した」ように見えてしまうため。
 
   // 遺物AX：究極スキル発動でその場でリセット（そのターン終了時扱い）
   if(u.relics && u.relics.AX && skillKey==="ultimate"){ u.axStacks = 0; }
@@ -2034,10 +2070,11 @@ function useEnemySkill(unitId, skillKey){
   if(skillKey!=="basic" && u.ct[skillKey] > 0){ alert("クールタイム中です"); return; }
   if(skillKey!=="basic"){ u.ct[skillKey] = s.ct; }
 
-  logAction(u, state.pendingArrivalType, skillCategoryLabel(skillKey) + "：" + s.name, "-", false, s.note || "");
-
   u.gauge = 0;
   if(s.selfGaugeGainPct){ u.gauge = Math.min(100, u.gauge + s.selfGaugeGainPct); }
+
+  logAction(u, state.pendingArrivalType, skillCategoryLabel(skillKey) + "：" + s.name, "-", false, s.note || "");
+
   if(s.selfBuffIfTwistedWill && (u.twistedWillStacks||0) > 0){
     applyBuffWithMaxDuration(u.buffs, {name:s.selfBuffIfTwistedWill.name, turns:s.selfBuffIfTwistedWill.turns, type:"buff", speedModPct:s.selfBuffIfTwistedWill.speedModPct||0});
     logAction(u, "被弾判定", "😈 歪んだ意志(" + u.twistedWillStacks + ")状態のため" + s.selfBuffIfTwistedWill.name + "(" + s.selfBuffIfTwistedWill.turns + "T)を自身に付与", "-", false, "");
@@ -2148,6 +2185,14 @@ function computeOffers(targetType, ctx){
 }
 
 function finalizeActionChain(unitId, extraTurnFlag){
+  // 行動チェーン全体が完了したこのタイミングで、CTを1つ進める
+  // （自分が今使ったスキル自身も含めて、行動のたびに他の全スキルのCTが1減る）
+  const u = state.units.find(x=>x.id===unitId);
+  if(u){
+    ["special","ultimate"].forEach(k=>{
+      if(u.ct[k]>0) u.ct[k] = Math.max(0, u.ct[k]-1);
+    });
+  }
   if(extraTurnFlag){
     openActionFor(unitId, "追加ターン(誘発)");
   } else {
@@ -2213,15 +2258,15 @@ function confirmExActivated(){
 }
 
 // ===================== ドレスアセラ型「挟撃」（味方の通常スキル使用後、自身の属性スタック数×◯%で発動） =====================
-function computePincerCandidates(){
-  return state.units.filter(x=>x.kind==="ally" && x.alive && x.hasPincerAttack && !x.broken && !x.pincerUsedThisTurn).map(x=>{
+function computePincerCandidates(attackerUnitId){
+  return state.units.filter(x=>x.kind==="ally" && x.alive && x.id!==attackerUnitId && x.hasPincerAttack && !x.broken && !x.pincerUsedThisTurn).map(x=>{
     const chancePct = Math.min(100, (x.elementStack||0) * (x.pincerStackPct||0));
     return { id:x.id, name:x.name, chancePct };
   }).filter(c=>c.chancePct > 0);
 }
 
 function checkPincerProc(unitId, extraTurnFlag, targetEnemyId){
-  const candidates = computePincerCandidates();
+  const candidates = computePincerCandidates(unitId);
   if(candidates.length === 0){
     checkWaterBombReact(unitId, targetEnemyId, extraTurnFlag, true);
     return;
@@ -2244,9 +2289,37 @@ function confirmBossHitTrigger(enemyId){
   const ctx = state.pendingBossHitTrigger;
   state.pendingBossHitTrigger = null;
   const enemy = state.units.find(x=>x.id===enemyId);
-  if(enemy){ enemy.hitCounter = Math.max(0, (enemy.hitCounter||0) - (enemy.specialTriggerHitCount||0)); }
-  // 実際の発動は手動でボス側の行動パネルから特殊を選んで記録する運用とし、ここではカウンターの持ち越し処理とログのみ行う
-  if(enemy){ logAction(enemy, "被弾トリガー", "🚨 特殊トリガー発動（被弾" + (enemy.specialTriggerHitCount||0) + "回）", "-", false, "被弾カウントが" + (enemy.specialTriggerHitCount||0) + "回に達したため、特殊スキルが割り込みで発動。閾値分を差し引き、残りカウント" + enemy.hitCounter + "は次に持ち越し。実際の効果はボスの行動パネルから記録してください"); }
+  if(enemy){
+    enemy.hitCounter = Math.max(0, (enemy.hitCounter||0) - (enemy.specialTriggerHitCount||0));
+    const s = enemy.skills && enemy.skills.special;
+    let effectMemo = "";
+    if(s){
+      if(s.selfGaugeGainPct){
+        enemy.gauge = Math.min(100, enemy.gauge + s.selfGaugeGainPct);
+        effectMemo += `／自ゲージ+${s.selfGaugeGainPct}%（残${enemy.gauge}%）`;
+      }
+      if(s.selfBuffIfTwistedWill && (enemy.twistedWillStacks||0) > 0){
+        applyBuffWithMaxDuration(enemy.buffs, {name:s.selfBuffIfTwistedWill.name, turns:s.selfBuffIfTwistedWill.turns, type:"buff", speedModPct:s.selfBuffIfTwistedWill.speedModPct||0});
+        effectMemo += `／😈歪んだ意志により${s.selfBuffIfTwistedWill.name}(${s.selfBuffIfTwistedWill.turns}T)を自身に付与`;
+      }
+    }
+    logAction(enemy, "被弾トリガー", "🚨 特殊トリガー発動（被弾" + (enemy.specialTriggerHitCount||0) + "回）", "-", false, "被弾カウントが" + (enemy.specialTriggerHitCount||0) + "回に達したため、特殊スキルが割り込みで発動。閾値分を差し引き、残りカウント" + enemy.hitCounter + "は次に持ち越し。強靭削り等の攻撃効果はボスの行動パネルから別途記録してください" + effectMemo);
+
+    // ボスの割り込み攻撃も「敵の攻撃」なので、実際の攻撃と同様にEVADE判定・味方トリガー（ロベルタのファストトラック等）の発動チェックを行う
+    const s2 = enemy.skills && enemy.skills.special;
+    const targetType = (s2 && s2.target==="all") ? "selectHitAoe" : "selectHit";
+    state.pendingTriggerContext = {
+      targetType, evadeMap:{}, hitAllyId:null, hitEvaded:false,
+      sourceUnitId: enemyId, skillKey:"special",
+      sourceLabel: enemy.name + "の割り込み「" + (s2?s2.name:"特殊") + "」（被弾トリガー）",
+      thenExtraTurn:false,
+      continueAfterUnitId: ctx ? ctx.sourceUnitId : null,
+      continueAfterExtra: ctx ? ctx.thenExtra : false,
+      continueAfterWasBasic: ctx ? ctx.wasBasicSkill : false
+    };
+    renderBattle();
+    return;
+  }
   if(ctx && ctx.sourceUnitId){ afterOwnCheck(ctx.sourceUnitId, ctx.thenExtra, ctx.wasBasicSkill); }
   else { renderBattle(); }
 }
@@ -2417,6 +2490,8 @@ function dismissTriggerContext(){
   state.pendingTriggerFire = null;
   if(ctx && ctx.targetType==="afterOwn" && ctx.thenExtraTurn){
     openActionFor(ctx.hitAllyId, "追加ターン(誘発)");
+  } else if(ctx && ctx.continueAfterUnitId){
+    afterOwnCheck(ctx.continueAfterUnitId, ctx.continueAfterExtra, ctx.continueAfterWasBasic);
   } else {
     renderBattle();
   }
@@ -2606,6 +2681,7 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded){
     if(!evaded){
       targetEffectList.forEach(eff=>{
         const effType = s.targetsAlly ? "buff" : "debuff";
+        if(effType==="debuff" && target.kind==="enemy" && isBossImmuneDebuffName(eff.name)){ effText += `／${eff.name}はボスに常時免疫のため付与できず`; return; }
         if(effType==="debuff" && target.immune && !eff.ignoresImmune){ effText += `／${eff.name}は免疫中のため付与できず`; return; }
         if(eff.dot){ target.buffs.push({name:eff.name, turns:eff.turns, type:effType, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, dot:true}); effText += `／${eff.name}を追加スタック付与`; }
         else { const applied = applyBuffWithMaxDuration(target.buffs, {name:eff.name, turns:eff.turns, type:effType, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0}); effText += `／${eff.name}(残${applied.turns}T)付与`; }
@@ -2753,11 +2829,9 @@ function confirmBreakSkillActivate(targetEnemyId){
       `以降${state.breakSkillDurationTurns}ターン効果継続${typeInfo.hasToughnessBonus?"（攻撃時強靭+1のボーナスあり）":"（強靭ボーナスなし）"}${buffMemo.length?"／"+buffMemo.join("、"):""}`);
   }
   renderBattle();
-  // 発動直後に被弾トリガー閾値へ到達していないか確認する
-  if(target && typeInfo.hasHitJudgement && target.specialTriggerHitCount>0 && target.hitCounter >= target.specialTriggerHitCount){
-    state.pendingBossHitTrigger = { sourceUnitId: null, thenExtra: false, candidates: [target.id] };
-    renderBattle();
-  }
+  // ※発動直後の閾値到達チェックは行わない。被弾カウントはここで加算されるのみで、
+  //   実際のトリガー判定は次にいずれかのキャラが攻撃した際の通常の連鎖の中で行われる
+  //   （ブレイクスキル発動自体はキャラの行動ではないため、その場では反撃させない）
 }
 function cancelBreakSkillTarget(){
   state.pendingBreakSkillTarget = false;
@@ -2852,6 +2926,7 @@ function renderBattle(){
     if(u.kind==="enemy" && u.immune) statusTags.push(`<span class="tag buff">免疫(残${u.immuneRemaining})</span>`);
     if(u.kind==="enemy" && u.starSpeedBonusPct) statusTags.push(`<span class="tag permanent">★速度+${u.starSpeedBonusPct}%</span>`);
     if(u.kind==="enemy" && (u.twistedWillStacks||0)>0) statusTags.push(`<span class="tag permanent">😈歪んだ意志:${u.twistedWillStacks}/3</span>`);
+    if(u.kind==="enemy" && (u.specialTriggerHitCount||0)>0) statusTags.push(`<span class="tag permanent">🎯被弾:${u.hitCounter||0}/${u.specialTriggerHitCount}</span>`);
     if(u.kind==="ally" && u.usesSevenBallMechanic) statusTags.push(`<span class="tag permanent">🎱ピンボール速度+${u.pinballSpeedStacks||0}/10</span>`);
     if(u.envSpeedBonusPct) statusTags.push(`<span class="tag permanent">環境速度+${u.envSpeedBonusPct}%</span>`);
     if(u.kind==="ally" && u.relics && u.relics.AX) statusTags.push(`<span class="tag buff">AX:ATK+${(u.axStacks||0)*8}%</span>`);
@@ -2908,20 +2983,24 @@ function renderBattle(){
     panel.className = "actionPanel";
 
     if(ctx.targetType==="selectHit"){
+      const attacker = state.units.find(x=>x.id===ctx.sourceUnitId);
+      const attackerNote = findAccuracyRelatedDebuffNote(attacker);
       const buttons = state.units.filter(x=>x.kind==="ally"&&x.alive)
         .map(x=>`<button class="skillbtn" onclick="confirmHitAlly('${x.id}')">
           <div class="name">${x.name}${x.evasionRatePct?`（回避率${x.evasionRatePct}%）`:""}${x.buffs.some(b=>b.name.includes("バリア"))?" 🛡":""}</div>
         </button>`).join("");
       panel.innerHTML = `<h3>${ctx.sourceLabel}：被弾した味方を選択</h3>
-        <div class="smallnote" style="margin-bottom:6px;">先にEVADE・バリア破壊があれば下でチェックしてから、被弾した味方を選んでください</div>
+        <div class="smallnote" style="margin-bottom:6px;">先にEVADE・バリア破壊があれば下でチェックしてから、被弾した味方を選んでください${attackerNote ? `<br><span style="color:var(--warn);">（参考：${attacker.name}に${attackerNote}）</span>` : ""}</div>
         <div class="checkline"><input type="checkbox" id="hitEvadeCheck"> EVADE（回避）成立：この味方は回避に成功した</div>
         <div class="checkline"><input type="checkbox" id="hitBarrierBreakCheck"> 🛡バリアが破壊された（この味方がバリアを持っている場合のみ有効）</div>
         <div class="skillbtn-row">${buttons}</div>
         <button class="btn-secondary btn-small" style="margin-top:4px;" onclick="dismissTriggerContext()">確認せず続ける</button>`;
     } else if(ctx.targetType==="selectHitAoe"){
       const aliveAllies = state.units.filter(x=>x.kind==="ally"&&x.alive);
+      const attacker = state.units.find(x=>x.id===ctx.sourceUnitId);
+      const attackerNote = findAccuracyRelatedDebuffNote(attacker);
       panel.innerHTML = `<h3>${ctx.sourceLabel}：味方それぞれのEVADE（回避）判定</h3>
-        <div class="smallnote" style="margin-bottom:8px;">全体攻撃のため、味方ひとりひとりに回避判定があります。回避に成功した味方はチェックしてください。バリアを持つ味方は、そのバリアが破壊されたかも合わせてチェックしてください。</div>
+        <div class="smallnote" style="margin-bottom:8px;">全体攻撃のため、味方ひとりひとりに回避判定があります。回避に成功した味方はチェックしてください。バリアを持つ味方は、そのバリアが破壊されたかも合わせてチェックしてください。${attackerNote ? `<br><span style="color:var(--warn);">（参考：${attacker.name}に${attackerNote}）</span>` : ""}</div>
         ${aliveAllies.map(u=>`<div class="checkline"><input type="checkbox" id="aoeEvade_${u.id}"> ${u.name}${u.evasionRatePct?`（回避率${u.evasionRatePct}%）`:""}：EVADE成立${u.buffs.some(b=>b.name.includes("バリア"))?` ｜ <input type="checkbox" id="aoeBarrierBreak_${u.id}"> 🛡バリア破壊`:""}</div>`).join("")}
         <div class="btn-row">
           <button class="btn-primary btn-small" onclick="confirmAoeEvade()">決定してトリガー確認</button>
@@ -3128,7 +3207,7 @@ function renderBattle(){
         ${renderSkillBtn(u,"ultimate")}
       </div>
       <div class="checkline"><input type="checkbox" id="burstToggle" ${state.teamBurst<4?"disabled":""}> バースト強化を適用する（4pt消費／現在${state.teamBurst}pt）${state.teamBurst<4?'<span style="color:var(--text-dim)"> ※4pt未満のため使用不可</span>':""}</div>
-      <div class="checkline"><input type="checkbox" id="evadeToggle"> EVADE（回避）成立：命中率ダウン／回避率アップの影響で敵に回避された（強靭度ダメージ0・会心にならない。味方対象バフには無関係）</div>
+      <div class="checkline"><input type="checkbox" id="evadeToggle"> EVADE（回避）成立：命中率ダウン／回避率アップの影響で敵に回避された（強靭度ダメージ0・会心にならない。味方対象バフには無関係）${findAccuracyRelatedDebuffNote(u) ? `<span style="color:var(--warn);">（参考：自身に${findAccuracyRelatedDebuffNote(u)}）</span>` : ""}</div>
       <div class="checkline"><input type="checkbox" id="autoBuffToggle" checked> バフ/デバフを自動付与する（スキルに設定されている場合のみ有効。デフォルトON）</div>
       ${u.usesSevenBallMechanic ? `
       <div class="field" style="margin-bottom:10px;">
