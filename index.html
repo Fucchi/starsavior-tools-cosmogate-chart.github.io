@@ -399,7 +399,7 @@ function isBossImmuneDebuffName(name){
 }
 
 // 出血／凍結／燃焼はドットダメージ系で、重複せず「2個、3個…」と独立した別枠として数える・表示する
-const INDEPENDENT_STACK_DEBUFF_NAMES = ["出血", "凍結", "燃焼", "竜の逆鱗"];
+const INDEPENDENT_STACK_DEBUFF_NAMES = ["出血", "凍結", "燃焼", "竜の逆鱗", "周期戒律"];
 function isIndependentStackDebuff(name){
   return INDEPENDENT_STACK_DEBUFF_NAMES.some(n=>String(name||"").includes(n));
 }
@@ -711,7 +711,9 @@ const ALLY_PRESET_LIST = [
 const BOSS_PRESET_LIST = [
   // 混沌
   ["demoraigis_alpha","デモライギス：アルファ"], ["demoraigis_beta","デモライギス：ベータ"],
-  ["ortros","オルトロス"], ["mogrus","不死王モグルス"], ["hilde","ヒルデ（TYPE：ジークフリート）"],
+  ["ortros","オルトロス"], ["mogrus","不死王モグルス"], ["hilde","ヒルデ（TYPE：ジークフリート）"], ["giere","ギーレ"],
+  // 秩序
+  ["kairi","乖離"],
   // 太陽
   ["tyria_boss","ティリア（ボス）"]
 ];
@@ -765,10 +767,12 @@ function allyPreset(key){
       basic: defaultAllySkill("戦闘掃除開始", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, selfBuff:{name:"バリア（バースト時のみ）", turns:1}, burstOnlySelfBuff:true }),
       special: defaultAllySkill("クリーニングサービス", 4, 0, 0, 1, true, "none", "hasCT", 0, 0, false, true, false, { targetEffect:[{name:"攻撃力アップ（+30%）", turns:3, atkModPct:30}, {name:"バリア（HP40%）", turns:3}], selfStackGain:3 }),
       ultimate: defaultAllySkill("ターンダウンサービス", 7, 0, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfStackConsumeAll:true, target:"all", teamBuff:{name:"防御力アップ（+30%）", turns:2} }) },
-    "kanelia": { name:"カネリア", speed:93, toughnessMax:3, evasionRatePct:0, attribute:"混沌", role:"キャスター", passiveNote:"戦闘不能に瀕すると1回だけ不死身発動(HP1%回復・全CTリセット)。激動スタックでATK上昇",
+    "kanelia": { name:"カネリア", speed:93, toughnessMax:3, evasionRatePct:0, attribute:"混沌", role:"キャスター",
+      battleStartSelfBuffs:[{name:"漆黒の残響（解除不可・攻撃力/効果耐性+20%）", turns:1, decrementAtOwnTurnEnd:true}],
+      passiveNote:"回し車の輻：攻撃力+15%。戦闘開始時、自身に1ターン「漆黒の残響（解除不可）」を発生(実装済み：battleStartSelfBuffs)。攻撃時、激動スタック数に比例して攻撃力+6%(最大5、本ツール未実装)。戦闘不能に瀕すると1回だけ不死身発動(HP1%回復・全CTリセット、本ツール未実装)。特殊「導きの暁闇」は攻撃後、自身が漆黒の残響状態であればランダムな敵にもう一度発動(自身のターンに1回のみ、実装済み：afterOwnトリガー＋triggerRequiresSelfBuffName)。究極は自身が漆黒の残響状態ならダメージ+50%(本ツール未実装、ダメージ計算非対応方針)",
       basic: defaultAllySkill("暁の誘い", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1 }),
-      special: defaultAllySkill("導きの暁闇", 3, 0, 1, 1, false, "afterOwn", "oncePerTurn", 0, 0, false, false, false, { targetEffect:{name:"強化不可", turns:2}, selfStackGain:1 }),
-      ultimate: defaultAllySkill("乖離解放", 4, 0, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, target:"all" }) },
+      special: defaultAllySkill("導きの暁闇", 3, 1, 1, 1, false, "afterOwn", "oncePerTurn", 0, 0, false, false, false, { targetEffect:{name:"強化不可", turns:2}, selfStackGain:1, triggerRequiresSelfBuffName:"漆黒の残響", enemyGaugeReductionPct:25, firesAfterAnyOwnAttack:true }),
+      ultimate: defaultAllySkill("乖離解放", 4, 1, 1, 1, false, "none", "hasCT", 30, 0, false, false, false, { selfStackGain:1, target:"all" }) },
     "clarissa": { name:"クラリッサ", speed:100, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"レンジャー", turnStartStackGain:true,
       passiveStackGaugeEffects:{selfGaugeThreshold:4, selfGaugePct:15, enemyGaugeThreshold:5, enemyGaugePct:15},
       passiveNote:"絡みつく風道：会心率+15%(3凸)。ターン開始時、100%で跳躍スタック+1(基本スキルとは別に自動加算)。攻撃を受けた後、自身の跳躍スタックをすべて消去(本ツール未実装)。跳躍スタック段階効果：2で与ダメ+15%,3で命中+50%,4で自ゲージ+15%,5で敵ゲージ-15%(ダメージ・命中面は本ツールでは未計算。ゲージ効果は実装済み：攻撃後の自身の跳躍スタックが4以上で自ゲージ+15%、5以上で敵ゲージ-15%。攻撃を伴わないスキルでは発生しない)。特殊・究極は対象が月属性ならダメ+20%(本ツール未実装)。本ツールは会心発生前提のため、会心時効果(特殊の自ゲージ+15%・究極の敵ゲージ-20%)は常時適用として実装",
@@ -852,8 +856,8 @@ function allyPreset(key){
       ultimate: defaultAllySkill("不屈の一撃", 5, 2, 1, 1, false, "none", "hasCT", 30, 0, false, false, false, { targetEffect:{name:"攻撃力ダウン（100%付与）", turns:2}, atkPct:115, burstDamagePct:20 }) },
     "trish": { name:"トリッシュ", speed:90, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"アサシン", passiveNote:"会心ダメ+25%(3凸)。戦闘開始時跳躍+3。攻撃時命中+50%。撃破時自ゲージ+30%・跳躍+3。究極は跳躍スタック×10%防御貫通(最大5)・HP25%以下でCT-1・撃破でCTリセット(いずれも本ツール未実装)",
       basic: defaultAllySkill("ファントムステップ", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, atkPct:50 }),
-      special: defaultAllySkill("加速強襲", 2, 0, 1, 1, false, "none", "hasCT", 50, 0, false, false, false, { selfBuff:{name:"会心率アップ", turns:2}, selfStackGain:2, atkPct:55 }),
-      ultimate: defaultAllySkill("連続斬り", 4, 0, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"攻撃力アップ（+30%）", turns:2, atkModPct:30}, selfStackConsumeAll:true, atkPct:90, burstDamagePct:20 }) },
+      special: defaultAllySkill("加速強襲", 2, 1, 1, 1, false, "none", "hasCT", 50, 0, false, false, false, { selfBuff:{name:"会心率アップ", turns:2}, selfStackGain:2, atkPct:55 }),
+      ultimate: defaultAllySkill("連続斬り", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"攻撃力アップ（+30%）", turns:2, atkModPct:30}, selfStackConsumeAll:true, atkPct:90, burstDamagePct:20 }) },
     "ru": { name:"ルー", speed:104, toughnessMax:3, evasionRatePct:0, attribute:"月", role:"レンジャー", passiveNote:"攻撃力+15%(3凸)。基本スキル(制圧符)使用後、敵に100%(3凸時。凸数が低いほど確率減、無凸データなし)で1ターン凍結を発生させる。究極は敵の究極スキルCTを+1ターンする効果あり(本ツール未実装)。特殊はバースト強化時、自身の速度アップ持続が1→2ターンに延長される(本ツール未実装、固定1ターンとして実装)",
       basic: defaultAllySkill("制圧符", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, atkPct:65 }),
       special: defaultAllySkill("雪中四友", 3, 1, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { targetEffect:{name:"凍結（速度-3%）", turns:2, dot:true}, selfBuff:{name:"速度アップ（+20%）", turns:1, speedModPct:20}, atkPct:90 }),
@@ -939,8 +943,27 @@ function isBreakSkillToughnessBonusActive(){
   return !!typeInfo.hasToughnessBonus;
 }
 
-function defaultEnemySkill(name, ct, note, target, selfGaugeGainPct, targetEffectIfNoBarrier, selfBuffIfTwistedWill, targetEffect, selfClearAllDebuffs, targetGaugeReductionPct, selfBuff){
-  return {name, ct, note: note||"", target: target || "single", selfGaugeGainPct: selfGaugeGainPct||0, targetEffectIfNoBarrier: targetEffectIfNoBarrier||null, selfBuffIfTwistedWill: selfBuffIfTwistedWill||null, targetEffect: targetEffect||null, selfClearAllDebuffs: !!selfClearAllDebuffs, targetGaugeReductionPct: targetGaugeReductionPct||0, selfBuff: selfBuff||null}; // target: "single" | "all"
+function defaultEnemySkill(name, ct, note, target, selfGaugeGainPct, targetEffectIfNoBarrier, selfBuffIfTwistedWill, targetEffect, selfClearAllDebuffs, targetGaugeReductionPct, selfBuff, extra){
+  extra = extra || {};
+  return {name, ct, note: note||"", target: target || "single", selfGaugeGainPct: selfGaugeGainPct||0, targetEffectIfNoBarrier: targetEffectIfNoBarrier||null, selfBuffIfTwistedWill: selfBuffIfTwistedWill||null, targetEffect: targetEffect||null, selfClearAllDebuffs: !!selfClearAllDebuffs, targetGaugeReductionPct: targetGaugeReductionPct||0, selfBuff: selfBuff||null,
+    // extra: ギーレ「周期の循環」等、キャラ固有の条件付き効果をまとめて渡す拡張枠
+    //   selfGaugeGainIfCycleState: {state:"day"|"night", pct}  このスキル使用前の周期状態が一致すれば自身ゲージ+pct%
+    //   dmgBonusNoteIfCycleState: {state:"day"|"night", pct}  同条件で攻撃ダメージ+pct%（ダメージ計算非対応のため注記のみ）
+    //   selfStackGainIfHasEcho: 乖離の断罪等、自身が偏愛の残響状態なら自身の残滓の乖離スタックを+1する数値
+    //   selfClearAllDebuffsIncludingUndispellable: true の場合、selfClearAllDebuffsと違い解除不可デバフも含めて全解除する（乖離の審判：自分自身の専用リセット技のみ）
+    //   setEchoStacksTo: 偏愛の残響スタックを指定数に上書きする（乖離の審判：7に設定）
+    //   resetResidueStacksOnUse: true の場合、このスキル使用時に自身の残滓の乖離スタックを0にリセットする（乖離の消去）
+    //   targetCtExtendAllTurns: 対象の特殊・究極CTを指定ターン数だけ延長する（乖離の消去：調律湾曲と併用）
+    //   targetGaugeResetToZero: true の場合、対象の行動ゲージを0にリセットする（%減算ではなく絶対値、乖離の消去）
+    selfGaugeGainIfCycleState: extra.selfGaugeGainIfCycleState || null,
+    dmgBonusNoteIfCycleState: extra.dmgBonusNoteIfCycleState || null,
+    selfStackGainIfHasEcho: extra.selfStackGainIfHasEcho || 0,
+    selfClearAllDebuffsIncludingUndispellable: !!extra.selfClearAllDebuffsIncludingUndispellable,
+    setEchoStacksTo: extra.setEchoStacksTo!=null ? extra.setEchoStacksTo : null,
+    resetResidueStacksOnUse: !!extra.resetResidueStacksOnUse,
+    targetCtExtendAllTurns: extra.targetCtExtendAllTurns || 0,
+    targetGaugeResetToZero: !!extra.targetGaugeResetToZero
+  }; // target: "single" | "all"
 }
 
 let enemies = [
@@ -971,6 +994,29 @@ function bossPreset(key){
         {name:"第十の課業（ダメ-30%・解除不可）", turns:1, undispellable:true}, false, 0,
         {name:"鉄血の鱗甲（防御+50%）", turns:5, type:"buff", decrementOnAnyTurn:true}),
       ultimate: defaultEnemySkill("叙情詩の終幕", 4, "強靭削り2／自身に2T攻撃力アップ／自身の弱体化全解除／対象が第十の課業状態ならダメ+30%", "all", 0, null, null, null, true) },
+    "giere": { name:"ギーレ", speed:180, toughnessMax:15, breakDmgPct:15, attribute:"混沌", role:"キャスター",
+      togglesDayNightCycle:true, cyclePreceptName:"周期戒律（基本スキル被ダメ+30%）", cyclePreceptMax:4,
+      reactsToUltimateHitIfNightCycle:{ctReduce:1, gaugeGainPct:30},
+      passiveNote:"周期の循環：戦闘開始時、自身に昼の周期（解除不可・効果耐性0固定）を発生させる。以降、自身がスキルを使用するたびに昼⇔夜が自動で入れ替わる（実装済み：togglesDayNightCycle、useEnemySkillの末尾でトグル。スキル自身の条件付き効果は、このスキル使用『前』の周期状態を見て判定）。昼の周期＝効果耐性0固定（デバフが入りやすい）／夜の周期＝効果耐性100%固定（ほぼデバフが入らない、本ツールでは効果耐性の数値自体は非対応のため、夜の周期中の弱体化付与は基本的にプレイヤーの手動判断に委ねる）。／厳重な戒律：自身のターン開始時、周期戒律をすべて解除（実装済み）。スキル使用後、自身の弱体化数（周期戒律・周期マーカー自体は含めない）に応じて周期戒律を追加（最大4個、実装済み：出血等と同じ独立スタック型）。究極スキルを受けた時、自身が夜の周期状態なら自身の究極CTを1短縮しゲージ+30%（実装済み：reactsToUltimateHitIfNightCycle、useAllySkill・fireTrigger両方の被弾処理で判定）",
+      basic: defaultEnemySkill("液化", 0, "強靭削り1(未確認・要調整)／自身が昼の周期なら自身ゲージ+20%／自身が夜の周期なら攻撃ダメージ+30%(ダメージ計算非対応のため注記のみ)", "single", 0, null, null, null, false, 0, null,
+        { selfGaugeGainIfCycleState:{state:"day", pct:20}, dmgBonusNoteIfCycleState:{state:"night", pct:30} }),
+      special: defaultEnemySkill("不完全な断末魔", 3, "強靭削り1(未確認・要調整)／自身に2T攻撃力アップ／敵に100%で1T沈黙", "single", 0, null, null,
+        {name:"沈黙", turns:1}, false, 0, {name:"攻撃力アップ", turns:2}),
+      ultimate: defaultEnemySkill("天体を焼き尽くす災厄", 4, "強靭削り2(未確認・要調整)／自身に2T防御力アップ・強靭度ダメージ無効／自身が夜の周期なら敵全体に自身の攻撃力に比例した連鎖ダメージ(ダメージ計算非対応のため注記のみ)", "all", 0, null, null, null, false, 0,
+        [{name:"防御力アップ", turns:2}, {name:"強靭度ダメージ無効", turns:2}]) },
+    "kairi": { name:"乖離", speed:180, toughnessMax:15, breakDmgPct:15, attribute:"秩序", role:"キャスター",
+      battleStartGaugeGainPct:100, battleStartUltimateReady:true, gaugeGainOnHitIfSelfDebuffed:20,
+      reactsToSpecialOrUltimateHit:{ctReduceAllAlliesSkills:1},
+      echoStackName:"偏愛の残響（解除不可）", crackDebuffName:"心象亀裂（解除不可）",
+      residueStackName:"残滓の乖離（解除不可）", residueStackMax:3,
+      passiveNote:"戦闘開始時、自身の行動ゲージを100%増加させ、審判（究極）のCTが回復した状態で戦闘を開始する（実装済み：battleStartGaugeGainPct、battleStartUltimateReady）。攻撃を受けた際、自身が弱体化状態であれば自身のゲージ+20%（実装済み：gaugeGainOnHitIfSelfDebuffed）。／特殊または究極の攻撃を受けた際、自身が偏愛の残響状態なら偏愛の残響を1消費。消費できない（0の）場合、まだ心象亀裂状態でなければ心象亀裂を発生させ、味方全体（＝乖離から見た敵全体）の全スキルのCTを1短縮する（実装済み：reactsToSpecialOrUltimateHit、useAllySkill・fireTrigger両方の被弾処理で判定）。／偏愛の残響（解除不可・バフ）：7スタックからスタートし、特殊・究極を受けるたび1ずつ減少。／心象亀裂（解除不可・デバフ）：特殊・究極の被ダメージが120%上昇（本ツールはダメージ計算非対応のため注記のみ、状態の記録は実装済み）。／残滓の乖離（解除不可・バフ、最大3）：自身が偏愛の残響状態で基本スキル（断罪）を使うたび+1（実装済み：selfStackGainIfHasEcho）。3スタックの状態で攻撃した時に特殊（消去）のトリガー条件を満たす仕様だが、本ツールは敵側の自動トリガー候補提示機構を持たないため、3スタック到達をプレイヤーが確認した上で特殊ボタンを手動発動する運用とする（要手動判断）",
+      basic: defaultEnemySkill("断罪", 0, "強靭削り不明(未確認・要調整)／100%で敵の行動ゲージ-20%／自身が偏愛の残響状態なら自身に残滓の乖離+1", "single", 0, null, null, null, false, 20, null,
+        { selfStackGainIfHasEcho:1 }),
+      special: defaultEnemySkill("消去", 0, "強靭削り不明(未確認・要調整)／トリガースキル：自身の残滓の乖離が3スタックの状態で攻撃した時、行動ゲージ最高の敵に発動（本ツールでは手動発動・対象は手動選択）／対象に100%で調律湾曲(解除不可・効果耐性/免疫無視・必中、速度と防御-50%)を発生させ、特殊・究極CTを1ターン延長した後、行動ゲージを0にリセット", "single", 0, null, null,
+        {name:"調律湾曲（解除不可・速度/防御-50%）", turns:9999, undispellable:true}, false, 0, null,
+        { targetCtExtendAllTurns:1, targetGaugeResetToZero:true, resetResidueStacksOnUse:true }),
+      ultimate: defaultEnemySkill("審判", 5, "強靭削り不明(未確認・要調整)／自身の心象亀裂と弱体化をすべて解除し、自身に偏愛の残響を7発生させる", "all", 0, null, null, null, false, 0, null,
+        { selfClearAllDebuffsIncludingUndispellable:true, setEchoStacksTo:7 }) },
     "mogrus": { name:"不死王モグルス", speed:180, toughnessMax:15, breakDmgPct:15, attribute:"混沌", role:"ストライカー",
       starImmunityTurns:0, starSpeedBonusPct:0, starDamageReductionPct:0,
       gainsTwistedWillOnBattleStart:true, gainsTwistedWillOnAllyTurn:true,
@@ -1334,12 +1380,12 @@ renderEnvBuffSetup();
 renderSpeedCompareTool();
 
 // ===================== 動作確認済みステータス（配布用：ユーザー自身が実際にプレイして確認した内容。都度更新） =====================
-const TOOL_VERSION = "v0.2.47";
+const TOOL_VERSION = "v0.3.0";
 document.getElementById("versionBadge").textContent = TOOL_VERSION;
 const VERIFIED_STATUS = {
   lastUpdated: "2026-08-11",
-  bosses: ["デモライギス：アルファ", "デモライギス：ベータ", "不死王モグルス", "オルトロス"],
-  characters: ["ドレスアセラ", "セイラ", "バニーシャルル", "ティリア", "水着スマイル", "ロベルタ", "フェイ", "バニースカーレット", "エミリー", "キラ", "花嫁カルメン",
+  bosses: ["デモライギス：アルファ", "デモライギス：ベータ", "不死王モグルス", "オルトロス", "乖離"],
+  characters: ["ドレスアセラ", "セイラ", "バニーシャルル", "ティリア", "水着スマイル", "ロベルタ", "フェイ", "バニースカーレット", "エミリー", "キラ", "花嫁カルメン", "トリッシュ", "カネリア", "クラリッサ",
     { name:"ベスタ", caution:"全体攻撃被弾時40%で「撃退」トリガー反撃は確認済み。ただし被弾後・跳躍最大時の2Tバリア発生は本ツール未実装" }
   ]
 };
@@ -1419,7 +1465,16 @@ const DATED_LOG = [
   { date:"2026-08-11", version:"v0.2.44", text:"①バニーシャルルの究極「窮地に追い込まれたウサギ」に、点火スタックが最大(5)の時は全消費してCTに入らない仕様を実装。新規汎用フィールドskipCtIfStackMaxConsumeAllを新設し、useAllySkill・fireTriggerの両方に対応（既存のextraTurnIfStackMaxConsumeAll/consumeStackOnlyIfMaxと同じ『後続処理でスタックが消費される前の値で判定』パターンを踏襲）。②被弾した味方を選択するパネル・全体攻撃時のEVADE判定パネルの両方に、既存のバリア表示（🛡）と同様の要領で潜伏状態の表示（🌙潜伏中）を追加。③花嫁カルメンの究極使用で、オルトロスの第十の課業（解除不可のはず）まで解除されてしまう不具合を修正。第十の課業の付与データにundispellable:trueの設定が漏れていた。あわせて、付与処理を行うapplyEnemyNoBarrierDebuff・applyEnemyUnconditionalDebuffの2関数がこのフラグ自体を引き継いでいなかった不具合も修正（ティリアの惨劇の棘向けにv0.2.37で実装したundispellable機構が、この2関数の呼び出し元では機能していなかった）" },
   { date:"2026-08-11", version:"v0.2.45", text:"敵の行動ゲージ減少効果（enemyGaugeReductionPct等）に、味方の行動フォーム・トリガー発動フォームの両方から「対象の行動ゲージ減少効果を適用する」チェックボックス（デフォルトON）を新設。キラの特殊「潜伏中のみ敵ゲージ-30%」のような条件付き効果は本ツールが状態を自動追跡できないため、今までは常時適用として簡略化していたが、プレイヤーが状況を見て手動でON/OFFを選べるようにした。この機構はenemyGaugeReductionPct/enemyGaugeReductionPerStack/burstEnemyGaugeReductionAdd系フィールドを持つ全キャラ（実際に該当するのはクラリッサ、セレス、花嫁エピンデル、キラ）に共通で適用される。useAllySkillとfireTriggerの両方にapplyGaugeReduction引数を追加（省略時はtrue扱いで既存呼び出し元との後方互換を維持）※前回の説明でエミリー・カネリア・バニークレアを対象キャラの例として挙げたが、これらはgaugeReductionPct系フィールドを持っておらず誤りだった（未検証のまま例示していた）" },
   { date:"2026-08-11", version:"v0.2.46", text:"クラリッサの固有パッシブ「絡みつく風道」の跳躍スタック段階効果のうち、4スタックで自ゲージ+15%・5スタックで敵ゲージ-15%が「要手動判断」として未実装だったのを実装。新規フィールドpassiveStackGaugeEffects（selfGaugeThreshold/selfGaugePct/enemyGaugeThreshold/enemyGaugePct）をキャラ単位（スキル単位ではなく）で持たせ、useAllySkill・fireTriggerの攻撃分岐の両方で、この行動自身によるスタック増加が反映された後の値を見て判定するようにした。あわせて、クラリッサの特殊「感じるままに射撃」に既にburstEnemyGaugeReductionAdd:15（バースト時のみ敵ゲージ-15%）が実装済みだったことを確認（前回のv0.2.45の説明でこの点の確認が漏れていた）。ダメージ+15%・命中+50%の2/3スタック効果は引き続き本ツールのダメージ計算非対応方針により未実装" },
-  { date:"2026-08-11", version:"v0.2.47", text:"クラリッサの特殊「感じるままに射撃」の強靭削りが、原因不明のまま非バースト時0になっていた不具合を発見・修正（1に戻した。ドキュメントの「非バースト0」という記載も誤りで、実際は1が正しいとユーザーから確認をもらい、ドキュメントも訂正）。バースト時+1で計2、ノヴァフォース1、究極（強靭2・ノヴァ1）はいずれも正しい値のまま変更なし。バースト強化時のburstEnemyGaugeReductionAdd:15（敵ゲージ-15%）も正しく機能することを再検証。動作確認済みリスト（VERIFIED_STATUS）にボス：オルトロス、キャラ：キラ・花嫁カルメンを追加" }
+  { date:"2026-08-11", version:"v0.2.47", text:"クラリッサの特殊「感じるままに射撃」の強靭削りが、原因不明のまま非バースト時0になっていた不具合を発見・修正（1に戻した。ドキュメントの「非バースト0」という記載も誤りで、実際は1が正しいとユーザーから確認をもらい、ドキュメントも訂正）。バースト時+1で計2、ノヴァフォース1、究極（強靭2・ノヴァ1）はいずれも正しい値のまま変更なし。バースト強化時のburstEnemyGaugeReductionAdd:15（敵ゲージ-15%）も正しく機能することを再検証。動作確認済みリスト（VERIFIED_STATUS）にボス：オルトロス、キャラ：キラ・花嫁カルメンを追加" },
+  { date:"2026-08-11", version:"v0.2.48", text:"新規ボス「ギーレ」を実装。①「周期の循環」：戦闘開始時に昼の周期（解除不可）を付与し、自身のスキル使用のたびに昼⇔夜を自動トグルする新機構togglesDayNightCycleを新設。②「厳重な戒律」：自身のターン開始時に周期戒律（独立スタック型デバフ、INDEPENDENT_STACK_DEBUFF_NAMESに追加）をすべて解除し、スキル使用後は自身の弱体化数に応じて周期戒律を追加（最大4個、周期マーカー自身は数えない）という新機構cyclePreceptName/cyclePreceptMaxを新設。③「強靭度ダメージ無効」：バフ名でのマーク方式による新しい無効化タイプを新設し、useAllySkill・fireTriggerの強靭ダメージ計算の両方に反映。④「究極スキルを受けた時、夜の周期なら自身の究極CT-1・ゲージ+30%」という、味方からの被弾に敵側が反応する新パターンreactsToUltimateHitIfNightCycleを新設し、useAllySkill・fireTriggerの被弾処理の両方に実装。⑤defaultEnemySkillの選択的パラメータが増えすぎたため12番目にextraオブジェクト引数を新設し、selfGaugeGainIfCycleState/dmgBonusNoteIfCycleStateを追加（今後のキャラ固有条件付き効果もここに追加していく）。⑥enemy用selfBuffが単体オブジェクトのみ対応だったのを、ally用と同様に配列も受け付けるよう拡張（ギーレの究極が防御力アップと強靭度ダメージ無効の2つを同時付与するため）。強靭削り・速度・基本ステータス値は未確認のためデフォルト値で仮置き（要調整）" },
+  { date:"2026-08-11", version:"v0.2.49", text:"ギーレの速度を100→180に修正（ユーザー確認済みの実測値）。強靭度最大値・被ブレイクダメージ%・各スキルの強靭削りは引き続き未確認のため仮置きのまま" },
+  { date:"2026-08-11", version:"v0.2.50", text:"新規ボス「乖離」を実装。①戦闘開始時、行動ゲージ+100%・究極CT即回復（battleStartGaugeGainPct/battleStartUltimateReady）。②被弾時、自身が弱体化状態ならゲージ+20%（gaugeGainOnHitIfSelfDebuffed）。③特殊・究極を受けた時、偏愛の残響（7スタックからスタートし1ずつ減る単一カウンタ、twistedWillStacksと同じ数値カウンタ方式で実装）があれば1消費、なければ心象亀裂（解除不可）を発生させ味方全体の全スキルCTを1短縮する（reactsToSpecialOrUltimateHit、useAllySkill・fireTrigger両方の被弾処理に実装）。④基本スキルが自身の偏愛の残響状態を見て残滓の乖離スタック（最大3）を得る（selfStackGainIfHasEcho）。⑤特殊「消去」：本来は残滓の乖離3スタック到達時に自身の攻撃後に自動発動するトリガースキルだが、本ツールは敵側の自動トリガー候補提示機構を持たないため、CTなしの手動発動スキルとして実装し、条件確認はプレイヤーに委ねる（passiveNoteに明記）。効果は対象に調律湾曲（解除不可・効果耐性/免疫無視）を付与し、対象の特殊・究極CTを1ターン延長、行動ゲージを0にリセット（targetCtExtendAllTurns/targetGaugeResetToZero、applyEnemyUnconditionalDebuffに実装。使用時に自身の残滓の乖離を0にリセット）。⑥究極「審判」：自身の弱体化を解除不可も含めて全解除する専用フラグselfClearAllDebuffsIncludingUndispellable（通常のselfClearAllDebuffsと違い、自分自身の専用リセット技のみに使う想定）と、偏愛の残響を7に上書きするsetEchoStacksToを新設。強靭削り・強靭度最大値・被ブレイクダメージ%は未確認のため仮置き" },
+  { date:"2026-08-11", version:"v0.2.51", text:"トリッシュの特殊「加速強襲」・究極「連続斬り」の強靭削りが両方とも0になっていた誤りを修正。特殊は強靭1・ノヴァフォース1（ノヴァは元から正しい）、究極は強靭2・ノヴァフォース1（ノヴァは元から正しい）に修正" },
+  { date:"2026-08-11", version:"v0.2.52", text:"カネリアの固有パッシブ「回し車の輻」に3つの実装漏れを発見・修正。①戦闘開始時に自身へ1T「漆黒の残響（解除不可）」を付与する効果が未実装だった（battleStartSelfBuffsを新設、エデ等と同じ既存機構）。②特殊「導きの暁闇」の「攻撃後、自身が漆黒の残響状態なら、ランダムな敵にもう一度この特殊を発動（自身のターンに1回のみ）」が、afterOwn+oncePerTurnのトリガー自体は既に設定されていたのに発動条件（triggerRequiresSelfBuffName）が抜けていたため、常に無条件でオファーされる（＝漆黒の残響がなくても2回発動候補に出てしまう）誤った状態になっていた。triggerRequiresSelfBuffNameに「漆黒の残響」を追加し正しい条件下でのみ候補提示されるよう修正。③特殊の「敵の行動ゲージを25%減らす」（enemyGaugeReductionPct:25）と究極の「自身の行動ゲージを30%増やす」（selfGaugeGain:30）が両方とも未実装だったのを追加" },
+  { date:"2026-08-11", version:"v0.2.53", text:"①カネリアの「漆黒の残響」がターン終了時ではなく、汎用のバフ経過処理（本人の次の自ターン開始時に-1）に乗っていたため、トリガー判定より先に消えてしまう不具合を修正。新規フラグdecrementAtOwnTurnEndを新設し、汎用処理から除外したうえでfinalizeActionChain（本人の行動チェーンが完了した直後）で明示的に-1するよう変更。さらに調査の過程で、afterOwnトリガーは『基本スキル使用後のみ』が既定仕様であり、firesAfterAnyOwnAttack:trueを明示しないと特殊・究極使用後は無条件で候補ゼロ扱いになる（＝カネリアの特殊が発動条件を満たしていても再発動候補に出ない）別の不具合も発見・修正した（カネリアの特殊にfiresAfterAnyOwnAttack:trueを追加）。②乖離の特殊「消去」が、残滓の乖離が最大スタックで基本攻撃しても自動的にトリガー候補として提示されない不具合を修正。本ツールには元々「敵側が自分の行動を条件に追加スキルを自動発動する」候補提示機構が存在しなかったため、新規にpendingEnemySelfTriggerという仕組みを新設（useEnemySkillで攻撃『前』の残滓の乖離スタック値を記録し、基本攻撃後にそれが最大値なら候補パネルを提示。被弾トリガーパネルの後・反撃トリガー確認パネルの後という位置に配置）。confirmEnemySelfTrigger()で確定すると通常のuseEnemySkillフローに合流し、対象は引き続きプレイヤーが手動選択する" },
+  { date:"2026-08-11", version:"v0.2.54", text:"カネリアの特殊「導きの暁闇」・究極「乖離解放」の強靭削りが両方とも非バースト時0になっていた誤りを修正し、1に統一（バースト時+1で計2）。ノヴァフォースは両方とも元から1で正しかったため変更なし。キャラ詳細_カネリア.mdの記載も訂正" },
+  { date:"2026-08-11", version:"v0.2.55", text:"乖離の究極「審判」のCTを4→5ターンに修正" },
+  { date:"2026-08-11", version:"v0.3.0", text:"ギーレの「昼の周期」「夜の周期」の表示区分をdebuff（赤系）からbuff（青系）に統一。以前は昼の周期のみdebuff扱いだった（効果耐性0固定＝デバフが入りやすいという性質から弱体化寄りと判断していたが、実際はギーレ自身のバフ扱いとのこと）。バージョンをv0.3.0に更新。動作確認済みリスト（VERIFIED_STATUS）にボス：乖離、キャラ：トリッシュ・カネリア・クラリッサを追加" }
 ];
 
 // ===================== 更新履歴 =====================
@@ -1605,8 +1660,33 @@ function startBattle(){
       gaugeOnHitIfAllyDebuffName: e.gaugeOnHitIfAllyDebuffName||null,
       gaugeOnHitIfAllyDebuffGainPct: e.gaugeOnHitIfAllyDebuffGainPct||0,
       immuneRemaining: e.starImmunityTurns||0,
-      immune: (e.starImmunityTurns||0) > 0
+      immune: (e.starImmunityTurns||0) > 0,
+      togglesDayNightCycle: !!e.togglesDayNightCycle,
+      cyclePreceptName: e.cyclePreceptName||null,
+      cyclePreceptMax: e.cyclePreceptMax||0,
+      reactsToUltimateHitIfNightCycle: e.reactsToUltimateHitIfNightCycle||null,
+      battleStartGaugeGainPct: e.battleStartGaugeGainPct||0,
+      battleStartUltimateReady: !!e.battleStartUltimateReady,
+      gaugeGainOnHitIfSelfDebuffed: e.gaugeGainOnHitIfSelfDebuffed||0,
+      reactsToSpecialOrUltimateHit: e.reactsToSpecialOrUltimateHit||null,
+      echoStackName: e.echoStackName||null,
+      echoStacks: 0,
+      crackDebuffName: e.crackDebuffName||null,
+      residueStackName: e.residueStackName||null,
+      residueStacks: 0,
+      residueStackMax: e.residueStackMax||0
     });
+    // ギーレ「周期の循環」：戦闘開始時、自身に昼の周期（解除不可）を発生させる
+    if(e.togglesDayNightCycle){
+      units[units.length-1].buffs.push({name:"昼の周期（解除不可・効果耐性0固定）", turns:9999, type:"buff", permanent:true, undispellable:true, isCycleMarker:true});
+    }
+    // 乖離：戦闘開始時、自身の行動ゲージを指定%増加し、審判（究極）のCTが回復した状態で開始する
+    if(e.battleStartGaugeGainPct){
+      units[units.length-1].gauge = Math.min(100, e.battleStartGaugeGainPct);
+    }
+    if(e.battleStartUltimateReady){
+      units[units.length-1].ct.ultimate = 0;
+    }
   });
 
   const baseline = Math.max(...units.map(u=>effectiveSpeed(u)));
@@ -1665,7 +1745,7 @@ function startBattle(){
   // 戦闘開始時、自身に複数のバフをまとめて発生させる味方（エデ等：守護+バリア等）
   units.filter(x=>x.kind==="ally" && x.battleStartSelfBuffs).forEach(ally=>{
     ally.battleStartSelfBuffs.forEach(b=>{
-      applyBuffWithMaxDuration(ally.buffs, {name:b.name, turns:b.turns, type:"buff", speedModPct:b.speedModPct||0, atkModPct:b.atkModPct||0, critDmgModPct:b.critDmgModPct||0});
+      applyBuffWithMaxDuration(ally.buffs, {name:b.name, turns:b.turns, type:"buff", speedModPct:b.speedModPct||0, atkModPct:b.atkModPct||0, critDmgModPct:b.critDmgModPct||0, decrementAtOwnTurnEnd:!!b.decrementAtOwnTurnEnd});
     });
   });
 
@@ -1847,8 +1927,15 @@ function openActionFor(unitId, arrivalType){
     // permanent:true の状態（例：花嫁カルメンの「愛の誓約（解除不可）」）は、ターン経過による自動減少・消滅の対象外
     // decrementOnAnyTurn:true の状態（例：鉄血の鱗甲）は「本人の自ターン」ではなく「誰かのターンが開始するたび」に
     // 全ユニット分を対象として減らす専用ループ（下のspeedZeroLockと同じ場所）で処理するため、ここでは除外する
-    u.buffs = u.buffs.map(b=> (b.speedZeroLock || b.permanent || b.decrementOnAnyTurn || (b.name && b.name.includes("第十の課業"))) ? b : ({...b, turns:b.turns-1}))
-                     .filter(b=> b.speedZeroLock || b.permanent || b.decrementOnAnyTurn || (b.name && b.name.includes("第十の課業")) || b.turns>0);
+    // decrementAtOwnTurnEnd:true の状態（例：カネリアの「漆黒の残響」）は、本人の自ターン開始時ではなく
+    // 「本人の自ターンの行動が終わった直後」に専用ロジック（decrementOwnTurnEndBuffs）で減らすため、ここでは除外する
+    u.buffs = u.buffs.map(b=> (b.speedZeroLock || b.permanent || b.decrementOnAnyTurn || b.decrementAtOwnTurnEnd || (b.name && b.name.includes("第十の課業"))) ? b : ({...b, turns:b.turns-1}))
+                     .filter(b=> b.speedZeroLock || b.permanent || b.decrementOnAnyTurn || b.decrementAtOwnTurnEnd || (b.name && b.name.includes("第十の課業")) || b.turns>0);
+    // ギーレ「厳重な戒律」：自身の周期戒律スタックは、本人のターン開始時にすべて解除される
+    if(u.cyclePreceptName){
+      const removedCount = u.buffs.filter(b=>b.name===u.cyclePreceptName).length;
+      if(removedCount>0){ u.buffs = u.buffs.filter(b=>b.name!==u.cyclePreceptName); }
+    }
   }
   // ターン開始処理：CT概念なし系トリガー（1ターン1回制限）の使用済みフラグをリセット
   // ※フェイの反撃等は他キャラの行動（被弾）に反応するため、そのキャラ自身の番でなく「新しい行動（ターン）が始まるたび」に
@@ -2051,7 +2138,9 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       if(hasAdvantage) hasAdvantageAny = true;
       const advantageBonus = hasAdvantage ? 1 : 0;
       const breakSkillBonus = (!isEvaded && isBreakSkillToughnessBonusActive()) ? 1 : 0;
-      const toughnessDmg = isEvaded ? 0 : (s.toughness + (burstOn?s.burstAdd:0) + advantageBonus + breakSkillBonus);
+      // ギーレの究極「強靭度ダメージ無効」等、名前でマークされた無効化バフを持つ対象は強靭ダメージが常に0になる
+      const hasToughnessImmuneBuff = target.buffs && target.buffs.some(b=>b.name.includes("強靭度ダメージ無効"));
+      const toughnessDmg = (isEvaded || hasToughnessImmuneBuff) ? 0 : (s.toughness + (burstOn?s.burstAdd:0) + advantageBonus + breakSkillBonus);
       target.toughness = Math.max(0, target.toughness - toughnessDmg);
       if(!isEvaded){
         target.hitCounter = (target.hitCounter||0) + 1;
@@ -2064,6 +2153,37 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
         target.broken = true; target.gauge = 0; brokeNow = true;
         state.breakPoints = Math.min(3, state.breakPoints + (target.toughnessMax>=15?3:1));
         brokeAny = true;
+      }
+      // ギーレ「厳重な戒律」：究極スキルを受けた時、自身が夜の周期状態なら自身の究極CTを1短縮しゲージ+30%
+      if(!isEvaded && skillKey==="ultimate" && target.reactsToUltimateHitIfNightCycle){
+        const isNight = target.buffs.some(b=>b.isCycleMarker && b.name.includes("夜"));
+        if(isNight){
+          const react = target.reactsToUltimateHitIfNightCycle;
+          if((target.ct.ultimate||0) > 0){ target.ct.ultimate = Math.max(0, target.ct.ultimate - (react.ctReduce||0)); }
+          target.gauge = Math.min(100, target.gauge + (react.gaugeGainPct||0));
+          logAction(target, "被弾判定", `🌙 厳重な戒律：夜の周期のため究極CT-${react.ctReduce||0}・ゲージ+${react.gaugeGainPct||0}%`, "-", false, `残CT:${target.ct.ultimate}`);
+        }
+      }
+      // 乖離：攻撃を受けた際、自身が弱体化状態であれば自身のゲージ+20%
+      if(!isEvaded && target.gaugeGainOnHitIfSelfDebuffed && target.buffs.some(b=>b.type==="debuff")){
+        target.gauge = Math.min(100, target.gauge + target.gaugeGainOnHitIfSelfDebuffed);
+        logAction(target, "被弾判定", `😰 自身が弱体化状態のためゲージ+${target.gaugeGainOnHitIfSelfDebuffed}%`, "-", false, "");
+      }
+      // 乖離：特殊または究極の攻撃を受けた際、偏愛の残響があれば1消費。なければ（心象亀裂がまだなければ）心象亀裂を付与し、
+      // 敵全体（＝味方全体から見たこの敵側全員）の全スキルのCTを1短縮する
+      if(!isEvaded && (skillKey==="special"||skillKey==="ultimate") && target.reactsToSpecialOrUltimateHit){
+        const react = target.reactsToSpecialOrUltimateHit;
+        if(target.echoStackName && (target.echoStacks||0) > 0){
+          target.echoStacks = Math.max(0, target.echoStacks - 1);
+          logAction(target, "被弾判定", `💗 ${target.echoStackName}を1消費(残${target.echoStacks})`, "-", false, "");
+        } else if(target.crackDebuffName && !target.buffs.some(b=>b.name===target.crackDebuffName)){
+          target.buffs.push({name:target.crackDebuffName, turns:9999, type:"debuff", permanent:true, undispellable:true});
+          // 「敵全体」は乖離から見た敵＝味方全体（プレイヤー側パーティ）を指す
+          state.units.filter(x=>x.kind==="ally" && x.alive).forEach(al=>{
+            ["special","ultimate"].forEach(k=>{ if((al.ct[k]||0)>0){ al.ct[k] = Math.max(0, al.ct[k] - (react.ctReduceAllAlliesSkills||0)); } });
+          });
+          logAction(target, "被弾判定", `💔 ${target.crackDebuffName}を発生。味方全体の全スキルCT-${react.ctReduceAllAlliesSkills||0}`, "-", false, "");
+        }
       }
 
       // 敵の行動ゲージ減少（★開幕免疫中は無効。潜伏中限定等の条件付き効果はapplyGaugeReductionチェックボックスで手動制御）
@@ -2246,9 +2366,16 @@ function useEnemySkill(unitId, skillKey){
   const s = u.skills[skillKey];
   if(skillKey!=="basic" && u.ct[skillKey] > 0){ alert("クールタイム中です"); return; }
   if(skillKey!=="basic"){ u.ct[skillKey] = s.ct; }
+  // ギーレ「周期の循環」：スキル自身の条件付き効果（液化のゲージ増加等）は、このスキル使用「前」の周期状態を見て判定する
+  const cycleBeforeAction = u.togglesDayNightCycle ? (u.buffs.some(b=>b.isCycleMarker && b.name.includes("昼")) ? "day" : "night") : null;
+  // 乖離「消去」：攻撃時、自身の残滓の乖離が最大スタックであれば発動するトリガー条件は、この行動「前」の値で判定する必要がある
+  const residueStacksBeforeAction = u.residueStackName ? (u.residueStacks||0) : 0;
 
   u.gauge = 0;
   if(s.selfGaugeGainPct){ u.gauge = Math.min(100, u.gauge + s.selfGaugeGainPct); }
+  if(s.selfGaugeGainIfCycleState && cycleBeforeAction===s.selfGaugeGainIfCycleState.state){
+    u.gauge = Math.min(100, u.gauge + s.selfGaugeGainIfCycleState.pct);
+  }
 
   logAction(u, state.pendingArrivalType, skillCategoryLabel(skillKey) + "：" + s.name, "-", false, s.note || "");
 
@@ -2257,9 +2384,12 @@ function useEnemySkill(unitId, skillKey){
     logAction(u, "被弾判定", "😈 歪んだ意志(" + u.twistedWillStacks + ")状態のため" + s.selfBuffIfTwistedWill.name + "(" + s.selfBuffIfTwistedWill.turns + "T)を自身に付与", "-", false, "");
   }
   if(s.selfBuff){
-    // 条件なしで毎回自身に付与するバフ（オルトロスの鉄血の鱗甲等）。selfBuffIfTwistedWillとは別枠
-    const applied = applyBuffWithMaxDuration(u.buffs, {name:s.selfBuff.name, turns:s.selfBuff.turns, type:s.selfBuff.type||"buff", speedModPct:s.selfBuff.speedModPct||0, atkModPct:s.selfBuff.atkModPct||0, critDmgModPct:s.selfBuff.critDmgModPct||0, decrementOnAnyTurn:!!s.selfBuff.decrementOnAnyTurn});
-    logAction(u, "被弾判定", "🛡 自身に" + applied.name + "(" + applied.turns + "T)を付与", "-", false, "");
+    // 条件なしで毎回自身に付与するバフ（オルトロスの鉄血の鱗甲等）。selfBuffIfTwistedWillとは別枠。単体・配列どちらも可
+    const selfBuffs = Array.isArray(s.selfBuff) ? s.selfBuff : [s.selfBuff];
+    selfBuffs.forEach(sb=>{
+      const applied = applyBuffWithMaxDuration(u.buffs, {name:sb.name, turns:sb.turns, type:sb.type||"buff", speedModPct:sb.speedModPct||0, atkModPct:sb.atkModPct||0, critDmgModPct:sb.critDmgModPct||0, decrementOnAnyTurn:!!sb.decrementOnAnyTurn});
+      logAction(u, "被弾判定", "🛡 自身に" + applied.name + "(" + applied.turns + "T)を付与", "-", false, "");
+    });
   }
   if(s.selfClearAllDebuffs){
     // undispellable（例：ティリアの惨劇の棘）は、この手の「弱体化を全解除」系効果では解除できない
@@ -2267,6 +2397,50 @@ function useEnemySkill(unitId, skillKey){
     u.buffs = u.buffs.filter(b=>b.type!=="debuff" || b.undispellable);
     if(removed.length>0){
       logAction(u, "被弾判定", "🧹 自身の弱体化を全解除", "-", false, `解除:${removed.map(b=>b.name).join("、")}`);
+    }
+  }
+  if(s.selfClearAllDebuffsIncludingUndispellable){
+    // 乖離の審判専用：自分自身の心象亀裂（解除不可）を含め、自身の弱体化をすべて解除する
+    const removed = u.buffs.filter(b=>b.type==="debuff");
+    u.buffs = u.buffs.filter(b=>b.type!=="debuff");
+    if(removed.length>0){
+      logAction(u, "被弾判定", "🧹 自身の弱体化（解除不可を含む）をすべて解除", "-", false, `解除:${removed.map(b=>b.name).join("、")}`);
+    }
+  }
+  if(s.setEchoStacksTo!=null && u.echoStackName){
+    u.echoStacks = s.setEchoStacksTo;
+    logAction(u, "被弾判定", `💗 自身に${u.echoStackName}を${s.setEchoStacksTo}発生`, "-", false, "");
+  }
+  if(s.selfStackGainIfHasEcho > 0 && u.echoStackName && (u.echoStacks||0) > 0 && u.residueStackName){
+    u.residueStacks = Math.min(u.residueStackMax||3, (u.residueStacks||0) + s.selfStackGainIfHasEcho);
+    logAction(u, "被弾判定", `🌀 ${u.echoStackName}状態のため自身に${u.residueStackName}+${s.selfStackGainIfHasEcho}(${u.residueStacks}/${u.residueStackMax||3})`, "-", false, "");
+  }
+  if(s.resetResidueStacksOnUse && u.residueStackName){
+    if((u.residueStacks||0) > 0){
+      logAction(u, "被弾判定", `🌀 ${u.residueStackName}を全消費(${u.residueStacks}→0)`, "-", false, "");
+      u.residueStacks = 0;
+    }
+  }
+  if(s.dmgBonusNoteIfCycleState && cycleBeforeAction===s.dmgBonusNoteIfCycleState.state){
+    logAction(u, "被弾判定", `⚠ ${cycleBeforeAction==="day"?"昼":"夜"}の周期のため攻撃ダメージ+${s.dmgBonusNoteIfCycleState.pct}%（本ツールはダメージ計算非対応のため手動反映）`, "-", false, "");
+  }
+  // ギーレ「周期の循環」：スキル使用後、自身が昼の周期なら夜の周期へ、夜の周期なら昼の周期へ切り替わる（解除不可・自動トグル）
+  if(u.togglesDayNightCycle){
+    const idx = u.buffs.findIndex(b=>b.isCycleMarker);
+    const nextIsDay = cycleBeforeAction!=="day"; // 昼→夜、夜→昼（未設定の場合は一旦昼から開始した扱い）
+    if(idx>=0) u.buffs.splice(idx,1);
+    u.buffs.push({name: nextIsDay ? "昼の周期（解除不可・効果耐性0固定）" : "夜の周期（解除不可・効果耐性100%固定）", turns:9999, type:"buff", permanent:true, undispellable:true, isCycleMarker:true});
+    logAction(u, "被弾判定", `🌗 周期の循環：自身が${nextIsDay?"夜→昼":"昼→夜"}の周期に切り替わった`, "-", false, "");
+  }
+  // ギーレ「厳重な戒律」：スキル使用後、自身の弱体化数に応じて周期戒律を発生（周期マーカー・周期戒律自体は弱体化数に含めない、上限あり）
+  if(u.cyclePreceptName){
+    const currentPreceptCount = u.buffs.filter(b=>b.name===u.cyclePreceptName).length;
+    const debuffCount = u.buffs.filter(b=>b.type==="debuff" && !b.isCycleMarker && b.name!==u.cyclePreceptName).length;
+    const room = Math.max(0, (u.cyclePreceptMax||4) - currentPreceptCount);
+    const gain = Math.min(debuffCount, room);
+    if(gain>0){
+      for(let i=0;i<gain;i++){ u.buffs.push({name:u.cyclePreceptName, turns:9999, type:"debuff", permanent:true}); }
+      logAction(u, "被弾判定", `📜 厳重な戒律：自身の弱体化${debuffCount}個に応じて周期戒律+${gain}(${currentPreceptCount+gain}/${u.cyclePreceptMax||4})`, "-", false, "");
     }
   }
   state.pendingActor = null;
@@ -2285,6 +2459,13 @@ function useEnemySkill(unitId, skillKey){
     state.pendingTriggerContext = { targetType:"selectHit", hitAllyId:null, hitEvaded:false, sourceUnitId: unitId, skillKey,
       sourceLabel: u.name + "の「" + s.name + "」（単体攻撃）", thenExtraTurn:false };
   }
+  // 乖離「消去」：攻撃時、自身の残滓の乖離が最大スタックであれば（攻撃『前』の値で判定）、
+  // 通常攻撃の被弾判定が終わった後に特殊「消去」の発動候補として提示する
+  // （本ツールには敵側の自動トリガー候補提示機構がなかったため、被弾トリガーパネルと同じ発想で新設）
+  if(skillKey==="basic" && u.residueStackName && (u.residueStackMax||0)>0 && residueStacksBeforeAction >= u.residueStackMax){
+    state.pendingEnemySelfTrigger = { sourceUnitId: unitId, skillKey:"special",
+      note: `${u.name}の${u.residueStackName}が最大(${residueStacksBeforeAction}/${u.residueStackMax})のため、特殊スキルの自動トリガー条件を満たしています` };
+  }
   renderBattle();
 }
 
@@ -2301,6 +2482,7 @@ function applyBuffWithMaxDuration(buffsArray, newBuff){
     existing.permanent = !!newBuff.permanent || !!existing.permanent;
     existing.undispellable = !!newBuff.undispellable || !!existing.undispellable;
     existing.decrementOnAnyTurn = !!newBuff.decrementOnAnyTurn || !!existing.decrementOnAnyTurn;
+    existing.decrementAtOwnTurnEnd = !!newBuff.decrementAtOwnTurnEnd || !!existing.decrementAtOwnTurnEnd;
     return existing;
   } else {
     buffsArray.push(newBuff);
@@ -2327,6 +2509,24 @@ function applyTenthLaborTurnGimmick(u, isDispel){
   } else {
     return `／自身の${u.buffs[idx].name}はターン終了時の自然減少と単体攻撃による+1が相殺（残${u.buffs[idx].turns}T、変化なし）`;
   }
+}
+
+// decrementAtOwnTurnEnd:true が付いたバフ（例：カネリアの「漆黒の残響」）を、本人の行動が終わった直後に-1する。
+// ※通常の汎用バフ経過処理（本人の次の自ターン開始時に-1）だと、このターン中の自分の行動（トリガー発動条件チェック等）
+//   より先にバフが切れてしまい、同ターン中に条件を満たしているはずなのに無効判定になってしまう不具合が起きるため、
+//   この種のバフは汎用処理から除外し、行動確定のこのタイミングで明示的に-1する
+function decrementOwnTurnEndBuffs(u){
+  if(!u || !u.buffs) return "";
+  let memo = "";
+  u.buffs = u.buffs.map(b=>{
+    if(!b.decrementAtOwnTurnEnd) return b;
+    return {...b, turns: b.turns - 1};
+  }).filter(b=>{
+    if(!b.decrementAtOwnTurnEnd) return true;
+    if(b.turns<=0){ memo += `／自身の${b.name}がターン終了により消滅`; return false; }
+    return true;
+  });
+  return memo;
 }
 
 function logAction(unit, arrivalType, skillName, toughness, broke, memo){
@@ -2417,6 +2617,9 @@ function finalizeActionChain(unitId, extraTurnFlag){
     ["special","ultimate"].forEach(k=>{
       if(u.ct[k]>0) u.ct[k] = Math.max(0, u.ct[k]-1);
     });
+    // decrementAtOwnTurnEnd:true のバフ（カネリアの漆黒の残響等）は、追加ターンが続く場合はまだ「ターン終了」ではないため
+    // 減らさない（第十の課業等、他の「追加ターンではカウントしない」系ロジックと同じ扱い）
+    if(!extraTurnFlag){ decrementOwnTurnEndBuffs(u); }
   }
   if(extraTurnFlag){
     openActionFor(unitId, "追加ターン(誘発)");
@@ -2571,6 +2774,19 @@ function dismissBossHitTrigger(enemyId){
   // 発動しなかった場合はカウントを変更しない（次の被弾チェック時にも引き続き候補として提示される）
   if(ctx && ctx.sourceUnitId){ afterOwnCheck(ctx.sourceUnitId, ctx.thenExtra, ctx.wasBasicSkill); }
   else { renderBattle(); }
+}
+
+// 乖離「消去」等、敵側が自分の行動（攻撃）を条件に自動的に追加スキルを発動するケース向けの汎用機構
+// （本ツールには元々、味方側のfireTriggerに相当する敵側の自動トリガー候補提示機構がなかったため新設）
+function confirmEnemySelfTrigger(){
+  const ctx = state.pendingEnemySelfTrigger;
+  state.pendingEnemySelfTrigger = null;
+  if(!ctx) { renderBattle(); return; }
+  useEnemySkill(ctx.sourceUnitId, ctx.skillKey);
+}
+function dismissEnemySelfTrigger(){
+  state.pendingEnemySelfTrigger = null;
+  renderBattle();
 }
 
 // ===================== 水爆弾リアクト攻撃（例：水着スマイル、他の味方が水爆弾状態の敵を攻撃後・跳躍2以上で反応攻撃） =====================
@@ -2763,11 +2979,25 @@ function applyEnemyUnconditionalDebuff(sourceUnitId, skillKey, targetAllyId){
   const target = state.units.find(x=>x.id===targetAllyId);
   if(!u || !target) return;
   const s = u.skills[skillKey];
-  const eff = s && s.targetEffect;
-  if(!eff) return;
-  if(eff.dot){ target.buffs.push({name:eff.name, turns:eff.turns, type:"debuff", dot:true, speedZeroLock:!!eff.speedZeroLock, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, undispellable:!!eff.undispellable}); }
-  else { applyBuffWithMaxDuration(target.buffs, {name:eff.name, turns:eff.turns, type:"debuff", speedZeroLock:!!eff.speedZeroLock, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, undispellable:!!eff.undispellable}); }
-  logAction(u, "被弾判定", "☠ " + target.name + "に" + eff.name + "(" + eff.turns + "T)を付与", "-", false, "");
+  if(!s) return;
+  const eff = s.targetEffect;
+  if(eff){
+    if(eff.dot){ target.buffs.push({name:eff.name, turns:eff.turns, type:"debuff", dot:true, speedZeroLock:!!eff.speedZeroLock, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, undispellable:!!eff.undispellable}); }
+    else { applyBuffWithMaxDuration(target.buffs, {name:eff.name, turns:eff.turns, type:"debuff", speedZeroLock:!!eff.speedZeroLock, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, undispellable:!!eff.undispellable}); }
+    logAction(u, "被弾判定", "☠ " + target.name + "に" + eff.name + "(" + eff.turns + "T)を付与", "-", false, "");
+  }
+  // 乖離の消去：対象の特殊・究極CTを延長する
+  if(s.targetCtExtendAllTurns > 0){
+    ["special","ultimate"].forEach(k=>{
+      if(target.skills && target.skills[k]){ target.ct[k] = (target.ct[k]||0) + s.targetCtExtendAllTurns; }
+    });
+    logAction(u, "被弾判定", `⏱ ${target.name}の特殊・究極CTを${s.targetCtExtendAllTurns}ターン延長`, "-", false, "");
+  }
+  // 乖離の消去：対象の行動ゲージを0にリセット（%減算ではなく絶対値）
+  if(s.targetGaugeResetToZero){
+    target.gauge = 0;
+    logAction(u, "被弾判定", `⏱ ${target.name}の行動ゲージを0にリセット`, "-", false, "");
+  }
 }
 
 function confirmHitAlly(allyId){
@@ -2947,7 +3177,9 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
     const advantageBonus = hasAdvantage ? 1 : 0;
     const breakSkillBonus = (!evaded && !s.targetsAlly && isBreakSkillToughnessBonusActive()) ? 1 : 0;
     // targetsAlly（花嫁カルメンの守護の騎士等、味方対象のトリガー）は攻撃ではないため強靭ダメージ・被弾カウントの対象外
-    const toughnessDmg = (evaded || s.targetsAlly) ? 0 : (s.toughness + (burstOn ? s.burstAdd : 0) + advantageBonus + breakSkillBonus);
+    // ギーレの究極「強靭度ダメージ無効」等、名前でマークされた無効化バフを持つ対象は強靭ダメージが常に0になる
+    const hasToughnessImmuneBuff = target.buffs && target.buffs.some(b=>b.name.includes("強靭度ダメージ無効"));
+    const toughnessDmg = (evaded || s.targetsAlly || hasToughnessImmuneBuff) ? 0 : (s.toughness + (burstOn ? s.burstAdd : 0) + advantageBonus + breakSkillBonus);
     target.toughness = Math.max(0, target.toughness - toughnessDmg);
     if(!evaded && !s.targetsAlly){
       target.hitCounter = (target.hitCounter||0) + 1;
@@ -2960,6 +3192,35 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
       target.broken = true; target.gauge = 0; brokeNow = true;
       state.breakPoints = Math.min(3, state.breakPoints + (target.toughnessMax>=15?3:1));
       brokeAny = true;
+    }
+    // ギーレ「厳重な戒律」：究極スキルを受けた時、自身が夜の周期状態なら自身の究極CTを1短縮しゲージ+30%
+    if(!evaded && !s.targetsAlly && skillKey==="ultimate" && target.reactsToUltimateHitIfNightCycle){
+      const isNight = target.buffs.some(b=>b.isCycleMarker && b.name.includes("夜"));
+      if(isNight){
+        const react = target.reactsToUltimateHitIfNightCycle;
+        if((target.ct.ultimate||0) > 0){ target.ct.ultimate = Math.max(0, target.ct.ultimate - (react.ctReduce||0)); }
+        target.gauge = Math.min(100, target.gauge + (react.gaugeGainPct||0));
+        logAction(target, "被弾判定", `🌙 厳重な戒律：夜の周期のため究極CT-${react.ctReduce||0}・ゲージ+${react.gaugeGainPct||0}%`, "-", false, `残CT:${target.ct.ultimate}`);
+      }
+    }
+    // 乖離：攻撃を受けた際、自身が弱体化状態であれば自身のゲージ+20%
+    if(!evaded && !s.targetsAlly && target.gaugeGainOnHitIfSelfDebuffed && target.buffs.some(b=>b.type==="debuff")){
+      target.gauge = Math.min(100, target.gauge + target.gaugeGainOnHitIfSelfDebuffed);
+      logAction(target, "被弾判定", `😰 自身が弱体化状態のためゲージ+${target.gaugeGainOnHitIfSelfDebuffed}%`, "-", false, "");
+    }
+    // 乖離：特殊または究極の攻撃を受けた際、偏愛の残響があれば1消費。なければ（心象亀裂がまだなければ）心象亀裂を付与し、味方全体の全スキルのCTを1短縮する
+    if(!evaded && !s.targetsAlly && (skillKey==="special"||skillKey==="ultimate") && target.reactsToSpecialOrUltimateHit){
+      const react = target.reactsToSpecialOrUltimateHit;
+      if(target.echoStackName && (target.echoStacks||0) > 0){
+        target.echoStacks = Math.max(0, target.echoStacks - 1);
+        logAction(target, "被弾判定", `💗 ${target.echoStackName}を1消費(残${target.echoStacks})`, "-", false, "");
+      } else if(target.crackDebuffName && !target.buffs.some(b=>b.name===target.crackDebuffName)){
+        target.buffs.push({name:target.crackDebuffName, turns:9999, type:"debuff", permanent:true, undispellable:true});
+        state.units.filter(x=>x.kind==="ally" && x.alive).forEach(al=>{
+          ["special","ultimate"].forEach(k=>{ if((al.ct[k]||0)>0){ al.ct[k] = Math.max(0, al.ct[k] - (react.ctReduceAllAlliesSkills||0)); } });
+        });
+        logAction(target, "被弾判定", `💔 ${target.crackDebuffName}を発生。味方全体の全スキルCT-${react.ctReduceAllAlliesSkills||0}`, "-", false, "");
+      }
     }
 
     let reductionText = "";
@@ -3275,6 +3536,8 @@ function renderBattle(){
     if(u.kind==="enemy" && u.immune) statusTags.push(`<span class="tag buff">免疫(残${u.immuneRemaining})</span>`);
     if(u.kind==="enemy" && u.starSpeedBonusPct) statusTags.push(`<span class="tag permanent">★速度+${u.starSpeedBonusPct}%</span>`);
     if(u.kind==="enemy" && (u.twistedWillStacks||0)>0) statusTags.push(`<span class="tag permanent">😈歪んだ意志:${u.twistedWillStacks}/3</span>`);
+    if(u.kind==="enemy" && u.echoStackName && (u.echoStacks||0)>0) statusTags.push(`<span class="tag permanent">💗${u.echoStackName}:${u.echoStacks}</span>`);
+    if(u.kind==="enemy" && u.residueStackName && (u.residueStacks||0)>0) statusTags.push(`<span class="tag permanent">🌀${u.residueStackName}:${u.residueStacks}/${u.residueStackMax||3}</span>`);
     if(u.kind==="enemy" && (u.specialTriggerHitCount||0)>0) statusTags.push(`<span class="tag permanent">🎯特殊被弾:${u.hitCounter||0}/${u.specialTriggerHitCount}</span>`);
     if(u.kind==="enemy" && (u.basicTriggerHitCount||0)>0) statusTags.push(`<span class="tag permanent">🎯単体被弾:${u.singleTargetHitCounter||0}/${u.basicTriggerHitCount}</span>`);
     if(u.kind==="ally" && u.usesSevenBallMechanic) statusTags.push(`<span class="tag permanent">🎱ピンボール速度+${u.pinballSpeedStacks||0}/10</span>`);
@@ -3468,6 +3731,21 @@ function renderBattle(){
       <div class="smallnote">被弾カウントが規定回数に達した敵がいます。実際にボスの割り込みスキルが発動しましたか？</div>
       <div class="skillbtn-row">${buttons}</div>
       <button class="btn-secondary" style="margin-top:6px;" onclick="dismissBossHitTrigger('${ctx.candidates[0]}')">発動しなかった・続ける</button>`;
+    area.appendChild(panel);
+    return;
+  }
+
+  if(state.pendingEnemySelfTrigger){
+    const ctx = state.pendingEnemySelfTrigger;
+    const src = state.units.find(x=>x.id===ctx.sourceUnitId);
+    const panel = document.createElement("div");
+    panel.className = "actionPanel";
+    panel.innerHTML = `<h3>敵の自己トリガー判定</h3>
+      <div class="smallnote">${ctx.note||""}</div>
+      <div class="skillbtn-row"><button class="skillbtn" onclick="confirmEnemySelfTrigger()">
+        <div class="name">🌀 ${src?src.name:""} の追加スキル発動</div>
+      </button></div>
+      <button class="btn-secondary" style="margin-top:6px;" onclick="dismissEnemySelfTrigger()">発動しなかった・続ける</button>`;
     area.appendChild(panel);
     return;
   }
