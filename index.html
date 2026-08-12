@@ -327,7 +327,13 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
   //   teamBuff: {name,turns,excludeSelf} 味方全体（excludeSelf時は自分以外）に付与するバフ
   //   teamGaugeGainPct/teamGaugeGainExcludeSelf: 味方全体（excludeSelf時は自分以外）の行動ゲージを増やす%
   //   clearAllyDebuffCount/clearAllyDebuffBurstOnly: 味方全体からデバフを指定数解除する（バースト限定可）
+  //   alsoGaugeToTarget: targetsAlly時、selfGaugeGain/gaugeToTargetの選択とは独立に、対象の味方にも追加でゲージを付与する%（花嫁カルメンの特殊等、自身と対象の両方に付与する場合に使用）
+  //   targetClearAllDebuffs: targetsAlly時、対象の弱体化（type:"debuff"）をすべて解除する（花嫁カルメンの究極等）
+  //   targetStackGainIfSameAttributeAsSelf: targetsAlly時、対象が自分と同じ属性の場合のみ、対象の属性スタックをこの数だけ増やす（花嫁カルメンの究極：対象が月属性なら対象にも冷却付与）
   //   atkPct: ダメージ計算に使うスキル倍率%（攻撃力参照）。ダメージ逆算・推定に使用。買い切りバフ等がない味方対象バフスキルは0のままでよい
+  //   targetEffect内のundispellable: true の場合、そのデバフはselfClearAllDebuffs/targetClearAllDebuffs等の
+  //     「弱体化を全解除」系効果では解除されない（例：ティリアの「惨劇の棘」は、付与した本人が
+  //     consumeAllTargetDebuffNameで消費する以外の手段では解除されない仕様のため）
   //   burstDamagePct: バースト強化時のみ乗る「ダメージ+X%」系の特殊バフ（ノヴァバースト等）。会心ダメージ計算には乗らず、通常（非会心）ダメージにのみ乗る仕様
   //   triggerRequiresSelfBuffName: afterOwnトリガーの発動条件として、自身がこの名前を含むバフを持っている場合のみ候補に出す（部分一致）
   //   triggerRequiresEnemyStackName/triggerRequiresEnemyStackCount: afterOwnトリガーの発動条件として、直近の基本スキル対象の敵がこの名前のデバフを指定スタック数以上持っている場合のみ候補に出す
@@ -347,6 +353,7 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
     ctReduceBySevenBall: !!extraEffects.ctReduceBySevenBall,
     extraTurnIfStackMaxConsumeAll: !!extraEffects.extraTurnIfStackMaxConsumeAll,
     consumeStackOnlyIfMax: !!extraEffects.consumeStackOnlyIfMax,
+    skipCtIfStackMaxConsumeAll: !!extraEffects.skipCtIfStackMaxConsumeAll,
     firesAfterAnyOwnAttack: !!extraEffects.firesAfterAnyOwnAttack,
     consumeAllTargetDebuffName: extraEffects.consumeAllTargetDebuffName || null,
     target: extraEffects.target || "single",
@@ -365,7 +372,10 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
     triggerRequiresSelfBuffName: extraEffects.triggerRequiresSelfBuffName || null,
     triggerRequiresEnemyStackName: extraEffects.triggerRequiresEnemyStackName || null,
     triggerRequiresEnemyStackCount: extraEffects.triggerRequiresEnemyStackCount || 0,
-    triggerRequiresSelfStackMax: !!extraEffects.triggerRequiresSelfStackMax};
+    triggerRequiresSelfStackMax: !!extraEffects.triggerRequiresSelfStackMax,
+    alsoGaugeToTarget: extraEffects.alsoGaugeToTarget || 0,
+    targetClearAllDebuffs: !!extraEffects.targetClearAllDebuffs,
+    targetStackGainIfSameAttributeAsSelf: extraEffects.targetStackGainIfSameAttributeAsSelf || 0};
 }
 
 // ===================== 属性スタック（点火/冷却/跳躍/洞察/激動） =====================
@@ -389,7 +399,7 @@ function isBossImmuneDebuffName(name){
 }
 
 // 出血／凍結／燃焼はドットダメージ系で、重複せず「2個、3個…」と独立した別枠として数える・表示する
-const INDEPENDENT_STACK_DEBUFF_NAMES = ["出血", "凍結", "燃焼"];
+const INDEPENDENT_STACK_DEBUFF_NAMES = ["出血", "凍結", "燃焼", "竜の逆鱗"];
 function isIndependentStackDebuff(name){
   return INDEPENDENT_STACK_DEBUFF_NAMES.some(n=>String(name||"").includes(n));
 }
@@ -741,7 +751,7 @@ function allyPreset(key){
       ultimate: defaultAllySkill("緊急現場判断", 4, 2, 1, 1, false, "none", "hasCT", 30, 0, false, false, false, { selfBuff:{name:"攻撃力アップ（+30%）", turns:2}, selfStackConsumeAll:true }) },
     "fei": { name:"フェイ", speed:90, toughnessMax:3, evasionRatePct:50, attribute:"月", role:"アサシン", passiveNote:"戦闘開始時・ターン終了時に回避率+50%(常時回避50%)。回避成功時ATK+4%スタック(最大5)",
       basic: defaultAllySkill("月食", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, selfBuff:{name:"攻撃力アップ", turns:1}, burstOnlySelfBuff:true }),
-      special: defaultAllySkill("月食（反撃）", 0, 1, 1, 1, false, "any", "oncePerTurn", 0, 0, true, false, false, { selfStackGain:2 }),
+      special: defaultAllySkill("月食（反撃）", 0, 1, 1, 0, false, "any", "oncePerTurn", 0, 0, true, false, false, { selfStackGain:2 }),
       ultimate: defaultAllySkill("清風朗月", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"攻撃力アップ（+30%）", turns:2}, selfStackConsumeAll:true }) },
     "ede": { name:"エデ", speed:95, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"ディフェンダー",
       battleStartSelfBuffs:[{name:"守護", turns:1}, {name:"バリア", turns:1}], gainStackOnHit:true,
@@ -759,7 +769,9 @@ function allyPreset(key){
       basic: defaultAllySkill("暁の誘い", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1 }),
       special: defaultAllySkill("導きの暁闇", 3, 0, 1, 1, false, "afterOwn", "oncePerTurn", 0, 0, false, false, false, { targetEffect:{name:"強化不可", turns:2}, selfStackGain:1 }),
       ultimate: defaultAllySkill("乖離解放", 4, 0, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, target:"all" }) },
-    "clarissa": { name:"クラリッサ", speed:100, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"レンジャー", turnStartStackGain:true, passiveNote:"絡みつく風道：会心率+15%(3凸)。ターン開始時、100%で跳躍スタック+1(基本スキルとは別に自動加算)。攻撃を受けた後、自身の跳躍スタックをすべて消去(本ツール未実装)。跳躍スタック段階効果：2で与ダメ+15%,3で命中+50%,4で自ゲージ+15%,5で敵ゲージ-15%(ダメージ・命中面は本ツールでは未計算。ゲージ効果は要手動判断)。特殊・究極は対象が月属性ならダメ+20%(本ツール未実装)。本ツールは会心発生前提のため、会心時効果(特殊の自ゲージ+15%・究極の敵ゲージ-20%)は常時適用として実装",
+    "clarissa": { name:"クラリッサ", speed:100, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"レンジャー", turnStartStackGain:true,
+      passiveStackGaugeEffects:{selfGaugeThreshold:4, selfGaugePct:15, enemyGaugeThreshold:5, enemyGaugePct:15},
+      passiveNote:"絡みつく風道：会心率+15%(3凸)。ターン開始時、100%で跳躍スタック+1(基本スキルとは別に自動加算)。攻撃を受けた後、自身の跳躍スタックをすべて消去(本ツール未実装)。跳躍スタック段階効果：2で与ダメ+15%,3で命中+50%,4で自ゲージ+15%,5で敵ゲージ-15%(ダメージ・命中面は本ツールでは未計算。ゲージ効果は実装済み：攻撃後の自身の跳躍スタックが4以上で自ゲージ+15%、5以上で敵ゲージ-15%。攻撃を伴わないスキルでは発生しない)。特殊・究極は対象が月属性ならダメ+20%(本ツール未実装)。本ツールは会心発生前提のため、会心時効果(特殊の自ゲージ+15%・究極の敵ゲージ-20%)は常時適用として実装",
       basic: defaultAllySkill("少し離れて", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, atkPct:65 }),
       special: defaultAllySkill("感じるままに射撃", 3, 1, 1, 1, false, "none", "hasCT", 40, 0, false, false, false, { targetEffect:{name:"速度ダウン（-20%）", turns:1, speedModPct:-20}, burstEnemyGaugeReductionAdd:15, atkPct:90 }),
       ultimate: defaultAllySkill("銃はこうやって撃つんだよ", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"速度アップ（+20%）", turns:2, speedModPct:20}, selfStackGain:2, enemyGaugeReductionPct:20, atkPct:115 }) },
@@ -783,7 +795,7 @@ function allyPreset(key){
       special: defaultAllySkill("第7型大地震", 4, 0, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { targetEffect:[{name:"凍結", turns:2, dot:true}, {name:"孤立", turns:2}], target:"all" }),
       ultimate: defaultAllySkill("第21型刀風", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"西部の風（速度+25%）", turns:3, speedModPct:25}, targetEffect:{name:"気絶", turns:1}, selfStackConsumeAll:true, enemyGaugeReductionPct:20, enemyGaugeReductionPerStack:10 }) },
     "tyria": { name:"ティリア", speed:100, toughnessMax:3, evasionRatePct:0, attribute:"太陽", role:"ストライカー", passiveNote:"基本スキル後100%で敵に惨劇の棘を1スタック付与（本ツールでは敵デバフとして蓄積・表示）。敵の棘が3スタック以上の状態で基本スキルを使用すると特殊(惨劇のレクイエム)が自動トリガー候補として提示される（基本スキル使用後のみ判定。特殊・究極使用後は対象外）。トリガー発動時は速度アップが付かず、CTにも入らない(通常発動時のみ速度+20%・CT4)",
-      basic: defaultAllySkill("終焉のプレリュード", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, targetEffect:{name:"惨劇の棘", turns:99, dot:true, ignoresImmune:true} }),
+      basic: defaultAllySkill("終焉のプレリュード", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, targetEffect:{name:"惨劇の棘", turns:99, dot:true, ignoresImmune:true, undispellable:true} }),
       special: defaultAllySkill("惨劇のレクイエム", 4, 0, 1, 1, false, "afterOwn", "oncePerTurn", 0, 0, false, false, false,
         { selfBuff:{name:"速度アップ（+20%）", turns:3, speedModPct:20}, selfBuffManualOnly:true, selfStackConsumeAll:true, triggerRequiresEnemyStackName:"惨劇の棘", triggerRequiresEnemyStackCount:3, consumeAllTargetDebuffName:"惨劇の棘" }),
       ultimate: defaultAllySkill("悲嘆のクレッシェンド", 5, 0, 1, 1, true, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"破砕（ATK+10%）", turns:2}, selfStackGain:2, target:"all", extraTurnBurstOnly:true }) },
@@ -791,10 +803,10 @@ function allyPreset(key){
       basic: defaultAllySkill("目にも止まらぬ動き", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1 }),
       special: defaultAllySkill("どこを見ているのですか？", 3, 0, 1, 1, false, "afterOwn", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"攻撃力アップ（+30%）", turns:2}, selfStackGain:3, triggerRequiresSelfStackMax:true }),
       ultimate: defaultAllySkill("バニージャックポット", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"ジャックポット・ブルーム（会心率/会心ダメ+20%）", turns:3}, selfStackGain:3 }) },
-    "bunny_charle": { name:"バニーシャルル", speed:90, toughnessMax:3, evasionRatePct:0, attribute:"太陽", role:"アサシン", passiveNote:"他の太陽味方のターン開始時、自身に点火+1。特殊(祝杯の歌)のラッキートークンが自身にある間のみ、通常攻撃(バニーステップ)使用後にもう一度通常攻撃が自動トリガー候補として提示される(1ターン1回。特殊・究極使用後は対象外)。基本スキル(バニーステップ)使用後、自身の行動ゲージ+10%(2回使用で+20%)",
+    "bunny_charle": { name:"バニーシャルル", speed:90, toughnessMax:3, evasionRatePct:0, attribute:"太陽", role:"アサシン", passiveNote:"他の太陽味方のターン開始時、自身に点火+1。特殊(祝杯の歌)のラッキートークンが自身にある間のみ、通常攻撃(バニーステップ)使用後にもう一度通常攻撃が自動トリガー候補として提示される(1ターン1回。特殊・究極使用後は対象外)。基本スキル(バニーステップ)使用後、自身の行動ゲージ+10%(2回使用で+20%)。究極は点火スタックが最大(5)の時、全消費してCTに入らない(実装済み：skipCtIfStackMaxConsumeAll)",
       basic: defaultAllySkill("バニーステップ", 0, 0, 1, 0, false, "afterOwn", "oncePerTurn", 10, 0, false, false, false, { selfStackGain:1, triggerRequiresSelfBuffName:"ラッキートークン" }),
       special: defaultAllySkill("祝杯の歌", 4, 0, 0, 1, true, "none", "hasCT", 0, 0, false, true, false, { selfBuff:{name:"ラッキートークン（解除不可＝防御力20%貫通）", turns:3}, selfStackGain:3, teamBuff:{name:"攻撃力アップ（+30%）", turns:2} }),
-      ultimate: defaultAllySkill("窮地に追い込まれたウサギ", 5, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfStackConsumeAll:true }) },
+      ultimate: defaultAllySkill("窮地に追い込まれたウサギ", 5, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfStackConsumeAll:true, skipCtIfStackMaxConsumeAll:true }) },
     "luna": { name:"ルナ", speed:93, toughnessMax:3, evasionRatePct:0, attribute:"秩序", role:"キャスター", passiveNote:"究極使用時、自身が強化状態なら会心ダメ+20%。全スキルが全体攻撃",
       basic: defaultAllySkill("護身用魔力弾", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, target:"all" }),
       special: defaultAllySkill("ヘカテの火種", 3, 0, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"会心率アップ（+30%）", turns:2}, target:"all" }),
@@ -803,10 +815,11 @@ function allyPreset(key){
       basic: defaultAllySkill("鷹の強襲", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1 }),
       special: defaultAllySkill("ブーケトス", 3, 0, 1, 1, true, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"攻撃力アップ（+30%）", turns:2}, selfStackConsumeAll:true, enemyGaugeReductionPct:20 }),
       ultimate: defaultAllySkill("花嫁、入場", 4, 0, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"速度アップ", turns:2}, target:"all" }) },
-    "bride_carmen": { name:"花嫁カルメン", speed:95, toughnessMax:3, evasionRatePct:0, attribute:"月", role:"サポーター", passiveNote:"戦闘開始時、攻撃力最高の味方に愛の誓約付与。対象が単体攻撃を受けると特殊が自動発動(対象指定型トリガー・手動判断推奨)",
+    "bride_carmen": { name:"花嫁カルメン", speed:95, toughnessMax:3, evasionRatePct:0, attribute:"月", role:"サポーター", requiresGuardTarget:true,
+      passiveNote:"盟約：最大HPが15%上がる(未対応)。戦闘開始時、自身を除く攻撃力最高の味方に「愛の誓約（解除不可）」を付与(実装済み：上の対象選択欄で戦闘開始前に指定。permanent:trueの永続バフとして付与され、自動ターン減少・解除の対象外。効果耐性+20%の数値効果自体は本ツール非対応のため注記のみ)。対象が単体攻撃を受けた時、被ダメの40%をカルメンが代わりに受け自身ゲージ+30%(本ツールはダメージ計算非対応のため被ダメ肩代わり自体は手動判断)。特殊「守護の騎士」は対象指定型トリガー（実装済み：愛の誓約の対象が単体攻撃を受けた時に自動発動候補として提示、選択すると対象選択フォームなしで即時発動）。基本使用後、味方全体HP回復(本ツール未対応)。特殊・究極のノヴァフォース獲得量は1（実装済み）。専用潜在「愛の行進」：強靭度上限+1・特殊/究極使用後ノヴァフォース+2（実装済み：CARMEN_ARCANA、通常発動・トリガー発動どちらでも加算される）",
       basic: defaultAllySkill("邪魔しないでください", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1 }),
-      special: defaultAllySkill("守護の騎士", 2, 0, 0, 0, false, "none", "hasCT", 0, 0, false, true, false, { targetEffect:{name:"バリア", turns:2}, selfStackGain:2 }),
-      ultimate: defaultAllySkill("ウェディング・マーチ", 4, 0, 0, 0, false, "none", "hasCT", 0, 0, false, true, false, { selfStackGain:3 }) },
+      special: defaultAllySkill("守護の騎士", 2, 0, 0, 1, false, "guardedAlly", "hasCT", 30, 0, false, true, false, { targetEffect:{name:"バリア", turns:2}, selfStackGain:2, alsoGaugeToTarget:30 }),
+      ultimate: defaultAllySkill("ウェディング・マーチ", 4, 0, 0, 1, false, "none", "hasCT", 0, 0, false, true, false, { selfStackGain:3, targetClearAllDebuffs:true, targetStackGainIfSameAttributeAsSelf:3 }) },
     "bunny_scarlet": { name:"バニースカーレット", speed:100, toughnessMax:3, evasionRatePct:0, attribute:"太陽", role:"レンジャー", usesSevenBallMechanic:true,
       passiveNote:"ハイスコア！：会心率+15%(3凸)。攻撃時、点火スタックに比例してダメージ+7%ずつ(最大5スタック)。ターン開始時、自身にピンボールタイム！を3回発生させ(ノーマルボール/セブンボールを各1/2でランダム抽選、攻撃後に全解除)、セブンボール(解除不可)の数に応じて速度+1ずつ(最大10スタック、実装済み：セブンボール数欄に応じて自ターン開始時に自動加算)。ノーマルボール：ダメ+1%、セブンボール：ダメ+7%（本ツール未実装、ダメージ計算対象外のため）。セブンボールの数はランダム要素のため、実際のゲーム画面を見ながら下の「セブンボール数」欄を手動で0〜3にセットしてください（速度スタック増加・究極スキルのCT短縮の両方に使用）",
       basic: defaultAllySkill("一気に行くのだ！", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, atkPct:65 }),
@@ -857,8 +870,8 @@ function allyPreset(key){
       basic: defaultAllySkill("ドカーン工具", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, atkPct:65 }),
       special: defaultAllySkill("バンバン電動ノコギリ", 3, 1, 1, 1, false, "none", "hasCT", 30, 0, false, false, false, { teamBuff:{name:"会心率アップ（+30%）", turns:1}, atkPct:90, burstDamagePct:20 }),
       ultimate: defaultAllySkill("ガンガンバンカー", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"攻撃力アップ（+30%）", turns:2, atkModPct:30}, atkPct:115 }) },
-    "kira": { name:"キラ", speed:90, toughnessMax:3, evasionRatePct:0, attribute:"太陽", role:"アサシン", passiveNote:"攻撃力+15%(3凸)。スキル使用時、自分が潜伏状態ならダメ+10%(3凸、本ツール未実装)。基本スキル使用後、点火スタックが最大なら全消費して自身に1ターン潜伏付与(未実装)。特殊は潜伏中に敵ゲージ-30%・沈黙状態の敵へダメ+30%(条件付きのため本ツールでは常時適用として簡略化)",
-      basic: defaultAllySkill("非日常的な挨拶", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, atkPct:65 }),
+    "kira": { name:"キラ", speed:90, toughnessMax:3, evasionRatePct:0, attribute:"太陽", role:"アサシン", passiveNote:"攻撃力+15%(3凸)。スキル使用時、自分が潜伏状態ならダメ+10%(3凸、本ツール未実装)。基本スキル使用後、点火スタックが最大なら全消費して自身に1ターン潜伏付与(未実装)。基本スキルはバースト強化時のみ、攻撃後1ターン潜伏を発動(実装済み：selfBuff+burstOnlySelfBuff)。特殊は潜伏中のみ敵ゲージ-30%・沈黙状態の敵へダメ+30%(いずれも条件付きのため本ツールでは自動判定できない。ゲージ-30%は行動フォームの「対象の行動ゲージ減少効果を適用する」チェックボックスで、潜伏中かどうかを見てプレイヤーが手動でON/OFFする)",
+      basic: defaultAllySkill("非日常的な挨拶", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, atkPct:65, selfBuff:{name:"潜伏", turns:1}, burstOnlySelfBuff:true }),
       special: defaultAllySkill("沈黙の代償", 3, 1, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"攻撃力アップ（+30%）", turns:2, atkModPct:30}, selfStackGain:2, enemyGaugeReductionPct:30, atkPct:90 }),
       ultimate: defaultAllySkill("歪んだ関心", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"潜伏", turns:2}, selfStackGain:2, targetEffect:[{name:"攻撃力ダウン（-30%）", turns:2}, {name:"沈黙", turns:1}], atkPct:115 }) },
     "belriese": { name:"ベル・リース", speed:112, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"レンジャー", passiveNote:"攻撃力+15%(3凸)。自身を除く味方または敵が戦闘不能になるたびに自身の行動ゲージ+50%(3凸)・攻撃力+10%スタック(最大3)。基本のノヴァバーストで敵に命中率ダウン付与。究極は敵の強化効果を全解除(本ツール未実装)・跳躍スタック最大でダメ+30%(未実装)",
@@ -926,8 +939,8 @@ function isBreakSkillToughnessBonusActive(){
   return !!typeInfo.hasToughnessBonus;
 }
 
-function defaultEnemySkill(name, ct, note, target, selfGaugeGainPct, targetEffectIfNoBarrier, selfBuffIfTwistedWill){
-  return {name, ct, note: note||"", target: target || "single", selfGaugeGainPct: selfGaugeGainPct||0, targetEffectIfNoBarrier: targetEffectIfNoBarrier||null, selfBuffIfTwistedWill: selfBuffIfTwistedWill||null}; // target: "single" | "all"
+function defaultEnemySkill(name, ct, note, target, selfGaugeGainPct, targetEffectIfNoBarrier, selfBuffIfTwistedWill, targetEffect, selfClearAllDebuffs, targetGaugeReductionPct, selfBuff){
+  return {name, ct, note: note||"", target: target || "single", selfGaugeGainPct: selfGaugeGainPct||0, targetEffectIfNoBarrier: targetEffectIfNoBarrier||null, selfBuffIfTwistedWill: selfBuffIfTwistedWill||null, targetEffect: targetEffect||null, selfClearAllDebuffs: !!selfClearAllDebuffs, targetGaugeReductionPct: targetGaugeReductionPct||0, selfBuff: selfBuff||null}; // target: "single" | "all"
 }
 
 let enemies = [
@@ -950,9 +963,14 @@ function bossPreset(key){
       ultimate: defaultEnemySkill("エネルギー発散", 4, "強靭削り2／敵の強化1つ解除／敵の弱体化数に応じて与ダメ+5%ずつ", "all") },
     "ortros": { name:"オルトロス", speed:180, toughnessMax:15, breakDmgPct:15, attribute:"混沌", role:"ストライカー",
       starImmunityTurns:0, starSpeedBonusPct:0, starDamageReductionPct:0,
-      basic: defaultEnemySkill("苦痛を授けし凶頭", 0, "強靭削り1／100%で敵ゲージ-10%／対象が第十の課業状態ならダメ+30%", "single"),
-      special: defaultEnemySkill("試練を授けし凶頭", 4, "強靭削り1／自身に5T鉄血の鱗甲(防御+50%)／敵全体に100%で1T第十の課業(ダメ-30%)付与", "all"),
-      ultimate: defaultEnemySkill("叙情詩の終幕", 4, "強靭削り2／自身に2T攻撃力アップ／自身の弱体化全解除／対象が第十の課業状態ならダメ+30%", "all") },
+      basicTriggerHitCount:4,
+      gainsBuffWhenAllyUsesNonAttackSkill:{name:"竜の逆鱗", turns:2},
+      passiveNote:"竜殺しの叙情詩：味方（敵から見た「味方」）が攻撃ではないスキル（味方対象バフ・回復等）を使用した際、自身に2ターン竜の逆鱗(デバフ)を発生させる(実装済み)。単体攻撃を受けた時、攻撃者が第十の課業(解除不可)状態であれば、100%で自身のすべての弱体化を1ターン延長(効果耐性・免疫・命中を無視して貫通、本ツール未実装のため手動判断が必要)。／灼熱の竜血：単体攻撃を4回受けた後、苦痛を授けし凶頭(基本)を発動(実装済み：被弾トリガーとして候補提示。強靭度ブレイク状態でも発生。useAllySkill・fireTriggerの両経路で判定)。前列のディフェンダーから優先的に攻撃。／第十の課業：味方(＝敵から見た「敵」)への攻撃時に100%付与するデバフ。付与された本人のターン終了時に-1、本人が単体攻撃をすると+1(差し引き±0)、全体攻撃か攻撃以外の行動(バフ・回復等)で解除(実装済み：applyTenthLaborTurnGimmick、ブレイクスキル発動は無関係)。命中率デバフでEVADEさせれば付与自体を防げる。行動ゲージ増減が不明な割り込み行動には、被弾判定パネルに手動確認欄を用意",
+      basic: defaultEnemySkill("苦痛を授けし凶頭", 0, "強靭削り1／100%で敵ゲージ-10%／対象が第十の課業状態ならダメ+30%", "single", 0, null, null, null, false, 10),
+      special: defaultEnemySkill("試練を授けし凶頭", 4, "強靭削り1／自身に5T鉄血の鱗甲(防御+50%)／敵全体に100%で1T第十の課業(ダメ-30%)付与", "all", 0, null, null,
+        {name:"第十の課業（ダメ-30%・解除不可）", turns:1, undispellable:true}, false, 0,
+        {name:"鉄血の鱗甲（防御+50%）", turns:5, type:"buff", decrementOnAnyTurn:true}),
+      ultimate: defaultEnemySkill("叙情詩の終幕", 4, "強靭削り2／自身に2T攻撃力アップ／自身の弱体化全解除／対象が第十の課業状態ならダメ+30%", "all", 0, null, null, null, true) },
     "mogrus": { name:"不死王モグルス", speed:180, toughnessMax:15, breakDmgPct:15, attribute:"混沌", role:"ストライカー",
       starImmunityTurns:0, starSpeedBonusPct:0, starDamageReductionPct:0,
       gainsTwistedWillOnBattleStart:true, gainsTwistedWillOnAllyTurn:true,
@@ -973,7 +991,7 @@ function bossPreset(key){
       starImmunityTurns:0, starSpeedBonusPct:0, starDamageReductionPct:0,
       basic: defaultEnemySkill("終焉のプレリュード", 0, "強靭削り1／100%で敵ゲージ-30%", "single"),
       special: defaultEnemySkill("惨劇のレクイエム", 3, "強靭削り2／自身を除く取り巻き全体の行動ゲージ+25%／行動ゲージ最高の敵に100%で3Tタイム・パラドックス(速度0固定・被ダメ+100%)", "single"),
-      ultimate: defaultEnemySkill("悲嘆のクレッシェンド", 4, "強靭削り1／自身に2T速度アップ(+20%)・行動ゲージ+30%／自身の弱体化を全解除", "all") },
+      ultimate: defaultEnemySkill("悲嘆のクレッシェンド", 4, "強靭削り1／自身に2T速度アップ(+20%)・行動ゲージ+30%／自身の弱体化を全解除", "all", 0, null, null, null, true) },
     "custom": { name:"新規敵", speed:100, toughnessMax:15, breakDmgPct:15, attribute:"太陽", role:"ディフェンダー",
       starImmunityTurns:0, starSpeedBonusPct:0, starDamageReductionPct:0,
       basic: defaultEnemySkill("基本スキル",0,"","single"),
@@ -1032,8 +1050,8 @@ function renderAllySetup(){
   allies.forEach((a, idx)=>{
     const card = document.createElement("div");
     card.className = "unit-card";
-    const relicChecks = ["EX","AX","DANRYOKU","GX","SMILE_ARCANA","LUNA_ARCANA","CAUTIOUS_TACTICS"].map(key=>{
-      const labelText = key==="DANRYOKU" ? "弾力・加速" : key==="SMILE_ARCANA" ? "スマイル専用" : key==="LUNA_ARCANA" ? "水着ルナ専用" : key==="CAUTIOUS_TACTICS" ? "慎重な戦術" : key;
+    const relicChecks = ["EX","AX","DANRYOKU","GX","SMILE_ARCANA","LUNA_ARCANA","CAUTIOUS_TACTICS","CARMEN_ARCANA"].map(key=>{
+      const labelText = key==="DANRYOKU" ? "弾力・加速" : key==="SMILE_ARCANA" ? "スマイル専用" : key==="LUNA_ARCANA" ? "水着ルナ専用" : key==="CAUTIOUS_TACTICS" ? "慎重な戦術" : key==="CARMEN_ARCANA" ? "愛の行進（カルメン専用）" : key;
       return `<label style="display:flex; align-items:center; gap:3px; font-size:12px;">
         <input type="checkbox" ${a.relics&&a.relics[key]?"checked":""} onchange="allies[${idx}].relics=allies[${idx}].relics||{}; allies[${idx}].relics.${key}=this.checked; renderAllySetup();"> ${labelText}
       </label>`;
@@ -1061,6 +1079,7 @@ function renderAllySetup(){
       ${(a.relics && a.relics.DANRYOKU && a.role!=="アサシン") ? `<div class="smallnote" style="color:var(--warn); margin-bottom:8px;">⚠ 弾力・加速はアサシン専用潜在です。このキャラのロールは「${a.role||"未設定"}」になっています</div>` : ""}
       ${(a.relics && a.relics.CAUTIOUS_TACTICS && a.role!=="ディフェンダー") ? `<div class="smallnote" style="color:var(--warn); margin-bottom:8px;">⚠ 慎重な戦術はディフェンダー専用潜在です。このキャラのロールは「${a.role||"未設定"}」になっています</div>` : ""}
       ${(a.relics && a.relics.LUNA_ARCANA && a.role!=="ディフェンダー") ? `<div class="smallnote" style="color:var(--warn); margin-bottom:8px;">⚠ 水着ルナ専用アルカナはディフェンダー専用潜在です。このキャラのロールは「${a.role||"未設定"}」になっています</div>` : ""}
+      ${(a.relics && a.relics.CARMEN_ARCANA && a.name!=="花嫁カルメン") ? `<div class="smallnote" style="color:var(--warn); margin-bottom:8px;">⚠ 愛の行進は花嫁カルメン専用潜在です。このキャラは「${a.name||"未設定"}」になっています</div>` : ""}
       ${allyDetailOpen[idx] ? `
       <div class="row">
         <div class="field grow"><label>名前</label><input type="text" value="${a.name}" oninput="allies[${idx}].name=this.value"></div>
@@ -1081,6 +1100,12 @@ function renderAllySetup(){
       </div>
       <div class="smallnote" style="margin-bottom:8px;">EX:通常攻撃時25%で味方1人を誘発／AX:ターン開始時ATK+8%最大40%・究極でリセット／弾力・加速:アサシン専用、ターン開始時+10速度最大+30／GX:基本スキル攻撃後50%で対象に2ターン出血付与／スマイル専用:ターン開始時跳躍+1</div>
       ${a.passiveNote ? `<div class="smallnote" style="margin-bottom:8px;">🧬 固有パッシブ概要（参考・自動判定なし）：${a.passiveNote}</div>` : ""}
+      ${a.requiresGuardTarget ? `<div class="field grow" style="margin-bottom:8px;"><label>戦闘開始時に「愛の誓約」等を付与する対象（自分以外の味方から選択）</label>
+        <select onchange="allies[${idx}].guardTargetIdx=this.value===''?null:Number(this.value)">
+          <option value="" ${a.guardTargetIdx==null?"selected":""}>未選択</option>
+          ${allies.map((other,oIdx)=>oIdx===idx?"":`<option value="${oIdx}" ${a.guardTargetIdx===oIdx?"selected":""}>${other.name||"（未設定の味方）"}</option>`).join("")}
+        </select>
+      </div>` : ""}
       ${renderAllySkillBlock(a, idx, "basic", "基本スキル", false)}
       ${renderAllySkillBlock(a, idx, "special", "特殊スキル", true)}
       ${renderAllySkillBlock(a, idx, "ultimate", "究極スキル", true)}
@@ -1309,12 +1334,12 @@ renderEnvBuffSetup();
 renderSpeedCompareTool();
 
 // ===================== 動作確認済みステータス（配布用：ユーザー自身が実際にプレイして確認した内容。都度更新） =====================
-const TOOL_VERSION = "v0.2.27";
+const TOOL_VERSION = "v0.2.47";
 document.getElementById("versionBadge").textContent = TOOL_VERSION;
 const VERIFIED_STATUS = {
-  lastUpdated: "2026-08-10",
-  bosses: ["デモライギス：アルファ", "デモライギス：ベータ", "不死王モグルス"],
-  characters: ["ドレスアセラ", "セイラ", "バニーシャルル", "ティリア", "水着スマイル", "ロベルタ", "フェイ", "バニースカーレット", "エミリー",
+  lastUpdated: "2026-08-11",
+  bosses: ["デモライギス：アルファ", "デモライギス：ベータ", "不死王モグルス", "オルトロス"],
+  characters: ["ドレスアセラ", "セイラ", "バニーシャルル", "ティリア", "水着スマイル", "ロベルタ", "フェイ", "バニースカーレット", "エミリー", "キラ", "花嫁カルメン",
     { name:"ベスタ", caution:"全体攻撃被弾時40%で「撃退」トリガー反撃は確認済み。ただし被弾後・跳躍最大時の2Tバリア発生は本ツール未実装" }
   ]
 };
@@ -1374,7 +1399,27 @@ const DATED_LOG = [
   { date:"2026-08-10", version:"v0.2.24", text:"スカーレットのトリガー発動ボタンがエラーで反応しない不具合を修正。前回の修正で追加した変数（stackMaxConsumedForExtraTurn等）をuseAllySkill内にしか宣言しておらず、トリガー発動経路のfireTrigger関数で参照エラーが発生していた。fireTrigger側にも同じ判定ロジックを追加" },
   { date:"2026-08-10", version:"v0.2.25", text:"スカーレットの特殊が「クールタイム中は発動できない」設定（triggerCtMode:hasCT）になっており、点火最大でもトリガーが候補に出ない不具合を修正。triggerCtModeをoncePerTurnに変更し、CTとは無関係に「自身のターンに1回」の条件だけで発動するよう修正（発動してもCTには影響しない）" },
   { date:"2026-08-10", version:"v0.2.26", text:"triggerRequiresSelfStackMax（点火・跳躍等が最大スタック時に自動発動するトリガー）の判定タイミングを修正。従来はその行動自身のスタック増加が反映された後の値で判定していたため、攻撃前は最大未満でも攻撃自体の増加で最大に達したケースまで誤って発動していた。攻撃前（行動によるスタック増加が反映される前）の値で判定するよう修正。スマイル・キラ等、同じ機構を使う他キャラにも影響" },
-  { date:"2026-08-10", version:"v0.2.27", text:"スカーレットの特殊・究極の強靭削り基礎値が0になっていた不具合を修正（特殊1・究極2に修正）" }
+  { date:"2026-08-10", version:"v0.2.27", text:"スカーレットの特殊・究極の強靭削り基礎値が0になっていた不具合を修正（特殊1・究極2に修正）" },
+  { date:"2026-08-10", version:"v0.2.28", text:"オルトロスのパッシブを追加実装：味方（敵から見た「味方」）が非攻撃スキルを使用した際、自身に竜の逆鱗（2T）を付与。単体攻撃を4回受けた後、基本スキルが割り込みで発動（灼熱の竜血、ブレイク中も発生）。被弾トリガー機構を特殊専用から基本スキルにも対応するよう汎用化し、単体攻撃のみをカウントする専用カウンタも新設。ボスの割り込み行動でノヴァフォース増減が不明な場合の手動確認欄も追加。第十の課業のターン延長ギミック等、一部は未実装のためpassiveNoteに注記" },
+  { date:"2026-08-10", version:"v0.2.29", text:"オルトロスの特殊で「第十の課業」が味方に付与されていなかった不具合を修正（敵スキルに無条件デバフ付与を行う新しい汎用機構targetEffectを追加）。反撃時の行動ゲージ変化確認チェックボックスは、ゲージが低下しないことが確認できたため撤去" },
+  { date:"2026-08-11", version:"v0.2.30", text:"第十の課業のターン増減ギミックを実装（applyTenthLaborTurnGimmick）。付与された本人のターン終了時に-1、本人が単体攻撃をすると+1（差し引き±0）、全体攻撃または攻撃以外の行動（バフ・回復等）で解除。ブレイクスキルの発動はこのギミックに一切関与しない。useAllySkillとfireTriggerの両方に同じロジックを追加（従来の他の機構と同様、片方のみへの実装漏れを防ぐため）。ボス詳細_オルトロス.mdの記述も、当初の誤認（オルトロス自身への単体攻撃でカウント）から実際の仕様（デバフを持つ味方本人の行動が起点）に修正" },
+  { date:"2026-08-11", version:"v0.2.31", text:"第十の課業が1ターンで消滅してしまう不具合を修正。原因：既存の汎用バフ経過処理（本人の次の自ターン開始時に全バフ-1）が、単体攻撃による+1判定より先に走ってしまい、1ターンで付与されるこのデバフを0まで減らして消していた（v0.2.30時点のテストでは初期値2Tで検証しており、この不具合を見落としていた）。対策として第十の課業をこの汎用処理から除外し、増減・解除をapplyTenthLaborTurnGimmick一本に統一（単体攻撃時は状態を変更しない＝-1と+1が相殺されて実質no-op、全体攻撃・非攻撃行動時のみ解除）" },
+  { date:"2026-08-11", version:"v0.2.32", text:"オルトロス「灼熱の竜血」（単体攻撃4回で基本スキルが割り込み発動）等のボス被弾トリガーが、味方のトリガー発動（fireTrigger、反撃スキル等）経由の単体攻撃では一切判定されない不具合を修正。原因：fireTrigger末尾の分岐が基本スキル限定でcheckPincerProc（→checkWaterBombReact→checkBossHitTrigger）に繋がっており、特殊・究極のトリガー攻撃やEVADE時はrenderBattle()に直行してボス被弾トリガーの判定チェーン自体を素通りしていた（useAllySkillとfireTriggerが別関数であることに起因、過去に何度も踏んだバグパターンと同種）。useAllySkillと同様の分岐（基本→挟撃チェーン／特殊・究極かつ対象単体→水爆弾チェーン／それ以外→ボス被弾トリガーを直接判定）に修正。あわせて、被弾トリガー判定パネルのボタン表示が常に「特殊トリガー」表記のみだった不具合も修正し、特殊被弾／基本被弾のどちらの条件で発動したか正しく出し分けるようにした。スナップショット表の被弾カウント表示も、特殊被弾用（🎯特殊被弾）に加えて基本被弾用（🎯単体被弾）を新設し、両方の進捗が見えるようにした" },
+  { date:"2026-08-11", version:"v0.2.33", text:"オルトロスの「竜の逆鱗」（味方の非攻撃スキル使用時に自身へ付与する2Tの状態）の表示区分をbuff（青系）からdebuff（赤系）に修正。デバフ枠の状態であるため" },
+  { date:"2026-08-11", version:"v0.2.34", text:"竜の逆鱗は重複適用可能な独立スタック型のデバフのため、applyBuffWithMaxDuration（同名を1本に統合してターン数を延長するだけの処理）ではなく出血・凍結・燃焼と同じpush方式に変更し、重ならず個別のエントリとして表示・減少するよう修正（INDEPENDENT_STACK_DEBUFF_NAMESに追加）。今まではmaxDurationで統合されてしまい、複数回付与しても1本の表示のままターン数が延長されるだけだった" },
+  { date:"2026-08-11", version:"v0.2.35", text:"オルトロス「叙情詩の終幕」・ティリア「悲嘆のクレッシェンド」のノートにある「自身の弱体化を全解除」が、これまでnoteテキストに書いてあるだけで実際には未実装だった（useEnemySkillにデバフ解除処理が一切なかった）ことを確認し、実装。defaultEnemySkillに selfClearAllDebuffs 引数を追加し、useEnemySkillで該当スキル使用時に自身のtype:\"debuff\"のバフをすべて除去するようにした（type:\"buff\"は残す）。これにより竜の逆鱗（v0.2.34で独立スタック化）や出血(GX)等が正しく一括解除される" },
+  { date:"2026-08-11", version:"v0.2.36", text:"花嫁カルメンを実装。①戦闘開始時、キャラ設定画面で「愛の誓約を付与する対象（自分以外の味方）」を選択できるUIを新設（requiresGuardTarget）。startBattle()で対象を解決し、ターン経過で自動消滅しない永続バフ「愛の誓約（解除不可）」を実際に付与（buff.permanent:trueフラグを新設し、既存の自動ターン減少処理から除外）。②「対象指定型トリガー」という4番目のトリガーパターンを新設（triggerType:\"guardedAlly\"）。愛の誓約の対象が単体攻撃を受けた時、カルメン自身ではなく対象を指定した本人が反応するというこれまでにないトリガー形式で、computeOffers・被弾判定パネルの提示・openTriggerFireForm（味方対象トリガーは対象選択フォームを出さず即時発動）を対応させた。③fireTriggerに味方対象（targetsAlly）スキル対応を新設（今まで敵への攻撃しか扱えなかった）。強靭ダメージ・被弾カウントの対象外とし、targetEffect・selfStackGain・ゲージ付与等を正しく処理。④新規汎用フィールドalsoGaugeToTarget（自身と対象の両方にゲージ付与）・targetClearAllDebuffs（対象の弱体化全解除）・targetStackGainIfSameAttributeAsSelf（対象が自分と同属性なら対象にもスタック付与）をdefaultAllySkillに追加。基本実装時、これら3つの新フィールドをdefaultAllySkillの戻り値オブジェクトに追加し忘れて未定義のまま握りつぶされるケアレスミスがあり、テストで発覚・修正した（fireTrigger/useAllySkill双方への機能追加時は、まずdefaultAllySkill/defaultEnemySkillの戻り値に新フィールドが反映されているかを最初に確認すること）。HP参照のダメージ・回復量、基本スキル使用後の全体回復は本ツールのダメージ計算非対応方針により未実装（手動判断）" },
+  { date:"2026-08-11", version:"v0.2.37", text:"オルトロス「叙情詩の終幕」の自身の弱体化全解除（v0.2.35）が、ティリア（味方）の基本スキルで付与した「惨劇の棘」（本来は付与した本人がconsumeAllTargetDebuffNameで消費する以外の手段では解除されない仕様）まで解除してしまう不具合を修正。targetEffectにundispellable:trueを指定できるようにし（惨劇の棘に設定）、selfClearAllDebuffs（敵の自己弱体化解除）・targetClearAllDebuffs（花嫁カルメンの究極等、味方対象の弱体化解除）の両方で、undispellable:trueが付いたデバフは除外して解除するよう修正。あわせてapplyBuffWithMaxDuration・useAllySkill/fireTriggerのtargetEffect付与処理でundispellableフラグを正しく引き継ぐようにした" },
+  { date:"2026-08-11", version:"v0.2.38", text:"オルトロスの基本「苦痛を授けし凶頭」の「100%で対象の行動ゲージ-10%」を実装（今までnoteに書いてあるだけで実処理がなかった）。defaultEnemySkillにtargetGaugeReductionPctを追加し、被弾した味方を選択するパネル（confirmHitAlly）に「対象の行動ゲージ-N%を適用」チェックボックス（デフォルトON）を新設。EVADE成立時は自動的に不適用。このパネルは通常発動（useEnemySkill）・被弾トリガーによる割り込み発動（灼熱の竜血、confirmBossHitTrigger経由）の両方で共通して使われるため、どちらの発動経路でも同じ処理で対応できることを確認した" },
+  { date:"2026-08-11", version:"v0.2.39", text:"花嫁カルメンの「守護の騎士」（対象指定型トリガー）が、愛の誓約の対象がEVADEに成功した場合にトリガー候補から除外されてしまう不具合を修正。この効果は「対象が単体攻撃を受けた（＝狙われた）時」に発動する仕様であり、EVADE成立・不成立にかかわらず発動対象とすべきところ、v0.2.36の実装時にEVADE不成立限定という誤った条件を入れてしまっていた。computeOffersからこの除外条件を削除。なお発動時（fireTrigger）にはもともとevaded=falseで固定発動しており、カルメン自身のバリア付与・ゲージ増加等の処理自体はEVADE成立時でも正しく実行される" },
+  { date:"2026-08-11", version:"v0.2.40", text:"オルトロスの特殊「試練を授けし凶頭」の「自身に5T鉄血の鱗甲(防御+50%)を発生」が実装されていなかった不具合を修正（今までnoteに書いてあるだけで実処理がなかった）。defaultEnemySkillに条件なしで毎回付与するselfBuffを新設（既存のselfBuffIfTwistedWillとは別枠）し、オルトロスの特殊に設定。あわせて、鉄血の鱗甲は「誰かのターン終了時にターン数減少」という、本人の自ターンではなく全ユニット共通のタイミングで減少する仕様のため、新規フラグdecrementOnAnyTurnを追加。モグルスの「没落した思念」で使っているspeedZeroLock（速度0固定と全ユニット共通タイミングでの減少を兼ねる）から、全ユニット共通タイミングでの減少だけを切り出した汎用フラグとして新設した（speedZeroLockをそのまま流用すると誤って速度も0固定にしてしまうため）" },
+  { date:"2026-08-11", version:"v0.2.41", text:"①花嫁カルメン専用潜在「愛の行進」を追加（強靭度上限+1、特殊/究極スキル使用後ノヴァフォース+2）。既存のSMILE_ARCANA/LUNA_ARCANA等と同じ潜在チェックボックス方式でCARMEN_ARCANAとして実装し、カルメン以外に付けた場合は警告表示。②花嫁カルメンの特殊・究極のノヴァフォース獲得量を0→1に修正（特殊・究極は回復系のため強靭ダメージなし＝もともとtoughness:0で正しかった）。③この対応中に、fireTrigger（トリガー発動）がs.burstGainを一切teamBurstに加算していなかった長年の不具合を発見・修正（ログにはBP+の表記が出るが実際には加算されておらず、フェイの反撃等トリガーで発動するすべてのスキルのノヴァフォース獲得が機能していなかった）。④キラの実装を確認し、特殊スキル「沈黙の代償」の強靭削りが非バースト時1になっていた誤りを0に修正（キャラ詳細ドキュメントでは非バースト0／バースト時+1）。⑤キラの基本スキルがバースト強化時のみ攻撃後1ターン潜伏を発動する仕様（ドキュメントに明記、未実装だった）を実装（selfBuff+burstOnlySelfBuffの既存パターンを流用）" },
+  { date:"2026-08-11", version:"v0.2.42", text:"v0.2.41でfireTriggerのノヴァフォース加算不具合を修正した結果、フェイの特殊（月食（反撃）、トリガースキル）が誤ってノヴァフォースを獲得するようになってしまった（データ上burstGain:1が設定されていたが、実際のゲームでは獲得しない）。フェイのburstGainを0に修正。キャラ詳細_フェイ.mdの「バーストポイント付与数：1」の記載も誤りだったため0に訂正した" },
+  { date:"2026-08-11", version:"v0.2.43", text:"キラの特殊「沈黙の代償」の強靭削りを0→1に修正（v0.2.41でキャラ詳細ドキュメントの誤った記載に基づき0に修正してしまっていたが、実際のゲームでは非バースト時から強靭削り1を持つ。バースト時+1で計2）。究極（強靭2・ノヴァフォース1）は元から実際の値と一致していたため変更なし。キャラ詳細_キラ.mdの記載も訂正" },
+  { date:"2026-08-11", version:"v0.2.44", text:"①バニーシャルルの究極「窮地に追い込まれたウサギ」に、点火スタックが最大(5)の時は全消費してCTに入らない仕様を実装。新規汎用フィールドskipCtIfStackMaxConsumeAllを新設し、useAllySkill・fireTriggerの両方に対応（既存のextraTurnIfStackMaxConsumeAll/consumeStackOnlyIfMaxと同じ『後続処理でスタックが消費される前の値で判定』パターンを踏襲）。②被弾した味方を選択するパネル・全体攻撃時のEVADE判定パネルの両方に、既存のバリア表示（🛡）と同様の要領で潜伏状態の表示（🌙潜伏中）を追加。③花嫁カルメンの究極使用で、オルトロスの第十の課業（解除不可のはず）まで解除されてしまう不具合を修正。第十の課業の付与データにundispellable:trueの設定が漏れていた。あわせて、付与処理を行うapplyEnemyNoBarrierDebuff・applyEnemyUnconditionalDebuffの2関数がこのフラグ自体を引き継いでいなかった不具合も修正（ティリアの惨劇の棘向けにv0.2.37で実装したundispellable機構が、この2関数の呼び出し元では機能していなかった）" },
+  { date:"2026-08-11", version:"v0.2.45", text:"敵の行動ゲージ減少効果（enemyGaugeReductionPct等）に、味方の行動フォーム・トリガー発動フォームの両方から「対象の行動ゲージ減少効果を適用する」チェックボックス（デフォルトON）を新設。キラの特殊「潜伏中のみ敵ゲージ-30%」のような条件付き効果は本ツールが状態を自動追跡できないため、今までは常時適用として簡略化していたが、プレイヤーが状況を見て手動でON/OFFを選べるようにした。この機構はenemyGaugeReductionPct/enemyGaugeReductionPerStack/burstEnemyGaugeReductionAdd系フィールドを持つ全キャラ（実際に該当するのはクラリッサ、セレス、花嫁エピンデル、キラ）に共通で適用される。useAllySkillとfireTriggerの両方にapplyGaugeReduction引数を追加（省略時はtrue扱いで既存呼び出し元との後方互換を維持）※前回の説明でエミリー・カネリア・バニークレアを対象キャラの例として挙げたが、これらはgaugeReductionPct系フィールドを持っておらず誤りだった（未検証のまま例示していた）" },
+  { date:"2026-08-11", version:"v0.2.46", text:"クラリッサの固有パッシブ「絡みつく風道」の跳躍スタック段階効果のうち、4スタックで自ゲージ+15%・5スタックで敵ゲージ-15%が「要手動判断」として未実装だったのを実装。新規フィールドpassiveStackGaugeEffects（selfGaugeThreshold/selfGaugePct/enemyGaugeThreshold/enemyGaugePct）をキャラ単位（スキル単位ではなく）で持たせ、useAllySkill・fireTriggerの攻撃分岐の両方で、この行動自身によるスタック増加が反映された後の値を見て判定するようにした。あわせて、クラリッサの特殊「感じるままに射撃」に既にburstEnemyGaugeReductionAdd:15（バースト時のみ敵ゲージ-15%）が実装済みだったことを確認（前回のv0.2.45の説明でこの点の確認が漏れていた）。ダメージ+15%・命中+50%の2/3スタック効果は引き続き本ツールのダメージ計算非対応方針により未実装" },
+  { date:"2026-08-11", version:"v0.2.47", text:"クラリッサの特殊「感じるままに射撃」の強靭削りが、原因不明のまま非バースト時0になっていた不具合を発見・修正（1に戻した。ドキュメントの「非バースト0」という記載も誤りで、実際は1が正しいとユーザーから確認をもらい、ドキュメントも訂正）。バースト時+1で計2、ノヴァフォース1、究極（強靭2・ノヴァ1）はいずれも正しい値のまま変更なし。バースト強化時のburstEnemyGaugeReductionAdd:15（敵ゲージ-15%）も正しく機能することを再検証。動作確認済みリスト（VERIFIED_STATUS）にボス：オルトロス、キャラ：キラ・花嫁カルメンを追加" }
 ];
 
 // ===================== 更新履歴 =====================
@@ -1479,9 +1524,12 @@ function startBattle(){
   const units = [];
   allies.forEach(a=>{
     const envBonus = computeEnvSpeedBonus(a.attribute, a.role);
+    // 愛の行進（花嫁カルメン専用潜在）：強靭度の最大値が1上がる
+    const carmenToughnessBonus = (a.relics && a.relics.CARMEN_ARCANA) ? 1 : 0;
+    const effectiveToughnessMax = a.toughnessMax + carmenToughnessBonus;
     units.push({
       id: uid("ally"), kind:"ally", name:a.name, speed:a.speed, baseSpeed:a.speed, gauge:0, alive:true,
-      toughnessMax:a.toughnessMax, toughness:a.toughnessMax, broken:false,
+      toughnessMax:effectiveToughnessMax, toughness:effectiveToughnessMax, broken:false,
       evasionRatePct: a.evasionRatePct||0,
       attribute: a.attribute || "太陽",
       role: a.role || "ストライカー",
@@ -1491,6 +1539,7 @@ function startBattle(){
       senkohanabiStacks: 0,
       elementStack: 0,
       turnStartStackGain: !!a.turnStartStackGain,
+      passiveStackGaugeEffects: a.passiveStackGaugeEffects || null,
       hasPincerAttack: !!a.hasPincerAttack,
       pincerStackPct: a.pincerStackPct||0,
       hasWaterBombReactAttack: !!a.hasWaterBombReactAttack,
@@ -1512,8 +1561,22 @@ function startBattle(){
       skills:{ basic: {...a.basic}, special:{...a.special}, ultimate:{...a.ultimate} },
       ct:{ special:0, ultimate: ultimateDelayTurns },
       onceUsed:{ basic:false, special:false, ultimate:false },
+      guardTargetId: null,
       buffs: []
     });
+  });
+
+  // 花嫁カルメン等「戦闘開始時に指定した特定の味方へ永続効果を付与する」キャラの対象解決
+  // ※allies配列とunits配列（味方部分）はforEachで同じ順序でpushされているためインデックスが一致する
+  allies.forEach((a, idx)=>{
+    if(a.requiresGuardTarget && a.guardTargetIdx!=null && units[a.guardTargetIdx]){
+      const sourceUnit = units[idx];
+      const targetUnit = units[a.guardTargetIdx];
+      if(sourceUnit && targetUnit && sourceUnit.id!==targetUnit.id){
+        sourceUnit.guardTargetId = targetUnit.id;
+        targetUnit.buffs.push({name:"愛の誓約（解除不可）", turns:9999, type:"buff", permanent:true});
+      }
+    }
   });
   enemies.forEach(e=>{
     const envBonus = computeEnvSpeedBonus(e.attribute, e.role);
@@ -1526,7 +1589,10 @@ function startBattle(){
       starSpeedBonusPct: e.starSpeedBonusPct||0,
       starDamageReductionPct: e.starDamageReductionPct||0,
       hitCounter: 0,
+      singleTargetHitCounter: 0,
       specialTriggerHitCount: e.specialTriggerHitCount||0,
+      basicTriggerHitCount: e.basicTriggerHitCount||0,
+      gainsBuffWhenAllyUsesNonAttackSkill: e.gainsBuffWhenAllyUsesNonAttackSkill||null,
       twistedWillStacks: 0,
       gainsTwistedWillOnBattleStart: !!e.gainsTwistedWillOnBattleStart,
       gainsTwistedWillOnAllyTurn: !!e.gainsTwistedWillOnAllyTurn,
@@ -1774,7 +1840,15 @@ function openActionFor(unitId, arrivalType){
   //   実ゲームでは新しいターン扱いにならずバフが減らないため、ここでは減算をスキップする
   const isExtraTurnWithinSameTurn = (arrivalType||"").startsWith("追加ターン");
   if(!isExtraTurnWithinSameTurn){
-    u.buffs = u.buffs.map(b=> b.speedZeroLock ? b : ({...b, turns:b.turns-1})).filter(b=> b.speedZeroLock || b.turns>0);
+    // 第十の課業は汎用の自動減少から除外し、専用ロジック（applyTenthLaborTurnGimmick、行動確定時に呼び出し）だけで
+    // 増減・解除を完結させる。理由：この汎用処理は「本人の次の自ターン開始時」に減少させるため、
+    // 1ターンで付与される第十の課業をここで先に0まで減らして消してしまうと、
+    // 同じ行動内で単体攻撃による+1相殺が判定される前にデバフ自体が消滅してしまう不具合が発生するため
+    // permanent:true の状態（例：花嫁カルメンの「愛の誓約（解除不可）」）は、ターン経過による自動減少・消滅の対象外
+    // decrementOnAnyTurn:true の状態（例：鉄血の鱗甲）は「本人の自ターン」ではなく「誰かのターンが開始するたび」に
+    // 全ユニット分を対象として減らす専用ループ（下のspeedZeroLockと同じ場所）で処理するため、ここでは除外する
+    u.buffs = u.buffs.map(b=> (b.speedZeroLock || b.permanent || b.decrementOnAnyTurn || (b.name && b.name.includes("第十の課業"))) ? b : ({...b, turns:b.turns-1}))
+                     .filter(b=> b.speedZeroLock || b.permanent || b.decrementOnAnyTurn || (b.name && b.name.includes("第十の課業")) || b.turns>0);
   }
   // ターン開始処理：CT概念なし系トリガー（1ターン1回制限）の使用済みフラグをリセット
   // ※フェイの反撃等は他キャラの行動（被弾）に反応するため、そのキャラ自身の番でなく「新しい行動（ターン）が始まるたび」に
@@ -1784,11 +1858,11 @@ function openActionFor(unitId, arrivalType){
   // ※挟撃は他キャラの行動に反応するため、挟撃キャラ自身の番でなく「新しい行動（ターン）が始まるたび」に
   //   全ユニット分をリセットする（挟撃キャラの手番が来るまで持ち越されるのを防ぐ）
   state.units.forEach(x=>{ x.pincerUsedThisTurn = false; });
-  // 速度0固定デバフ（没落した思念等）：対象は自然にターンが来ないため、
-  // 「誰かのターンが開始するたび」に全ユニット分を対象に残ターンを減らす（追加ターンではカウントしない）
+  // 速度0固定デバフ（没落した思念等）・decrementOnAnyTurn（鉄血の鱗甲等、誰かのターン終了時にターン数減少するバフ）：
+  // 対象は自然にターンが来ないため、「誰かのターンが開始するたび」に全ユニット分を対象に残ターンを減らす（追加ターンではカウントしない）
   if(!isExtraTurnWithinSameTurn){
     state.units.forEach(x=>{
-      x.buffs = x.buffs.map(b=> b.speedZeroLock ? {...b, turns:b.turns-1} : b).filter(b=> !(b.speedZeroLock && b.turns<=0));
+      x.buffs = x.buffs.map(b=> (b.speedZeroLock || b.decrementOnAnyTurn) ? {...b, turns:b.turns-1} : b).filter(b=> !((b.speedZeroLock||b.decrementOnAnyTurn) && b.turns<=0));
     });
   }
   // 歪んだ意志（モグルス等）：いずれかの味方（敵から見た「敵」）のターン開始時、自身に1スタック付与（1ターンに1回のみ）
@@ -1857,7 +1931,8 @@ function openActionFor(unitId, arrivalType){
 }
 
 // ===================== 行動確定 =====================
-function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoApplyBuffs){
+function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoApplyBuffs, applyGaugeReduction){
+  if(applyGaugeReduction===undefined) applyGaugeReduction = true; // 省略時は従来通り常に適用（後方互換）
   const u = state.units.find(x=>x.id===unitId);
   const s = u.skills[skillKey];
 
@@ -1873,6 +1948,9 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
   // 属性スタックが最大の場合のみ全消費するが、追加ターンは発生しないスキル（スカーレットの特殊等：
   // パッシブのトリガー条件「点火最大時に自動発動」を満たした場合のみ消費し、CTで手動発動した場合は消費しない）
   const stackMaxConsumedNoExtraTurn = !!(s.consumeStackOnlyIfMax && (u.elementStack||0) >= ELEMENT_STACK_MAX);
+  // 属性スタックが最大の場合のみ全消費し、代わりにこのスキル自体がCTに入らない（クールタイム消費なし）スキル
+  // （バニーシャルルの究極：点火5スタック時に全消費して即座に再使用可能になる）
+  const stackMaxConsumedSkipCt = !!(s.skipCtIfStackMaxConsumeAll && (u.elementStack||0) >= ELEMENT_STACK_MAX);
   // afterOwnトリガーの「自身の属性スタックが最大か」の判定は、この行動自体によるスタック増加が
   // 反映される前の値（＝攻撃時点で既に最大だったか）を見る必要があるため、ここでスナップショットを保存する
   u._preActionElementStackSnapshot = u.elementStack||0;
@@ -1896,8 +1974,11 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
   }
 
   if(burstOn){ state.teamBurst -= 4; }
-  if(skillKey!=="basic"){ u.ct[skillKey] = s.ct; }
-  state.teamBurst = Math.min(12, state.teamBurst + s.burstGain);
+  // stackMaxConsumedSkipCt: 点火等が最大スタックで全消費した場合はCTに入らない（バニーシャルルの究極等）
+  if(skillKey!=="basic" && !stackMaxConsumedSkipCt){ u.ct[skillKey] = s.ct; }
+  // 愛の行進（花嫁カルメン専用潜在）：特殊または究極スキル使用後、ノヴァフォース+2（basic以外）
+  const carmenArcanaBurstBonus = (u.relics && u.relics.CARMEN_ARCANA && (skillKey==="special"||skillKey==="ultimate")) ? 2 : 0;
+  state.teamBurst = Math.min(12, state.teamBurst + s.burstGain + carmenArcanaBurstBonus);
 
   const selfBuffList = s.selfBuff ? (Array.isArray(s.selfBuff) ? s.selfBuff : [s.selfBuff]) : [];
   const targetEffectList = s.targetEffect ? (Array.isArray(s.targetEffect) ? s.targetEffect : [s.targetEffect]) : [];
@@ -1921,15 +2002,28 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
         const applied = applyBuffWithMaxDuration(allyTarget.buffs, {name:eff.name, turns:eff.turns, type:"buff", speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0});
         buffMemo += `／対象に${eff.name}(残${applied.turns}T)付与`;
       });
+      if(s.targetClearAllDebuffs){
+        const removed = allyTarget.buffs.filter(b=>b.type==="debuff" && !b.undispellable);
+        allyTarget.buffs = allyTarget.buffs.filter(b=>b.type!=="debuff" || b.undispellable);
+        if(removed.length>0){ buffMemo += `／対象の弱体化を全解除(${removed.map(b=>b.name).join("、")})`; }
+      }
+      if(s.targetStackGainIfSameAttributeAsSelf > 0 && allyTarget.attribute===u.attribute){
+        const targetStackName = stackNameForAttribute(allyTarget.attribute);
+        allyTarget.elementStack = Math.min(ELEMENT_STACK_MAX, (allyTarget.elementStack||0) + s.targetStackGainIfSameAttributeAsSelf);
+        buffMemo += `／対象も自身と同属性(${allyTarget.attribute})のため対象${targetStackName}+${s.targetStackGainIfSameAttributeAsSelf}(${allyTarget.elementStack}/${ELEMENT_STACK_MAX})`;
+      }
     }
     let stackMemo = "";
     const stackName = stackNameForAttribute(u.attribute);
     if(s.selfStackGain > 0){ u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0)+s.selfStackGain); stackMemo += `／自身${stackName}+${s.selfStackGain}(${u.elementStack}/${ELEMENT_STACK_MAX})`; }
     if(s.selfSenkohanabiGain > 0){ u.senkohanabiStacks = Math.min(3, (u.senkohanabiStacks||0) + s.selfSenkohanabiGain); stackMemo += `／自身線香花火+${s.selfSenkohanabiGain}(${u.senkohanabiStacks})`; }
-    if((s.selfStackConsumeAll || stackMaxConsumedForExtraTurn || stackMaxConsumedNoExtraTurn) && (u.elementStack||0)>0){ stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)`; u.elementStack = 0; }
+    if((s.selfStackConsumeAll || stackMaxConsumedForExtraTurn || stackMaxConsumedNoExtraTurn || stackMaxConsumedSkipCt) && (u.elementStack||0)>0){ stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)${stackMaxConsumedSkipCt?"／スタック最大消費のためCTに入らない":""}`; u.elementStack = 0; }
+
+    // 第十の課業：攻撃ではないスキル（バフ・回復等）を使ったので解除
+    const tenthLaborMemo = applyTenthLaborTurnGimmick(u, true);
 
     logAction(u, state.pendingArrivalType, skillCategoryLabel(skillKey) + "：" + s.name + (burstOn?"（バースト）":""), "-", false,
-      `対象:${allyTarget.name}（味方）／バフ・回復等の効果（強靭計算対象外）${(s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0))>0 ? `／${s.gaugeToTarget?"対象":"自身"}ゲージ+${s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0)}%`:""}${burstOn?"／BP-4":""}${s.burstGain>0?`／BP+${s.burstGain}`:""}（BP残${state.teamBurst}）${buffMemo}${stackMemo}`);
+      `対象:${allyTarget.name}（味方）／バフ・回復等の効果（強靭計算対象外）${(s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0))>0 ? `／${s.gaugeToTarget?"対象":"自身"}ゲージ+${s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0)}%`:""}${s.alsoGaugeToTarget>0?`／対象ゲージ+${s.alsoGaugeToTarget}%（自身とは別枠）`:""}${burstOn?"／BP-4":""}${s.burstGain>0?`／BP+${s.burstGain}`:""}${carmenArcanaBurstBonus>0?`／愛の行進でBP+${carmenArcanaBurstBonus}`:""}（BP残${state.teamBurst}）${buffMemo}${stackMemo}${tenthLaborMemo}`);
 
     const gaugeGain = s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0);
     u.gauge = 0;
@@ -1937,6 +2031,18 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       if(s.gaugeToTarget && allyTarget.kind==="ally"){ allyTarget.gauge = Math.min(100, allyTarget.gauge+gaugeGain); }
       else { u.gauge = Math.min(100, u.gauge+gaugeGain); }
     }
+    // gaugeToTargetは「自身か対象のどちらか一方」しか選べないため、両方に加算したい場合（花嫁カルメンの特殊等）はこちらを使う
+    if(s.alsoGaugeToTarget > 0 && allyTarget.kind==="ally"){
+      allyTarget.gauge = Math.min(100, allyTarget.gauge + s.alsoGaugeToTarget);
+    }
+    // 味方が攻撃ではないスキル（バフ・回復等）を使った際、それに反応して自身にデバフを発生させる敵（オルトロス等）
+    // ※竜の逆鱗はオルトロス自身への弱体化（デバフ枠）で、かつ重複適用可能な独立スタック型のため、
+    //   applyBuffWithMaxDuration（同名を1本に統合してターン数を延長するだけの処理）ではなく、
+    //   出血・凍結・燃焼と同様にpushで都度新しいエントリとして追加し、重ならず個別に表示・減少させる
+    state.units.filter(x=>x.kind==="enemy" && x.alive && x.gainsBuffWhenAllyUsesNonAttackSkill).forEach(en=>{
+      const b = en.gainsBuffWhenAllyUsesNonAttackSkill;
+      en.buffs.push({name:b.name, turns:b.turns, type:"debuff"});
+    });
   } else {
     // ---- 敵対象（単体 or 全体） ----
     if(skillKey==="basic"){ u.lastBasicTargetId = targets[0] ? targets[0].id : null; }
@@ -1947,7 +2053,10 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       const breakSkillBonus = (!isEvaded && isBreakSkillToughnessBonusActive()) ? 1 : 0;
       const toughnessDmg = isEvaded ? 0 : (s.toughness + (burstOn?s.burstAdd:0) + advantageBonus + breakSkillBonus);
       target.toughness = Math.max(0, target.toughness - toughnessDmg);
-      if(!isEvaded){ target.hitCounter = (target.hitCounter||0) + 1; }
+      if(!isEvaded){
+        target.hitCounter = (target.hitCounter||0) + 1;
+        if(s.target!=="all") target.singleTargetHitCounter = (target.singleTargetHitCounter||0) + 1;
+      }
       toughnessDmgSum += toughnessDmg;
 
       let brokeNow = false;
@@ -1957,9 +2066,9 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
         brokeAny = true;
       }
 
-      // 敵の行動ゲージ減少（★開幕免疫中は無効）
+      // 敵の行動ゲージ減少（★開幕免疫中は無効。潜伏中限定等の条件付き効果はapplyGaugeReductionチェックボックスで手動制御）
       let reductionText = "";
-      if(!isEvaded && !target.immune){
+      if(!isEvaded && !target.immune && applyGaugeReduction){
         const reduction = (s.enemyGaugeReductionPct||0) + (burstOn?(s.burstEnemyGaugeReductionAdd||0):0) + ((u.elementStack||0)*(s.enemyGaugeReductionPerStack||0));
         if(reduction > 0){
           target.gauge = Math.max(0, target.gauge - reduction);
@@ -1967,6 +2076,8 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
         }
       } else if(!isEvaded && target.immune && ((s.enemyGaugeReductionPct||0)>0)){
         reductionText = `／ゲージ減少は免疫中のため無効`;
+      } else if(!isEvaded && !applyGaugeReduction && ((s.enemyGaugeReductionPct||0)>0 || (s.enemyGaugeReductionPerStack||0)>0)){
+        reductionText = `／ゲージ減少は条件未達のためチェックを外して適用なし`;
       }
 
       // ギミック判定（★その攻撃自身のデバフ付与より前の状態で判定する＝被弾した瞬間の状態を見る）
@@ -1985,8 +2096,8 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
           if(s.burstOnlyTargetEffect && !burstOn) return;
           if(target.kind==="enemy" && isBossImmuneDebuffName(eff.name)){ effText += `／${eff.name}はボスに常時免疫のため付与できず`; return; }
           if(target.immune && !eff.ignoresImmune){ effText += `／${eff.name}は免疫中のため付与できず`; return; }
-          if(eff.dot){ target.buffs.push({name:eff.name, turns:eff.turns, type:"debuff", speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, dot:true}); effText += `／${eff.name}を追加スタック付与`; }
-          else { const applied = applyBuffWithMaxDuration(target.buffs, {name:eff.name, turns:eff.turns, type:"debuff", speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0}); effText += `／${eff.name}(残${applied.turns}T)付与`; }
+          if(eff.dot){ target.buffs.push({name:eff.name, turns:eff.turns, type:"debuff", speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, dot:true, undispellable:!!eff.undispellable}); effText += `／${eff.name}を追加スタック付与`; }
+          else { const applied = applyBuffWithMaxDuration(target.buffs, {name:eff.name, turns:eff.turns, type:"debuff", speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, undispellable:!!eff.undispellable}); effText += `／${eff.name}(残${applied.turns}T)付与`; }
         });
       }
       if(s.consumeAllTargetDebuffName){
@@ -2014,6 +2125,7 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
         if(g2) extraGimmickTexts.push(`${i+1}撃目:味方が${g2.debuffName}状態→自ゲージ+${g2.gainPct}%`);
         extraTarget.toughness = Math.max(0, extraTarget.toughness - extraToughnessPerHit);
         extraTarget.hitCounter = (extraTarget.hitCounter||0) + 1;
+        extraTarget.singleTargetHitCounter = (extraTarget.singleTargetHitCounter||0) + 1;
         if(extraTarget.toughness<=0 && !extraTarget.broken){
           extraTarget.broken = true; extraTarget.gauge = 0;
           state.breakPoints = Math.min(3, state.breakPoints + (extraTarget.toughnessMax>=15?3:1));
@@ -2040,11 +2152,14 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       const stackName = stackNameForAttribute(u.attribute);
       if(s.selfStackGain > 0){ u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0)+s.selfStackGain); stackMemo += `／自身${stackName}+${s.selfStackGain}(${u.elementStack}/${ELEMENT_STACK_MAX})`; }
     if(s.selfSenkohanabiGain > 0){ u.senkohanabiStacks = Math.min(3, (u.senkohanabiStacks||0) + s.selfSenkohanabiGain); stackMemo += `／自身線香花火+${s.selfSenkohanabiGain}(${u.senkohanabiStacks})`; }
-      if((s.selfStackConsumeAll || stackMaxConsumedForExtraTurn || stackMaxConsumedNoExtraTurn) && (u.elementStack||0)>0){ stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)`; u.elementStack = 0; }
+      if((s.selfStackConsumeAll || stackMaxConsumedForExtraTurn || stackMaxConsumedNoExtraTurn || stackMaxConsumedSkipCt) && (u.elementStack||0)>0){ stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)${stackMaxConsumedSkipCt?"／スタック最大消費のためCTに入らない":""}`; u.elementStack = 0; }
     }
 
+    // 第十の課業：全体攻撃なら解除、単体攻撃ならターン+1（自然減少と相殺）。EVADEでも「行動の種類」自体は成立しているため対象
+    const tenthLaborMemo = applyTenthLaborTurnGimmick(u, s.target==="all");
+
     logAction(u, state.pendingArrivalType, skillCategoryLabel(skillKey) + "：" + s.name + (burstOn&&!isEvaded?"（バースト）":"") + (isEvaded?"（EVADE）":""), String(toughnessDmgSum), brokeAny,
-      `${perTargetMemo.join(" ｜ ")}${isEvaded?"／EVADE成立のため強靭ダメージ0・会心扱いなし":""}${hasAdvantageAny?"／属性有利+1":""}${(!isEvaded && (s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0))>0) ? `／自身ゲージ+${s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0)}%`:""}${burstOn?"／BP-4":""}${s.burstGain>0?`／BP+${s.burstGain}`:""}（BP残${state.teamBurst}）${buffMemo}${stackMemo}`);
+      `${perTargetMemo.join(" ｜ ")}${isEvaded?"／EVADE成立のため強靭ダメージ0・会心扱いなし":""}${hasAdvantageAny?"／属性有利+1":""}${(!isEvaded && (s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0))>0) ? `／自身ゲージ+${s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0)}%`:""}${burstOn?"／BP-4":""}${s.burstGain>0?`／BP+${s.burstGain}`:""}${carmenArcanaBurstBonus>0?`／愛の行進でBP+${carmenArcanaBurstBonus}`:""}（BP残${state.teamBurst}）${buffMemo}${stackMemo}${tenthLaborMemo}`);
 
     u.gauge = 0;
     const gaugeGain = isEvaded ? 0 : (s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0));
@@ -2052,6 +2167,23 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       const primaryTarget = targets[0];
       if(s.gaugeToTarget && primaryTarget && primaryTarget.kind==="ally"){ primaryTarget.gauge = Math.min(100, primaryTarget.gauge+gaugeGain); }
       else { u.gauge = Math.min(100, u.gauge+gaugeGain); }
+    }
+    // クラリッサ等「攻撃後、自身の属性スタックが一定数以上なら自ゲージ/敵ゲージが増減する」段階効果パッシブ
+    // ※この行動自身によるスタック増加（selfStackGain）が反映された後の値で判定する
+    if(!isEvaded && u.passiveStackGaugeEffects){
+      const pe = u.passiveStackGaugeEffects;
+      const stack = u.elementStack||0;
+      const primaryTarget = targets[0];
+      if(pe.selfGaugeThreshold && stack >= pe.selfGaugeThreshold){
+        u.gauge = Math.min(100, u.gauge + pe.selfGaugePct);
+        logAction(u, state.pendingArrivalType, `⭐ 跳躍${stack}スタック段階効果`, "-", false, `自身ゲージ+${pe.selfGaugePct}%`);
+      }
+      if(pe.enemyGaugeThreshold && stack >= pe.enemyGaugeThreshold && primaryTarget){
+        if(applyGaugeReduction && !primaryTarget.immune){
+          primaryTarget.gauge = Math.max(0, primaryTarget.gauge - pe.enemyGaugePct);
+          logAction(u, state.pendingArrivalType, `⭐ 跳躍${stack}スタック段階効果`, "-", false, `${primaryTarget.name}のゲージ-${pe.enemyGaugePct}%`);
+        }
+      }
     }
   }
 
@@ -2124,6 +2256,19 @@ function useEnemySkill(unitId, skillKey){
     applyBuffWithMaxDuration(u.buffs, {name:s.selfBuffIfTwistedWill.name, turns:s.selfBuffIfTwistedWill.turns, type:"buff", speedModPct:s.selfBuffIfTwistedWill.speedModPct||0});
     logAction(u, "被弾判定", "😈 歪んだ意志(" + u.twistedWillStacks + ")状態のため" + s.selfBuffIfTwistedWill.name + "(" + s.selfBuffIfTwistedWill.turns + "T)を自身に付与", "-", false, "");
   }
+  if(s.selfBuff){
+    // 条件なしで毎回自身に付与するバフ（オルトロスの鉄血の鱗甲等）。selfBuffIfTwistedWillとは別枠
+    const applied = applyBuffWithMaxDuration(u.buffs, {name:s.selfBuff.name, turns:s.selfBuff.turns, type:s.selfBuff.type||"buff", speedModPct:s.selfBuff.speedModPct||0, atkModPct:s.selfBuff.atkModPct||0, critDmgModPct:s.selfBuff.critDmgModPct||0, decrementOnAnyTurn:!!s.selfBuff.decrementOnAnyTurn});
+    logAction(u, "被弾判定", "🛡 自身に" + applied.name + "(" + applied.turns + "T)を付与", "-", false, "");
+  }
+  if(s.selfClearAllDebuffs){
+    // undispellable（例：ティリアの惨劇の棘）は、この手の「弱体化を全解除」系効果では解除できない
+    const removed = u.buffs.filter(b=>b.type==="debuff" && !b.undispellable);
+    u.buffs = u.buffs.filter(b=>b.type!=="debuff" || b.undispellable);
+    if(removed.length>0){
+      logAction(u, "被弾判定", "🧹 自身の弱体化を全解除", "-", false, `解除:${removed.map(b=>b.name).join("、")}`);
+    }
+  }
   state.pendingActor = null;
   if(u.immuneRemaining > 0){
     u.immuneRemaining--;
@@ -2153,10 +2298,34 @@ function applyBuffWithMaxDuration(buffsArray, newBuff){
     existing.atkModPct = newBuff.atkModPct||0;
     existing.critDmgModPct = newBuff.critDmgModPct||0;
     existing.speedZeroLock = !!newBuff.speedZeroLock;
+    existing.permanent = !!newBuff.permanent || !!existing.permanent;
+    existing.undispellable = !!newBuff.undispellable || !!existing.undispellable;
+    existing.decrementOnAnyTurn = !!newBuff.decrementOnAnyTurn || !!existing.decrementOnAnyTurn;
     return existing;
   } else {
     buffsArray.push(newBuff);
     return newBuff;
+  }
+}
+
+// オルトロス「第十の課業」ギミック：味方に付与されたこのデバフは、
+// 持ち主本人のターン終了時に-1。ただし本人が単体攻撃をした場合は同時に+1され、差し引き±0（＝実質ターン数は変化しない）。
+// 全体攻撃、または攻撃以外の行動（バフ・回復等＝targetsAlly）をした場合はデバフ自体が解除される。
+// ブレイクスキルの発動はこのギミックに一切関与しないため、ブレイクスキル発動時はこの関数を呼ばない。
+// ★このデバフは汎用の自動ターン経過処理（openActionFor内、本人の次の自ターン開始時の一律-1）からは除外されており、
+//   増減・解除はすべてこの関数（＝行動確定のタイミング）だけで完結する。
+//   （1ターンで付与されるこのデバフを、単体攻撃による+1判定より前に汎用処理が0まで減らして消してしまう不具合を避けるため）
+// isDispel: true＝全体攻撃 or 非攻撃行動（解除）／ false＝単体攻撃（-1と+1が相殺されターン数は変化しない）
+function applyTenthLaborTurnGimmick(u, isDispel){
+  if(!u || u.kind!=="ally" || !u.buffs) return "";
+  const idx = u.buffs.findIndex(b=>b.name && b.name.includes("第十の課業"));
+  if(idx<0) return "";
+  if(isDispel){
+    const removed = u.buffs[idx];
+    u.buffs.splice(idx,1);
+    return `／自身の${removed.name}が解除された（全体攻撃または非攻撃行動）`;
+  } else {
+    return `／自身の${u.buffs[idx].name}はターン終了時の自然減少と単体攻撃による+1が相殺（残${u.buffs[idx].turns}T、変化なし）`;
   }
 }
 
@@ -2207,11 +2376,16 @@ function computeOffers(targetType, ctx){
     : targetType==="single" ? ["single","any"]
     : [targetType]; // afterOwn
   state.units.filter(x=>x.kind==="ally" && x.alive).forEach(u=>{
-    if((targetType==="single" || targetType==="afterOwn") && u.id!==ctx.hitAllyId) return;
     ["basic","special","ultimate"].forEach(key=>{
       const s = u.skills[key];
       if(!s) return;
-      if(!matchTypes.includes(s.triggerType)) return;
+      // 花嫁カルメン等「戦闘開始時に指定した特定の味方が単体攻撃を受けた時」に発動する対象指定型トリガー
+      // （行動主体u自身が被弾したわけではなく、u.guardTargetIdで指定された別の味方が被弾した場合に発動する）
+      const isGuardedAllyMatch = targetType==="single" && s.triggerType==="guardedAlly" && u.guardTargetId && u.guardTargetId===ctx.hitAllyId;
+      if(!isGuardedAllyMatch){
+        if((targetType==="single" || targetType==="afterOwn") && u.id!==ctx.hitAllyId) return;
+        if(!matchTypes.includes(s.triggerType)) return;
+      }
       if(!skillTriggerAvailable(u,key)) return;
       if(s.triggerRequiresSelfBuffName && !hasBuffNamed(u, s.triggerRequiresSelfBuffName)) return;
       if(s.triggerRequiresEnemyStackName){
@@ -2227,7 +2401,9 @@ function computeOffers(targetType, ctx){
         if(targetType==="single" && !ctx.hitEvaded) return;
         if(targetType==="all" && !(ctx.evadeMap && ctx.evadeMap[u.id])) return;
       }
-      offers.push({allyId:u.id, allyName:u.name, key, skillName:s.name});
+      // 花嫁カルメンの守護の騎士は「対象が単体攻撃を受けた（＝狙われた）時」に発動する仕様のため、
+      // 対象がEVADEに成功していても候補から除外しない（EVADE不成立時限定にしていたのは誤りだった）
+      offers.push({allyId:u.id, allyName:u.name, key, skillName:s.name, guardedAlly:isGuardedAllyMatch});
     });
   });
   return offers;
@@ -2332,7 +2508,10 @@ function checkPincerProc(unitId, extraTurnFlag, targetEnemyId){
 
 // ===================== ボス被弾カウントトリガー（例：デモライギスベータ、被弾5回で特殊トリガー候補） =====================
 function computeBossHitTriggerCandidates(){
-  return state.units.filter(x=>x.kind==="enemy" && x.alive && (x.specialTriggerHitCount||0)>0 && (x.hitCounter||0) >= x.specialTriggerHitCount);
+  return state.units.filter(x=>x.kind==="enemy" && x.alive && (
+    ((x.specialTriggerHitCount||0)>0 && (x.hitCounter||0) >= x.specialTriggerHitCount) ||
+    ((x.basicTriggerHitCount||0)>0 && (x.singleTargetHitCounter||0) >= x.basicTriggerHitCount)
+  ));
 }
 function checkBossHitTrigger(unitId, extraTurnFlag, wasBasicSkill){
   const candidates = computeBossHitTriggerCandidates();
@@ -2345,8 +2524,15 @@ function confirmBossHitTrigger(enemyId){
   state.pendingBossHitTrigger = null;
   const enemy = state.units.find(x=>x.id===enemyId);
   if(enemy){
-    enemy.hitCounter = Math.max(0, (enemy.hitCounter||0) - (enemy.specialTriggerHitCount||0));
-    const s = enemy.skills && enemy.skills.special;
+    // 特殊被弾トリガー・基本被弾トリガーのどちらの閾値に達したかを判定する（両方到達していれば特殊を優先）
+    const useSpecial = (enemy.specialTriggerHitCount||0)>0 && (enemy.hitCounter||0) >= enemy.specialTriggerHitCount;
+    const useBasic = !useSpecial && (enemy.basicTriggerHitCount||0)>0 && (enemy.singleTargetHitCounter||0) >= enemy.basicTriggerHitCount;
+    const skillKey = useSpecial ? "special" : "basic";
+    const thresholdCount = useSpecial ? enemy.specialTriggerHitCount : enemy.basicTriggerHitCount;
+    if(useSpecial){ enemy.hitCounter = Math.max(0, (enemy.hitCounter||0) - thresholdCount); }
+    if(useBasic){ enemy.singleTargetHitCounter = Math.max(0, (enemy.singleTargetHitCounter||0) - thresholdCount); }
+
+    const s = enemy.skills && enemy.skills[skillKey];
     let effectMemo = "";
     if(s){
       if(s.selfGaugeGainPct){
@@ -2358,15 +2544,16 @@ function confirmBossHitTrigger(enemyId){
         effectMemo += `／😈歪んだ意志により${s.selfBuffIfTwistedWill.name}(${s.selfBuffIfTwistedWill.turns}T)を自身に付与`;
       }
     }
-    logAction(enemy, "被弾トリガー", "🚨 特殊トリガー発動（被弾" + (enemy.specialTriggerHitCount||0) + "回）", "-", false, "被弾カウントが" + (enemy.specialTriggerHitCount||0) + "回に達したため、特殊スキルが割り込みで発動。閾値分を差し引き、残りカウント" + enemy.hitCounter + "は次に持ち越し。強靭削り等の攻撃効果はボスの行動パネルから別途記録してください" + effectMemo);
+    const skillLabel = useSpecial ? "特殊" : "基本";
+    const counterName = useSpecial ? "hitCounter" : "singleTargetHitCounter";
+    logAction(enemy, "被弾トリガー", `🚨 ${skillLabel}トリガー発動（被弾${thresholdCount}回）`, "-", false, "被弾カウントが" + thresholdCount + "回に達したため、" + skillLabel + "スキルが割り込みで発動。閾値分を差し引き、残りカウントは次に持ち越し。強靭削り等の攻撃効果はボスの行動パネルから別途記録してください。ノヴァフォースの増減は不明な場合、下の「行動ゲージ変化」欄で手動記録してください" + effectMemo);
 
     // ボスの割り込み攻撃も「敵の攻撃」なので、実際の攻撃と同様にEVADE判定・味方トリガー（ロベルタのファストトラック等）の発動チェックを行う
-    const s2 = enemy.skills && enemy.skills.special;
-    const targetType = (s2 && s2.target==="all") ? "selectHitAoe" : "selectHit";
+    const targetType = (s && s.target==="all") ? "selectHitAoe" : "selectHit";
     state.pendingTriggerContext = {
       targetType, evadeMap:{}, hitAllyId:null, hitEvaded:false,
-      sourceUnitId: enemyId, skillKey:"special",
-      sourceLabel: enemy.name + "の割り込み「" + (s2?s2.name:"特殊") + "」（被弾トリガー）",
+      sourceUnitId: enemyId, skillKey,
+      sourceLabel: enemy.name + "の割り込み「" + (s?s.name:skillLabel) + "」（被弾トリガー）",
       thenExtraTurn:false,
       continueAfterUnitId: ctx ? ctx.sourceUnitId : null,
       continueAfterExtra: ctx ? ctx.thenExtra : false,
@@ -2500,6 +2687,7 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
   const toughnessDmg = s.toughness + (burstOn ? s.burstAdd : 0) + (hasAdvantage ? 1 : 0) + (isBreakSkillToughnessBonusActive() ? 1 : 0);
   target.toughness = Math.max(0, target.toughness - toughnessDmg);
   target.hitCounter = (target.hitCounter||0) + 1;
+  target.singleTargetHitCounter = (target.singleTargetHitCounter||0) + 1;
   state.teamBurst = Math.min(12, state.teamBurst + s.burstGain);
 
   let brokeNow = false;
@@ -2565,19 +2753,45 @@ function applyEnemyNoBarrierDebuff(sourceUnitId, skillKey, targetAllyId){
     logAction(u, "被弾判定", "🛡 " + target.name + "はバリア状態のため" + eff.name + "は付与されず", "-", false, "");
     return;
   }
-  if(eff.dot){ target.buffs.push({name:eff.name, turns:eff.turns, type:"debuff", dot:true, speedZeroLock:!!eff.speedZeroLock, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0}); }
-  else { applyBuffWithMaxDuration(target.buffs, {name:eff.name, turns:eff.turns, type:"debuff", speedZeroLock:!!eff.speedZeroLock, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0}); }
+  if(eff.dot){ target.buffs.push({name:eff.name, turns:eff.turns, type:"debuff", dot:true, speedZeroLock:!!eff.speedZeroLock, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, undispellable:!!eff.undispellable}); }
+  else { applyBuffWithMaxDuration(target.buffs, {name:eff.name, turns:eff.turns, type:"debuff", speedZeroLock:!!eff.speedZeroLock, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, undispellable:!!eff.undispellable}); }
   logAction(u, "被弾判定", "☠ " + target.name + "はバリアなしのため" + eff.name + "(" + eff.turns + "T)を付与", "-", false, "");
+}
+// 敵スキルの「対象に無条件でデバフを付与」を実際に適用する（オルトロスの第十の課業等、バリア判定を伴わないもの）
+function applyEnemyUnconditionalDebuff(sourceUnitId, skillKey, targetAllyId){
+  const u = state.units.find(x=>x.id===sourceUnitId);
+  const target = state.units.find(x=>x.id===targetAllyId);
+  if(!u || !target) return;
+  const s = u.skills[skillKey];
+  const eff = s && s.targetEffect;
+  if(!eff) return;
+  if(eff.dot){ target.buffs.push({name:eff.name, turns:eff.turns, type:"debuff", dot:true, speedZeroLock:!!eff.speedZeroLock, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, undispellable:!!eff.undispellable}); }
+  else { applyBuffWithMaxDuration(target.buffs, {name:eff.name, turns:eff.turns, type:"debuff", speedZeroLock:!!eff.speedZeroLock, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, undispellable:!!eff.undispellable}); }
+  logAction(u, "被弾判定", "☠ " + target.name + "に" + eff.name + "(" + eff.turns + "T)を付与", "-", false, "");
 }
 
 function confirmHitAlly(allyId){
   const evadeCheck = document.getElementById("hitEvadeCheck");
   const barrierBreakCheck = document.getElementById("hitBarrierBreakCheck");
+  const gaugeReduceCheck = document.getElementById("hitGaugeReduceCheck");
   if(!allyId || !state.pendingTriggerContext) return;
   const ctx = state.pendingTriggerContext;
   const evaded = evadeCheck ? evadeCheck.checked : false;
   if(!evaded && ctx.sourceUnitId && ctx.skillKey){
     applyEnemyNoBarrierDebuff(ctx.sourceUnitId, ctx.skillKey, allyId);
+    applyEnemyUnconditionalDebuff(ctx.sourceUnitId, ctx.skillKey, allyId);
+  }
+  // 敵の基本スキル等が持つ「対象の行動ゲージを減らす」効果（オルトロスの苦痛を授けし凶頭等）。
+  // EVADE時は自動的に不適用。通常発動・被弾トリガーでの割り込み発動のどちらもこの関数を経由するため、両方に対応する
+  if(!evaded && gaugeReduceCheck && gaugeReduceCheck.checked && ctx.sourceUnitId && ctx.skillKey){
+    const attacker = state.units.find(x=>x.id===ctx.sourceUnitId);
+    const s = attacker && attacker.skills[ctx.skillKey];
+    const pct = s ? (s.targetGaugeReductionPct||0) : 0;
+    const target = state.units.find(x=>x.id===allyId);
+    if(pct>0 && target){
+      target.gauge = Math.max(0, target.gauge - pct);
+      logAction(target, "被弾判定", `⏱ 行動ゲージ-${pct}%`, "-", false, `残ゲージ:${target.gauge}%`);
+    }
   }
   if(!evaded){
     const hitUnit = state.units.find(x=>x.id===allyId);
@@ -2615,6 +2829,7 @@ function confirmAoeEvade(){
     evadeMap[u.id] = evaded;
     if(!evaded && ctx.sourceUnitId && ctx.skillKey){
       applyEnemyNoBarrierDebuff(ctx.sourceUnitId, ctx.skillKey, u.id);
+      applyEnemyUnconditionalDebuff(ctx.sourceUnitId, ctx.skillKey, u.id);
     }
     if(!evaded && u.ultimateCtReduceOnHit && u.ct.ultimate>0){
       // 全体攻撃を受けた場合は追加で-1（合計-2）
@@ -2638,7 +2853,15 @@ function confirmAoeEvade(){
   renderBattle();
 }
 
-function openTriggerFireForm(allyId, key){
+function openTriggerFireForm(allyId, key, presetAllyTargetId){
+  const u = state.units.find(x=>x.id===allyId);
+  const s = u && u.skills[key];
+  if(s && s.targetsAlly && presetAllyTargetId){
+    // 花嫁カルメン等の対象指定型トリガー：対象（愛の誓約の相手）は既に確定しているため、
+    // 敵選択フォームを出さず即座に発動する（EVADEしていた場合はcomputeOffers側で候補から除外済み）
+    fireTrigger(allyId, key, presetAllyTargetId, false, false);
+    return;
+  }
   state.pendingTriggerFire = {allyId, key};
   renderBattle();
 }
@@ -2651,25 +2874,33 @@ function cancelTriggerFireForm(){
 function confirmTriggerFire(){
   const targetSelect = document.getElementById("triggerTargetSelect");
   const evadeToggle = document.getElementById("triggerEvadeToggle");
+  const gaugeReduceToggle = document.getElementById("triggerGaugeReduceToggle");
   if(!state.pendingTriggerFire) return;
   const { allyId, key } = state.pendingTriggerFire;
   const targetId = targetSelect ? targetSelect.value : null;
   const evaded = evadeToggle ? evadeToggle.checked : false;
+  const applyGaugeReduction = gaugeReduceToggle ? gaugeReduceToggle.checked : true;
   state.pendingTriggerFire = null;
-  fireTrigger(allyId, key, targetId, false, evaded);
+  fireTrigger(allyId, key, targetId, false, evaded, applyGaugeReduction);
 }
 
-function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded){
+function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaugeReduction){
+  if(applyGaugeReduction===undefined) applyGaugeReduction = true; // 省略時は従来通り常に適用（後方互換）
   const u = state.units.find(x=>x.id===allyId);
   const s = u.skills[skillKey];
   // トリガー発動時も、属性スタックが最大の場合のみ全消費するスキル（エデ・スカーレット等）の判定を行う
   // ※後続の解決処理でスタックが消費される前に、この時点の値で判定・フラグ確定しておく
   const stackMaxConsumedForExtraTurn = !!(s.extraTurnIfStackMaxConsumeAll && (u.elementStack||0) >= ELEMENT_STACK_MAX);
   const stackMaxConsumedNoExtraTurn = !!(s.consumeStackOnlyIfMax && (u.elementStack||0) >= ELEMENT_STACK_MAX);
+  const stackMaxConsumedSkipCt = !!(s.skipCtIfStackMaxConsumeAll && (u.elementStack||0) >= ELEMENT_STACK_MAX);
   u._preActionElementStackSnapshot = u.elementStack||0;
 
   let targets = [];
-  if(s.target === "all"){
+  if(s.targetsAlly){
+    const t = state.units.find(x=>x.id===targetEnemyId && x.kind==="ally" && x.alive);
+    if(!t){ alert("対象の味方を選択してください"); return; }
+    targets = [t];
+  } else if(s.target === "all"){
     targets = state.units.filter(x=>x.kind==="enemy" && x.alive);
     if(targets.length===0){ alert("対象の敵がいません"); return; }
   } else {
@@ -2685,8 +2916,14 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded){
   }
   if(burstOn){ state.teamBurst -= 4; }
 
+  // 愛の行進（花嫁カルメン専用潜在）：特殊または究極スキル使用後、ノヴァフォース+2（basic以外）
+  const carmenArcanaBurstBonus = (u.relics && u.relics.CARMEN_ARCANA && (skillKey==="special"||skillKey==="ultimate")) ? 2 : 0;
+  // ※以前はここでs.burstGainがteamBurstに一切加算されておらず（ログ表示のみで実際には未加算）、
+  //   トリガー発動でノヴァフォースを得るはずのスキル（フェイの反撃等）がすべて対象漏れになっていた
+  state.teamBurst = Math.min(12, state.teamBurst + s.burstGain + carmenArcanaBurstBonus);
+
   if(s.triggerCtMode==="hasCT"){
-    if(skillKey!=="basic") u.ct[skillKey] = s.ct;
+    if(skillKey!=="basic" && !stackMaxConsumedSkipCt) u.ct[skillKey] = s.ct;
     // 会心発生時、自身のCTがさらに-1されるスキル（ロベルタ「ファストトラック」等。本ツールは会心前提のため常時適用）
     if(!evaded && s.selfCtReduceOnCritTrigger && skillKey!=="basic" && u.ct[skillKey]>0){
       u.ct[skillKey] = Math.max(0, u.ct[skillKey] - 1);
@@ -2705,32 +2942,38 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded){
   let toughnessDmgSum = 0;
 
   targets.forEach(target=>{
-    const hasAdvantage = !evaded && hasElementAdvantage(u.attribute, target.attribute);
+    const hasAdvantage = !evaded && !s.targetsAlly && hasElementAdvantage(u.attribute, target.attribute);
     if(hasAdvantage) hasAdvantageAny = true;
     const advantageBonus = hasAdvantage ? 1 : 0;
-    const breakSkillBonus = (!evaded && isBreakSkillToughnessBonusActive()) ? 1 : 0;
-    const toughnessDmg = evaded ? 0 : (s.toughness + (burstOn ? s.burstAdd : 0) + advantageBonus + breakSkillBonus);
+    const breakSkillBonus = (!evaded && !s.targetsAlly && isBreakSkillToughnessBonusActive()) ? 1 : 0;
+    // targetsAlly（花嫁カルメンの守護の騎士等、味方対象のトリガー）は攻撃ではないため強靭ダメージ・被弾カウントの対象外
+    const toughnessDmg = (evaded || s.targetsAlly) ? 0 : (s.toughness + (burstOn ? s.burstAdd : 0) + advantageBonus + breakSkillBonus);
     target.toughness = Math.max(0, target.toughness - toughnessDmg);
-    if(!evaded){ target.hitCounter = (target.hitCounter||0) + 1; }
+    if(!evaded && !s.targetsAlly){
+      target.hitCounter = (target.hitCounter||0) + 1;
+      if(s.target!=="all") target.singleTargetHitCounter = (target.singleTargetHitCounter||0) + 1;
+    }
     toughnessDmgSum += toughnessDmg;
 
     let brokeNow = false;
-    if(target.toughness<=0 && !target.broken){
+    if(target.toughness<=0 && !target.broken && !s.targetsAlly){
       target.broken = true; target.gauge = 0; brokeNow = true;
       state.breakPoints = Math.min(3, state.breakPoints + (target.toughnessMax>=15?3:1));
       brokeAny = true;
     }
 
     let reductionText = "";
-    if(!evaded && !target.immune){
+    if(!evaded && !s.targetsAlly && !target.immune && applyGaugeReduction){
       const reduction = (s.enemyGaugeReductionPct||0) + (burstOn?(s.burstEnemyGaugeReductionAdd||0):0) + ((u.elementStack||0)*(s.enemyGaugeReductionPerStack||0));
       if(reduction > 0){ target.gauge = Math.max(0, target.gauge - reduction); reductionText = `／ゲージ-${reduction}%`; }
-    } else if(!evaded && target.immune && ((s.enemyGaugeReductionPct||0)>0)){
+    } else if(!evaded && !s.targetsAlly && target.immune && ((s.enemyGaugeReductionPct||0)>0)){
       reductionText = `／ゲージ減少は免疫中のため無効`;
+    } else if(!evaded && !s.targetsAlly && !applyGaugeReduction && ((s.enemyGaugeReductionPct||0)>0 || (s.enemyGaugeReductionPerStack||0)>0)){
+      reductionText = `／ゲージ減少は条件未達のためチェックを外して適用なし`;
     }
 
     let gimmickText = "";
-    if(!evaded){
+    if(!evaded && !s.targetsAlly){
       const g = checkGaugeOnHitGimmick(target);
       if(g){ gimmickText = `／ギミック:デバフ${g.debuffCount}個以下→自ゲージ+${g.gainPct}%`; }
       const g2 = checkGaugeOnHitIfAllyDebuffGimmick(target);
@@ -2743,9 +2986,23 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded){
         const effType = s.targetsAlly ? "buff" : "debuff";
         if(effType==="debuff" && target.kind==="enemy" && isBossImmuneDebuffName(eff.name)){ effText += `／${eff.name}はボスに常時免疫のため付与できず`; return; }
         if(effType==="debuff" && target.immune && !eff.ignoresImmune){ effText += `／${eff.name}は免疫中のため付与できず`; return; }
-        if(eff.dot){ target.buffs.push({name:eff.name, turns:eff.turns, type:effType, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, dot:true}); effText += `／${eff.name}を追加スタック付与`; }
-        else { const applied = applyBuffWithMaxDuration(target.buffs, {name:eff.name, turns:eff.turns, type:effType, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0}); effText += `／${eff.name}(残${applied.turns}T)付与`; }
+        if(eff.dot){ target.buffs.push({name:eff.name, turns:eff.turns, type:effType, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, dot:true, undispellable:!!eff.undispellable}); effText += `／${eff.name}を追加スタック付与`; }
+        else { const applied = applyBuffWithMaxDuration(target.buffs, {name:eff.name, turns:eff.turns, type:effType, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, undispellable:!!eff.undispellable}); effText += `／${eff.name}(残${applied.turns}T)付与`; }
       });
+    }
+    if(!evaded && s.targetsAlly && s.targetClearAllDebuffs){
+      const removed = target.buffs.filter(b=>b.type==="debuff" && !b.undispellable);
+      target.buffs = target.buffs.filter(b=>b.type!=="debuff" || b.undispellable);
+      if(removed.length>0){ effText += `／対象の弱体化を全解除(${removed.map(b=>b.name).join("、")})`; }
+    }
+    if(!evaded && s.targetsAlly && s.targetStackGainIfSameAttributeAsSelf > 0 && target.attribute===u.attribute){
+      const targetStackName = stackNameForAttribute(target.attribute);
+      target.elementStack = Math.min(ELEMENT_STACK_MAX, (target.elementStack||0) + s.targetStackGainIfSameAttributeAsSelf);
+      effText += `／対象も自身と同属性(${target.attribute})のため対象${targetStackName}+${s.targetStackGainIfSameAttributeAsSelf}(${target.elementStack}/${ELEMENT_STACK_MAX})`;
+    }
+    if(!evaded && s.targetsAlly && s.alsoGaugeToTarget > 0 && target.kind==="ally"){
+      target.gauge = Math.min(100, target.gauge + s.alsoGaugeToTarget);
+      effText += `／対象ゲージ+${s.alsoGaugeToTarget}%`;
     }
     if(!evaded && s.consumeAllTargetDebuffName){
       const before = target.buffs.filter(b=>b.name===s.consumeAllTargetDebuffName).length;
@@ -2755,7 +3012,7 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded){
       }
     }
 
-    perTargetMemo.push(`${target.name}:強靭削り${toughnessDmg}／残強靭${target.toughness}${brokeNow?"→ブレイク！":""}${reductionText}${effText}${gimmickText}`);
+    perTargetMemo.push(`${target.name}:${s.targetsAlly?"バフ・回復等の効果（強靭計算対象外）":`強靭削り${toughnessDmg}／残強靭${target.toughness}${brokeNow?"→ブレイク！":""}`}${reductionText}${effText}${gimmickText}`);
   });
 
   // バフ/デバフ自動付与（トリガー発動時・対象非依存）。selfBuffManualOnlyが立っているものは
@@ -2786,19 +3043,51 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded){
       u.senkohanabiStacks = Math.min(3, (u.senkohanabiStacks||0) + s.selfSenkohanabiGain);
       stackMemo += `／自身線香花火+${s.selfSenkohanabiGain}(${u.senkohanabiStacks})`;
     }
-    if((s.selfStackConsumeAll || stackMaxConsumedForExtraTurn || stackMaxConsumedNoExtraTurn) && (u.elementStack||0) > 0){
-      stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)`;
+    if((s.selfStackConsumeAll || stackMaxConsumedForExtraTurn || stackMaxConsumedNoExtraTurn || stackMaxConsumedSkipCt) && (u.elementStack||0) > 0){
+      stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)${stackMaxConsumedSkipCt?"／スタック最大消費のためCTに入らない":""}`;
       u.elementStack = 0;
     }
   }
 
-  logAction(u, "トリガー発動", skillCategoryLabel(skillKey) + "：" + s.name + (burstOn&&!evaded?"（バースト）":"") + (evaded?"（EVADE）":""), String(toughnessDmgSum), brokeAny,
-    `${perTargetMemo.join(" ｜ ")}${hasAdvantageAny?"／属性有利+1":""}${evaded?"／EVADE成立のため強靭ダメージ0・会心扱いなし":""}${gaugeGain>0?`／自身ゲージ+${gaugeGain}%`:""}${burstOn?"／BP-4":""}${s.burstGain>0?`／BP+${s.burstGain}`:""}（BP残${state.teamBurst}）${buffMemo}${stackMemo}`);
+  // 第十の課業：トリガー発動も行動として扱う（全体攻撃or味方対象の非攻撃行動なら解除、単体攻撃ならターン+1で自然減少と相殺）
+  const tenthLaborMemo = applyTenthLaborTurnGimmick(u, s.targetsAlly || s.target==="all");
 
-  if(skillKey==="basic" && !evaded){
-    checkPincerProc(allyId, false, targetEnemyId);
-  } else {
+  logAction(u, "トリガー発動", skillCategoryLabel(skillKey) + "：" + s.name + (burstOn&&!evaded?"（バースト）":"") + (evaded?"（EVADE）":""), String(toughnessDmgSum), brokeAny,
+    `${perTargetMemo.join(" ｜ ")}${hasAdvantageAny?"／属性有利+1":""}${evaded?"／EVADE成立のため強靭ダメージ0・会心扱いなし":""}${gaugeGain>0?`／自身ゲージ+${gaugeGain}%`:""}${burstOn?"／BP-4":""}${s.burstGain>0?`／BP+${s.burstGain}`:""}${carmenArcanaBurstBonus>0?`／愛の行進でBP+${carmenArcanaBurstBonus}`:""}（BP残${state.teamBurst}）${buffMemo}${stackMemo}${tenthLaborMemo}`);
+
+  // クラリッサ等「攻撃後、自身の属性スタックが一定数以上なら自ゲージ/敵ゲージが増減する」段階効果パッシブ
+  // ※この行動自身によるスタック増加（selfStackGain）が反映された後の値で判定する
+  if(!evaded && !s.targetsAlly && u.passiveStackGaugeEffects){
+    const pe = u.passiveStackGaugeEffects;
+    const stack = u.elementStack||0;
+    const primaryTarget = targets[0];
+    if(pe.selfGaugeThreshold && stack >= pe.selfGaugeThreshold){
+      u.gauge = Math.min(100, u.gauge + pe.selfGaugePct);
+      logAction(u, "トリガー発動", `⭐ 跳躍${stack}スタック段階効果`, "-", false, `自身ゲージ+${pe.selfGaugePct}%`);
+    }
+    if(pe.enemyGaugeThreshold && stack >= pe.enemyGaugeThreshold && primaryTarget && applyGaugeReduction && !primaryTarget.immune){
+      primaryTarget.gauge = Math.max(0, primaryTarget.gauge - pe.enemyGaugePct);
+      logAction(u, "トリガー発動", `⭐ 跳躍${stack}スタック段階効果`, "-", false, `${primaryTarget.name}のゲージ-${pe.enemyGaugePct}%`);
+    }
+  }
+
+  if(s.targetsAlly){
+    // 花嫁カルメン等、味方対象のトリガーは攻撃ではないため、挟撃・水爆弾リアクト・ボス被弾トリガーの
+    // いずれのチェーンにも乗せず、そのまま描画のみ行う
     renderBattle();
+  } else if(skillKey==="basic" && !evaded){
+    checkPincerProc(allyId, false, targetEnemyId);
+  } else if(!evaded && targetEnemyId){
+    // 基本スキル以外のトリガー攻撃（特殊・究極の反撃等）も、単体攻撃であればボス被弾トリガー
+    // （第十の課業のターン増減、オルトロスの灼熱の竜血等）の判定チェーンを通す。
+    // ※以前はここがrenderBattle()直行だったため、useAllySkill経由の攻撃でしか
+    //   ボス被弾トリガーの候補提示が行われず、トリガー発動での単体攻撃分がカウントされていても
+    //   判定パネル自体が一切出ない不具合があった（useAllySkillとfireTriggerが別関数であることに起因）
+    checkWaterBombReact(allyId, targetEnemyId, false, false);
+  } else {
+    // 全体攻撃トリガーやEVADE等、対象が一つに定まらない・攻撃が成立しなかったケースでも、
+    // 被弾カウント自体は既に進んでいる可能性があるため、ボス被弾トリガーの判定だけは必ず経由する
+    checkBossHitTrigger(allyId, false, skillKey==="basic");
   }
 }
 
@@ -2986,7 +3275,8 @@ function renderBattle(){
     if(u.kind==="enemy" && u.immune) statusTags.push(`<span class="tag buff">免疫(残${u.immuneRemaining})</span>`);
     if(u.kind==="enemy" && u.starSpeedBonusPct) statusTags.push(`<span class="tag permanent">★速度+${u.starSpeedBonusPct}%</span>`);
     if(u.kind==="enemy" && (u.twistedWillStacks||0)>0) statusTags.push(`<span class="tag permanent">😈歪んだ意志:${u.twistedWillStacks}/3</span>`);
-    if(u.kind==="enemy" && (u.specialTriggerHitCount||0)>0) statusTags.push(`<span class="tag permanent">🎯被弾:${u.hitCounter||0}/${u.specialTriggerHitCount}</span>`);
+    if(u.kind==="enemy" && (u.specialTriggerHitCount||0)>0) statusTags.push(`<span class="tag permanent">🎯特殊被弾:${u.hitCounter||0}/${u.specialTriggerHitCount}</span>`);
+    if(u.kind==="enemy" && (u.basicTriggerHitCount||0)>0) statusTags.push(`<span class="tag permanent">🎯単体被弾:${u.singleTargetHitCounter||0}/${u.basicTriggerHitCount}</span>`);
     if(u.kind==="ally" && u.usesSevenBallMechanic) statusTags.push(`<span class="tag permanent">🎱ピンボール速度+${u.pinballSpeedStacks||0}/10</span>`);
     if(u.envSpeedBonusPct) statusTags.push(`<span class="tag permanent">環境速度+${u.envSpeedBonusPct}%</span>`);
     if(u.kind==="ally" && u.relics && u.relics.AX) statusTags.push(`<span class="tag buff">AX:ATK+${(u.axStacks||0)*8}%</span>`);
@@ -3011,7 +3301,8 @@ function renderBattle(){
       });
       Object.values(grouped).forEach(g=>{
         const stackLabel = g.count>1 ? `×${g.count}` : "";
-        statusTags.push(`<span class="tag ${g.type==="debuff"?"debuff":"buff"}">${g.name}${stackLabel}(${g.maxTurns})</span>`);
+        const turnsLabel = g.permanent ? "∞" : g.maxTurns;
+        statusTags.push(`<span class="tag ${g.type==="debuff"?"debuff":"buff"}">${g.name}${stackLabel}(${turnsLabel})</span>`);
       });
     })();
     rows += `<tr>
@@ -3051,14 +3342,17 @@ function renderBattle(){
     if(ctx.targetType==="selectHit"){
       const attacker = state.units.find(x=>x.id===ctx.sourceUnitId);
       const attackerNote = findAccuracyRelatedDebuffNote(attacker);
+      const attackerSkill = attacker && ctx.skillKey ? attacker.skills[ctx.skillKey] : null;
+      const gaugeReducePct = attackerSkill ? (attackerSkill.targetGaugeReductionPct||0) : 0;
       const buttons = state.units.filter(x=>x.kind==="ally"&&x.alive)
         .map(x=>`<button class="skillbtn" onclick="confirmHitAlly('${x.id}')">
-          <div class="name">${x.name}${x.evasionRatePct?`（回避率${x.evasionRatePct}%）`:""}${x.buffs.some(b=>b.name.includes("バリア"))?" 🛡":""}</div>
+          <div class="name">${x.name}${x.evasionRatePct?`（回避率${x.evasionRatePct}%）`:""}${x.buffs.some(b=>b.name.includes("バリア"))?" 🛡":""}${x.buffs.some(b=>b.name.includes("潜伏"))?" 🌙潜伏中":""}</div>
         </button>`).join("");
       panel.innerHTML = `<h3>${ctx.sourceLabel}：被弾した味方を選択</h3>
         <div class="smallnote" style="margin-bottom:6px;">先にEVADE・バリア破壊があれば下でチェックしてから、被弾した味方を選んでください${attackerNote ? `<br><span style="color:var(--warn);">（参考：${attacker.name}に${attackerNote}）</span>` : ""}</div>
         <div class="checkline"><input type="checkbox" id="hitEvadeCheck"> EVADE（回避）成立：この味方は回避に成功した</div>
         <div class="checkline"><input type="checkbox" id="hitBarrierBreakCheck"> 🛡バリアが破壊された（この味方がバリアを持っている場合のみ有効）</div>
+        ${gaugeReducePct>0 ? `<div class="checkline"><input type="checkbox" id="hitGaugeReduceCheck" checked> 対象の行動ゲージ-${gaugeReducePct}%を適用（EVADE時は自動的に不適用）</div>` : ""}
         <div class="skillbtn-row">${buttons}</div>
         <button class="btn-secondary btn-small" style="margin-top:4px;" onclick="dismissTriggerContext()">確認せず続ける</button>`;
     } else if(ctx.targetType==="selectHitAoe"){
@@ -3067,7 +3361,7 @@ function renderBattle(){
       const attackerNote = findAccuracyRelatedDebuffNote(attacker);
       panel.innerHTML = `<h3>${ctx.sourceLabel}：味方それぞれのEVADE（回避）判定</h3>
         <div class="smallnote" style="margin-bottom:8px;">全体攻撃のため、味方ひとりひとりに回避判定があります。回避に成功した味方はチェックしてください。バリアを持つ味方は、そのバリアが破壊されたかも合わせてチェックしてください。${attackerNote ? `<br><span style="color:var(--warn);">（参考：${attacker.name}に${attackerNote}）</span>` : ""}</div>
-        ${aliveAllies.map(u=>`<div class="checkline"><input type="checkbox" id="aoeEvade_${u.id}"> ${u.name}${u.evasionRatePct?`（回避率${u.evasionRatePct}%）`:""}：EVADE成立${u.buffs.some(b=>b.name.includes("バリア"))?` ｜ <input type="checkbox" id="aoeBarrierBreak_${u.id}"> 🛡バリア破壊`:""}</div>`).join("")}
+        ${aliveAllies.map(u=>`<div class="checkline"><input type="checkbox" id="aoeEvade_${u.id}"> ${u.name}${u.evasionRatePct?`（回避率${u.evasionRatePct}%）`:""}${u.buffs.some(b=>b.name.includes("潜伏"))?" 🌙潜伏中":""}：EVADE成立${u.buffs.some(b=>b.name.includes("バリア"))?` ｜ <input type="checkbox" id="aoeBarrierBreak_${u.id}"> 🛡バリア破壊`:""}</div>`).join("")}
         <div class="btn-row">
           <button class="btn-primary btn-small" onclick="confirmAoeEvade()">決定してトリガー確認</button>
           <button class="btn-secondary btn-small" onclick="dismissTriggerContext()">確認せず続ける</button>
@@ -3083,6 +3377,7 @@ function renderBattle(){
         </div>
         <div class="smallnote">※トリガー再発動はバースト強化の対象外です（強靭度ボーナスは主打撃の1回目のみに適用）</div>
         <div class="checkline"><input type="checkbox" id="triggerEvadeToggle"> EVADE（回避）成立：敵に回避された（強靭度ダメージ0・会心にならない）</div>
+        ${((s.enemyGaugeReductionPct||0)>0 || (s.enemyGaugeReductionPerStack||0)>0) ? `<div class="checkline"><input type="checkbox" id="triggerGaugeReduceToggle" checked> 対象の行動ゲージ減少効果を適用する（デフォルトON。潜伏中限定など条件付きの効果で条件を満たしていない場合はチェックを外してください）</div>` : ""}
         <div class="btn-row">
           <button class="btn-primary" onclick="confirmTriggerFire()">発動する（強靭削り ${s.toughness}${(s.selfGaugeGain||s.burstGaugeGainAdd)?`／自身ゲージ+${s.selfGaugeGain}%`:""}）</button>
           <button class="btn-secondary" onclick="cancelTriggerFireForm()">キャンセル</button>
@@ -3092,8 +3387,8 @@ function renderBattle(){
       panel.innerHTML = `<h3>${ctx.sourceLabel}：トリガースキル発動チェック</h3>
         <div class="smallnote" style="margin-bottom:8px;">発動条件を満たしていそうなら、下のボタンから発動を記録できます（発動しない場合はスキップしてください）。</div>
         ${offers.length===0 ? '<div class="smallnote">発動可能なトリガースキルは見つかりませんでした</div>' : ""}
-        <div class="skillbtn-row">${offers.map(o=>`<button class="skillbtn" onclick="openTriggerFireForm('${o.allyId}','${o.key}')">
-          <div class="name">🔔 ${o.allyName} - ${o.skillName}</div>
+        <div class="skillbtn-row">${offers.map(o=>`<button class="skillbtn" onclick="openTriggerFireForm('${o.allyId}','${o.key}'${o.guardedAlly ? `,'${ctx.hitAllyId}'` : ""})">
+          <div class="name">🔔 ${o.allyName} - ${o.skillName}${o.guardedAlly?"（対象指定型・自動対象）":""}</div>
         </button>`).join("")}</div>
         <button class="btn-secondary" style="margin-top:6px;" onclick="dismissTriggerContext()">これ以上発動しない・続ける</button>`;
     }
@@ -3159,12 +3454,18 @@ function renderBattle(){
     panel.className = "actionPanel";
     const buttons = ctx.candidates.map(id=>{
       const e = state.units.find(x=>x.id===id);
-      return e ? `<button class="skillbtn" onclick="confirmBossHitTrigger('${id}')">
-          <div class="name">🚨 ${e.name} の特殊トリガー発動（被弾${e.specialTriggerHitCount}回）</div>
-        </button>` : "";
+      if(!e) return "";
+      // 特殊トリガー（hitCounter・specialTriggerHitCount）と基本トリガー（singleTargetHitCounter・basicTriggerHitCount）の
+      // どちらの条件を満たしているかでラベルを出し分ける（両方満たす場合は特殊を優先。confirmBossHitTrigger側の判定と揃える）
+      const reachedSpecial = (e.specialTriggerHitCount||0)>0 && (e.hitCounter||0) >= e.specialTriggerHitCount;
+      const reachedBasic = !reachedSpecial && (e.basicTriggerHitCount||0)>0 && (e.singleTargetHitCounter||0) >= e.basicTriggerHitCount;
+      const label = reachedSpecial ? `特殊トリガー発動（被弾${e.hitCounter}回）` : reachedBasic ? `基本トリガー発動（単体被弾${e.singleTargetHitCounter}回）` : "トリガー発動";
+      return `<button class="skillbtn" onclick="confirmBossHitTrigger('${id}')">
+          <div class="name">🚨 ${e.name} の${label}</div>
+        </button>`;
     }).join("");
     panel.innerHTML = `<h3>ボス被弾トリガー判定</h3>
-      <div class="smallnote">被弾カウントが規定回数に達した敵がいます。実際にボスの特殊がトリガーで割り込み発動しましたか？</div>
+      <div class="smallnote">被弾カウントが規定回数に達した敵がいます。実際にボスの割り込みスキルが発動しましたか？</div>
       <div class="skillbtn-row">${buttons}</div>
       <button class="btn-secondary" style="margin-top:6px;" onclick="dismissBossHitTrigger('${ctx.candidates[0]}')">発動しなかった・続ける</button>`;
     area.appendChild(panel);
@@ -3275,6 +3576,7 @@ function renderBattle(){
       <div class="checkline"><input type="checkbox" id="burstToggle" ${state.teamBurst<4?"disabled":""}> バースト強化を適用する（4pt消費／現在${state.teamBurst}pt）${state.teamBurst<4?'<span style="color:var(--text-dim)"> ※4pt未満のため使用不可</span>':""}</div>
       <div class="checkline"><input type="checkbox" id="evadeToggle"> EVADE（回避）成立：命中率ダウン／回避率アップの影響で敵に回避された（強靭度ダメージ0・会心にならない。味方対象バフには無関係）${findAccuracyRelatedDebuffNote(u) ? `<span style="color:var(--warn);">（参考：自身に${findAccuracyRelatedDebuffNote(u)}）</span>` : ""}</div>
       <div class="checkline"><input type="checkbox" id="autoBuffToggle" checked> バフ/デバフを自動付与する（スキルに設定されている場合のみ有効。デフォルトON）</div>
+      <div class="checkline"><input type="checkbox" id="gaugeReduceToggle" checked> 対象の行動ゲージ減少効果を適用する（そのスキルにゲージ減少効果がある場合のみ有効。デフォルトON。潜伏中限定など条件付きの効果で条件を満たしていない場合はチェックを外してください）</div>
       ${u.usesSevenBallMechanic ? `
       <div class="field" style="margin-bottom:10px;">
         <label>🎰 セブンボール数（このターンの実際の画面を見て0〜3を選択。選択した瞬間に速度スタック・究極CT短縮が適用されます）</label>
@@ -3346,11 +3648,13 @@ function confirmAllySkill(unitId, skillKey){
   const burstToggle = document.getElementById("burstToggle");
   const evadeToggle = document.getElementById("evadeToggle");
   const autoBuffToggle = document.getElementById("autoBuffToggle");
+  const gaugeReduceToggle = document.getElementById("gaugeReduceToggle");
   const observedDamageInput = document.getElementById("observedDamageInput");
   const targetId = targetSelect ? targetSelect.value : null;
   const burstOn = burstToggle ? burstToggle.checked : false;
   const evaded = evadeToggle ? evadeToggle.checked : false;
   const autoApplyBuffs = autoBuffToggle ? autoBuffToggle.checked : true;
+  const applyGaugeReduction = gaugeReduceToggle ? gaugeReduceToggle.checked : true;
   const observedDamage = observedDamageInput && observedDamageInput.value ? Number(observedDamageInput.value) : null;
 
   if(observedDamage!=null && !evaded){
@@ -3369,7 +3673,7 @@ function confirmAllySkill(unitId, skillKey){
     }
   }
 
-  useAllySkill(unitId, skillKey, burstOn, targetId, evaded, autoApplyBuffs);
+  useAllySkill(unitId, skillKey, burstOn, targetId, evaded, autoApplyBuffs, applyGaugeReduction);
   renderLog();
 }
 
