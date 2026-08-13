@@ -338,6 +338,9 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
   //   triggerRequiresSelfBuffName: afterOwnトリガーの発動条件として、自身がこの名前を含むバフを持っている場合のみ候補に出す（部分一致）
   //   triggerRequiresEnemyStackName/triggerRequiresEnemyStackCount: afterOwnトリガーの発動条件として、直近の基本スキル対象の敵がこの名前のデバフを指定スタック数以上持っている場合のみ候補に出す
   //   triggerRequiresSelfStackMax: afterOwnトリガーの発動条件として、自身の属性スタック（点火/跳躍/冷却等）が最大値（ELEMENT_STACK_MAX）に達している場合のみ候補に出す
+  //     （攻撃「前」＝この行動自身によるスタック増加が反映される前の値で判定する。行動によって最大に達したケースは対象外）
+  //   triggerRequiresSelfStackMaxAfterAction: 上記と似ているが、攻撃「後」＝この行動自身によるスタック増加が反映された後の値で判定する
+  //     （スマイル・バニークレア等：基本スキルで跳躍/冷却が増え、その結果として最大に達したケースも含めて発動する仕様のキャラ用）
   extraEffects = extraEffects || {};
   return {name, ct, toughness, burstAdd, burstGain, extraTurn: !!extraTurn, extraTurnBurstOnly: !!extraEffects.extraTurnBurstOnly,
     triggerType: triggerType || "none", triggerCtMode: triggerCtMode || "hasCT",
@@ -350,6 +353,9 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
     consumeSenkohanabiForExtraHits: !!extraEffects.consumeSenkohanabiForExtraHits,
     battleStartDebuffFastestEnemy: extraEffects.battleStartDebuffFastestEnemy || null,
     selfCtReduceOnCritTrigger: !!extraEffects.selfCtReduceOnCritTrigger,
+    burstSelfCtReduceTurns: extraEffects.burstSelfCtReduceTurns || 0,
+    brokenNutGainOnUse: extraEffects.brokenNutGainOnUse || 0,
+    selfBuffIfStackMaxAfterAction: extraEffects.selfBuffIfStackMaxAfterAction || null,
     ctReduceBySevenBall: !!extraEffects.ctReduceBySevenBall,
     extraTurnIfStackMaxConsumeAll: !!extraEffects.extraTurnIfStackMaxConsumeAll,
     consumeStackOnlyIfMax: !!extraEffects.consumeStackOnlyIfMax,
@@ -373,6 +379,7 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
     triggerRequiresEnemyStackName: extraEffects.triggerRequiresEnemyStackName || null,
     triggerRequiresEnemyStackCount: extraEffects.triggerRequiresEnemyStackCount || 0,
     triggerRequiresSelfStackMax: !!extraEffects.triggerRequiresSelfStackMax,
+    triggerRequiresSelfStackMaxAfterAction: !!extraEffects.triggerRequiresSelfStackMaxAfterAction,
     alsoGaugeToTarget: extraEffects.alsoGaugeToTarget || 0,
     targetClearAllDebuffs: !!extraEffects.targetClearAllDebuffs,
     targetStackGainIfSameAttributeAsSelf: extraEffects.targetStackGainIfSameAttributeAsSelf || 0};
@@ -785,9 +792,9 @@ function allyPreset(key){
       basic: defaultAllySkill("水分補充", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, targetEffect:{name:"水爆弾", turns:3}, atkPct:50, battleStartDebuffFastestEnemy:{name:"水爆弾", turns:3, ignoresImmune:true} }),
       special: defaultAllySkill("クーリングシステム", 0, 1, 1, 0, false, "none", "hasCT", 15, 0, false, false, false, { selfSenkohanabiGain:1, atkPct:70 }),
       ultimate: defaultAllySkill("夏夜と花火", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:3, targetEffect:{name:"水爆弾", turns:3}, atkPct:115, consumeSenkohanabiForExtraHits:true }) },
-    "smile": { name:"スマイル", speed:100, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"レンジャー", relics:{SMILE_ARCANA:true}, passiveNote:"基本スキル使用後、自身の跳躍スタックが最大(5)の場合のみ特殊(猫のタップダンス)が自動トリガー候補として提示される(特殊・究極使用後は対象外)。専用アルカナ「バカンスの準備はお買い物から！」を標準装備(ターン開始時跳躍+1／特殊スキル使用時、与ダメージ+20%は本ツール未反映)",
+    "smile": { name:"スマイル", speed:100, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"レンジャー", relics:{SMILE_ARCANA:true}, passiveNote:"基本スキル使用後、自身の跳躍スタックが最大(5)の場合、特殊(猫のタップダンス)が自動トリガー候補として提示される(特殊・究極使用後は対象外)。この判定は基本スキル自体によるスタック増加分も含めた『行動後』の値で行う（実装済み：triggerRequiresSelfStackMaxAfterAction）。発動時はスタックを全消費する（実装済み：consumeStackOnlyIfMax）。専用アルカナ「バカンスの準備はお買い物から！」を標準装備(ターン開始時跳躍+1／特殊スキル使用時、与ダメージ+20%は本ツール未反映)",
       basic: defaultAllySkill("射撃座標確認", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1 }),
-      special: defaultAllySkill("猫のタップダンス", 1, 0, 1, 1, false, "afterOwn", "hasCT", 0, 0, false, false, false, { targetEffect:{name:"燃焼", turns:1, dot:true}, target:"all", triggerRequiresSelfStackMax:true }),
+      special: defaultAllySkill("猫のタップダンス", 1, 0, 1, 1, false, "afterOwn", "hasCT", 0, 0, false, false, false, { targetEffect:{name:"燃焼", turns:1, dot:true}, target:"all", triggerRequiresSelfStackMaxAfterAction:true, consumeStackOnlyIfMax:true }),
       ultimate: defaultAllySkill("全隊員、一斉射撃！", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { targetEffect:{name:"防御力ダウン", turns:2}, selfStackGain:3 }) },
     "seira": { name:"セイラ", speed:107, toughnessMax:3, evasionRatePct:0, attribute:"秩序", role:"ストライカー", passiveNote:"攻撃時、敵HP75%以上でダメ+15%(3凸)",
       basic: defaultAllySkill("はかない夢", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1 }),
@@ -803,9 +810,9 @@ function allyPreset(key){
       special: defaultAllySkill("惨劇のレクイエム", 4, 0, 1, 1, false, "afterOwn", "oncePerTurn", 0, 0, false, false, false,
         { selfBuff:{name:"速度アップ（+20%）", turns:3, speedModPct:20}, selfBuffManualOnly:true, selfStackConsumeAll:true, triggerRequiresEnemyStackName:"惨劇の棘", triggerRequiresEnemyStackCount:3, consumeAllTargetDebuffName:"惨劇の棘" }),
       ultimate: defaultAllySkill("悲嘆のクレッシェンド", 5, 0, 1, 1, true, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"破砕（ATK+10%）", turns:2}, selfStackGain:2, target:"all", extraTurnBurstOnly:true }) },
-    "bunny_clare": { name:"バニークレア", speed:104, toughnessMax:3, evasionRatePct:0, attribute:"月", role:"ストライカー", passiveNote:"ターン開始時、会心率+10%スタック(最大3)。基本スキル使用後、自身の冷却スタックが最大(5)の場合のみ特殊(どこを見ているのですか？)が自動トリガー候補として提示される(特殊・究極使用後は対象外)",
+    "bunny_clare": { name:"バニークレア", speed:104, toughnessMax:3, evasionRatePct:0, attribute:"月", role:"ストライカー", passiveNote:"ターン開始時、会心率+10%スタック(最大3)。基本スキル使用後、自身の冷却スタックが最大(5)の場合、特殊(どこを見ているのですか？)が自動トリガー候補として提示される(特殊・究極使用後は対象外)。この判定は基本スキル自体によるスタック増加分も含めた『行動後』の値で行う（実装済み：triggerRequiresSelfStackMaxAfterAction）。発動時はスタックを全消費する（実装済み：consumeStackOnlyIfMax）",
       basic: defaultAllySkill("目にも止まらぬ動き", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1 }),
-      special: defaultAllySkill("どこを見ているのですか？", 3, 0, 1, 1, false, "afterOwn", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"攻撃力アップ（+30%）", turns:2}, selfStackGain:3, triggerRequiresSelfStackMax:true }),
+      special: defaultAllySkill("どこを見ているのですか？", 3, 1, 1, 0, false, "afterOwn", "hasCT", 30, 0, false, false, false, { selfBuff:{name:"攻撃力アップ（+30%）", turns:2}, selfStackGain:3, triggerRequiresSelfStackMaxAfterAction:true, consumeStackOnlyIfMax:true }),
       ultimate: defaultAllySkill("バニージャックポット", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"ジャックポット・ブルーム（会心率/会心ダメ+20%）", turns:3}, selfStackGain:3 }) },
     "bunny_charle": { name:"バニーシャルル", speed:90, toughnessMax:3, evasionRatePct:0, attribute:"太陽", role:"アサシン", passiveNote:"他の太陽味方のターン開始時、自身に点火+1。特殊(祝杯の歌)のラッキートークンが自身にある間のみ、通常攻撃(バニーステップ)使用後にもう一度通常攻撃が自動トリガー候補として提示される(1ターン1回。特殊・究極使用後は対象外)。基本スキル(バニーステップ)使用後、自身の行動ゲージ+10%(2回使用で+20%)。究極は点火スタックが最大(5)の時、全消費してCTに入らない(実装済み：skipCtIfStackMaxConsumeAll)",
       basic: defaultAllySkill("バニーステップ", 0, 0, 1, 0, false, "afterOwn", "oncePerTurn", 10, 0, false, false, false, { selfStackGain:1, triggerRequiresSelfBuffName:"ラッキートークン" }),
@@ -844,12 +851,15 @@ function allyPreset(key){
         { selfBuff:{name:"バリア", turns:2}, targetEffect:{name:"防御力ダウン（-30%）", turns:2}, atkPct:85 }),
       ultimate: defaultAllySkill("パラダイス・イン・サマー！", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false,
         { selfBuff:{name:"防御力アップ（+30%・本来は味方全体）", turns:2}, targetEffect:[{name:"攻撃力ダウン（-30%）", turns:2}, {name:"挑発", turns:1}], atkPct:90 }) },
-    "marcille": { name:"マルシル", speed:94, toughnessMax:3, evasionRatePct:0, attribute:"太陽", role:"アサシン", passiveNote:"会心率+15%。戦闘開始時／味方のブレイク成功時に壊れたナット+2。ナット最大時ヘキサナット発生(会心ダメ+30%・ブレイク中の敵への与ダメ+15%)。点火スタックに応じ会心ダメ+3%ずつ",
+    "marcille": { name:"マルシル", speed:94, toughnessMax:3, evasionRatePct:0, attribute:"太陽", role:"アサシン",
+      brokenNutStackName:"壊れたナット", brokenNutMax:3, hexanutBuffName:"ヘキサナット",
+      battleStartBrokenNutGain:2, gainsBrokenNutOnAnyAllyBreak:2,
+      passiveNote:"槌と金床：会心率+15%。戦闘開始時、または味方が敵の強靭度をブレイクした時、自身に壊れたナットを2回発生させる(実装済み：battleStartBrokenNutGain／gainsBrokenNutOnAnyAllyBreak、味方の誰のブレイクでも反応)。ターン開始時、自身の壊れたナットが最大(3)であれば、自身にヘキサナットを発生させ、壊れたナットをすべて解除(実装済み)。攻撃時、点火スタックに応じ会心ダメ+3%ずつ、最大5個まで適用(ダメージ計算非対応のため未実装)。特殊・究極は会心が発生した場合、自身の行動ゲージ+30%・壊れたナット+1(本ツールは会心発生前提のため常時適用として実装：selfGaugeGain・brokenNutGainOnUse)。特殊はバースト強化時、自身のCTが2ターン短縮される(実装済み：burstSelfCtReduceTurns)",
       basic: defaultAllySkill("ナット回し", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1 }),
-      special: defaultAllySkill("釘打ち", 3, 1, 1, 1, false, "none", "hasCT", 0, 0, false, false, false,
-        { selfBuff:{name:"速度アップ（+20%）", turns:2, speedModPct:20}, targetEffect:{name:"燃焼", turns:2, dot:true} }),
-      ultimate: defaultAllySkill("ネジ破壊", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false,
-        { selfBuff:{name:"攻撃力アップ（+30%）", turns:2}, targetEffect:{name:"回復量ダウン（-50%）", turns:2} }) },
+      special: defaultAllySkill("釘打ち", 3, 1, 1, 1, false, "none", "hasCT", 30, 0, false, false, false,
+        { selfBuff:{name:"速度アップ（+20%）", turns:2, speedModPct:20}, targetEffect:{name:"燃焼", turns:2, dot:true}, burstSelfCtReduceTurns:2, brokenNutGainOnUse:1 }),
+      ultimate: defaultAllySkill("ネジ破壊", 4, 2, 1, 1, false, "none", "hasCT", 30, 0, false, false, false,
+        { selfBuff:{name:"攻撃力アップ（+30%）", turns:2}, targetEffect:{name:"回復量ダウン（-50%）", turns:2}, brokenNutGainOnUse:1 }) },
     "charle": { name:"シャルル", speed:104, toughnessMax:3, evasionRatePct:0, attribute:"太陽", role:"ストライカー", passiveNote:"攻撃力+15%(3凸)。究極使用後、基本スキルのダメージ+10%スタック(最大3、ダメージ計算対象外のため本ツールでは未実装)。特殊はバースト強化時、自身の強靭度+1回復(本ツール未実装)",
       basic: defaultAllySkill("正直な突き", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, atkPct:65 }),
       special: defaultAllySkill("勝利の誓い", 4, 0, 0, 1, true, "none", "hasCT", 0, 0, false, true, false, { targetEffect:[{name:"会心率アップ", turns:2}, {name:"攻撃力アップ（100%付与）", turns:1}] }),
@@ -874,8 +884,8 @@ function allyPreset(key){
       basic: defaultAllySkill("ドカーン工具", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, atkPct:65 }),
       special: defaultAllySkill("バンバン電動ノコギリ", 3, 1, 1, 1, false, "none", "hasCT", 30, 0, false, false, false, { teamBuff:{name:"会心率アップ（+30%）", turns:1}, atkPct:90, burstDamagePct:20 }),
       ultimate: defaultAllySkill("ガンガンバンカー", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"攻撃力アップ（+30%）", turns:2, atkModPct:30}, atkPct:115 }) },
-    "kira": { name:"キラ", speed:90, toughnessMax:3, evasionRatePct:0, attribute:"太陽", role:"アサシン", passiveNote:"攻撃力+15%(3凸)。スキル使用時、自分が潜伏状態ならダメ+10%(3凸、本ツール未実装)。基本スキル使用後、点火スタックが最大なら全消費して自身に1ターン潜伏付与(未実装)。基本スキルはバースト強化時のみ、攻撃後1ターン潜伏を発動(実装済み：selfBuff+burstOnlySelfBuff)。特殊は潜伏中のみ敵ゲージ-30%・沈黙状態の敵へダメ+30%(いずれも条件付きのため本ツールでは自動判定できない。ゲージ-30%は行動フォームの「対象の行動ゲージ減少効果を適用する」チェックボックスで、潜伏中かどうかを見てプレイヤーが手動でON/OFFする)",
-      basic: defaultAllySkill("非日常的な挨拶", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, atkPct:65, selfBuff:{name:"潜伏", turns:1}, burstOnlySelfBuff:true }),
+    "kira": { name:"キラ", speed:90, toughnessMax:3, evasionRatePct:0, attribute:"太陽", role:"アサシン", passiveNote:"攻撃力+15%(3凸)。スキル使用時、自分が潜伏状態ならダメ+10%(3凸、本ツール未実装)。基本スキル使用後、点火スタックが最大なら全消費して自身に1ターン潜伏付与(実装済み：selfBuffIfStackMaxAfterAction。この行動自身のスタック増加分も含めた『行動後』の値で判定する。スマイル・バニークレアと同じ考え方)。基本スキルはバースト強化時のみ、攻撃後1ターン潜伏を発動(実装済み：selfBuff+burstOnlySelfBuff)。特殊は潜伏中のみ敵ゲージ-30%・沈黙状態の敵へダメ+30%(いずれも条件付きのため本ツールでは自動判定できない。ゲージ-30%は行動フォームの「対象の行動ゲージ減少効果を適用する」チェックボックスで、潜伏中かどうかを見てプレイヤーが手動でON/OFFする)",
+      basic: defaultAllySkill("非日常的な挨拶", 0, 0, 1, 0, false, "none", "hasCT", 0, 0, false, false, false, { selfStackGain:1, atkPct:65, selfBuff:{name:"潜伏", turns:1}, burstOnlySelfBuff:true, selfBuffIfStackMaxAfterAction:{name:"潜伏", turns:1} }),
       special: defaultAllySkill("沈黙の代償", 3, 1, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"攻撃力アップ（+30%）", turns:2, atkModPct:30}, selfStackGain:2, enemyGaugeReductionPct:30, atkPct:90 }),
       ultimate: defaultAllySkill("歪んだ関心", 4, 2, 1, 1, false, "none", "hasCT", 0, 0, false, false, false, { selfBuff:{name:"潜伏", turns:2}, selfStackGain:2, targetEffect:[{name:"攻撃力ダウン（-30%）", turns:2}, {name:"沈黙", turns:1}], atkPct:115 }) },
     "belriese": { name:"ベル・リース", speed:112, toughnessMax:3, evasionRatePct:0, attribute:"星", role:"レンジャー", passiveNote:"攻撃力+15%(3凸)。自身を除く味方または敵が戦闘不能になるたびに自身の行動ゲージ+50%(3凸)・攻撃力+10%スタック(最大3)。基本のノヴァバーストで敵に命中率ダウン付与。究極は敵の強化効果を全解除(本ツール未実装)・跳躍スタック最大でダメ+30%(未実装)",
@@ -1009,7 +1019,7 @@ function bossPreset(key){
       reactsToSpecialOrUltimateHit:{ctReduceAllAlliesSkills:1},
       echoStackName:"偏愛の残響（解除不可）", crackDebuffName:"心象亀裂（解除不可）",
       residueStackName:"残滓の乖離（解除不可）", residueStackMax:3,
-      passiveNote:"戦闘開始時、自身の行動ゲージを100%増加させ、審判（究極）のCTが回復した状態で戦闘を開始する（実装済み：battleStartGaugeGainPct、battleStartUltimateReady）。攻撃を受けた際、自身が弱体化状態であれば自身のゲージ+20%（実装済み：gaugeGainOnHitIfSelfDebuffed）。／特殊または究極の攻撃を受けた際、自身が偏愛の残響状態なら偏愛の残響を1消費。消費できない（0の）場合、まだ心象亀裂状態でなければ心象亀裂を発生させ、味方全体（＝乖離から見た敵全体）の全スキルのCTを1短縮する（実装済み：reactsToSpecialOrUltimateHit、useAllySkill・fireTrigger両方の被弾処理で判定）。／偏愛の残響（解除不可・バフ）：7スタックからスタートし、特殊・究極を受けるたび1ずつ減少。／心象亀裂（解除不可・デバフ）：特殊・究極の被ダメージが120%上昇（本ツールはダメージ計算非対応のため注記のみ、状態の記録は実装済み）。／残滓の乖離（解除不可・バフ、最大3）：自身が偏愛の残響状態で基本スキル（断罪）を使うたび+1（実装済み：selfStackGainIfHasEcho）。3スタックの状態で攻撃した時に特殊（消去）のトリガー条件を満たす仕様だが、本ツールは敵側の自動トリガー候補提示機構を持たないため、3スタック到達をプレイヤーが確認した上で特殊ボタンを手動発動する運用とする（要手動判断）",
+      passiveNote:"戦闘開始時、自身の行動ゲージを100%増加させ、審判（究極）のCTが回復した状態で戦闘を開始する（実装済み：battleStartGaugeGainPct、battleStartUltimateReady）。基本スキルによる攻撃を受けた際、自身が弱体化状態であれば自身のゲージ+20%（実装済み：gaugeGainOnHitIfSelfDebuffed。特殊・究極を受けた時は対象外）。／特殊または究極の攻撃を受けた際、自身が偏愛の残響状態なら偏愛の残響を1消費。消費できない（0の）場合、まだ心象亀裂状態でなければ心象亀裂を発生させ、味方全体（＝乖離から見た敵全体）の全スキルのCTを1短縮する（実装済み：reactsToSpecialOrUltimateHit、useAllySkill・fireTrigger両方の被弾処理で判定）。／偏愛の残響（解除不可・バフ）：7スタックからスタートし、特殊・究極を受けるたび1ずつ減少。／心象亀裂（解除不可・デバフ）：特殊・究極の被ダメージが120%上昇（本ツールはダメージ計算非対応のため注記のみ、状態の記録は実装済み）。／残滓の乖離（解除不可・バフ、最大3）：自身が偏愛の残響状態で基本スキル（断罪）を使うたび+1（実装済み：selfStackGainIfHasEcho）。3スタックの状態で攻撃した時に特殊（消去）のトリガー条件を満たす仕様だが、本ツールは敵側の自動トリガー候補提示機構を持たないため、3スタック到達をプレイヤーが確認した上で特殊ボタンを手動発動する運用とする（要手動判断）",
       basic: defaultEnemySkill("断罪", 0, "強靭削り不明(未確認・要調整)／100%で敵の行動ゲージ-20%／自身が偏愛の残響状態なら自身に残滓の乖離+1", "single", 0, null, null, null, false, 20, null,
         { selfStackGainIfHasEcho:1 }),
       special: defaultEnemySkill("消去", 0, "強靭削り不明(未確認・要調整)／トリガースキル：自身の残滓の乖離が3スタックの状態で攻撃した時、行動ゲージ最高の敵に発動（本ツールでは手動発動・対象は手動選択）／対象に100%で調律湾曲(解除不可・効果耐性/免疫無視・必中、速度と防御-50%)を発生させ、特殊・究極CTを1ターン延長した後、行動ゲージを0にリセット", "single", 0, null, null,
@@ -1096,8 +1106,8 @@ function renderAllySetup(){
   allies.forEach((a, idx)=>{
     const card = document.createElement("div");
     card.className = "unit-card";
-    const relicChecks = ["EX","AX","DANRYOKU","GX","SMILE_ARCANA","LUNA_ARCANA","CAUTIOUS_TACTICS","CARMEN_ARCANA"].map(key=>{
-      const labelText = key==="DANRYOKU" ? "弾力・加速" : key==="SMILE_ARCANA" ? "スマイル専用" : key==="LUNA_ARCANA" ? "水着ルナ専用" : key==="CAUTIOUS_TACTICS" ? "慎重な戦術" : key==="CARMEN_ARCANA" ? "愛の行進（カルメン専用）" : key;
+    const relicChecks = ["EX","AX","DANRYOKU","GX","SMILE_ARCANA","LUNA_ARCANA","CAUTIOUS_TACTICS","CARMEN_ARCANA","XX1GOU"].map(key=>{
+      const labelText = key==="DANRYOKU" ? "弾力・加速" : key==="SMILE_ARCANA" ? "スマイル専用" : key==="LUNA_ARCANA" ? "水着ルナ専用" : key==="CAUTIOUS_TACTICS" ? "慎重な戦術" : key==="CARMEN_ARCANA" ? "愛の行進（カルメン専用）" : key==="XX1GOU" ? "XX1号（確率反撃）" : key;
       return `<label style="display:flex; align-items:center; gap:3px; font-size:12px;">
         <input type="checkbox" ${a.relics&&a.relics[key]?"checked":""} onchange="allies[${idx}].relics=allies[${idx}].relics||{}; allies[${idx}].relics.${key}=this.checked; renderAllySetup();"> ${labelText}
       </label>`;
@@ -1380,12 +1390,12 @@ renderEnvBuffSetup();
 renderSpeedCompareTool();
 
 // ===================== 動作確認済みステータス（配布用：ユーザー自身が実際にプレイして確認した内容。都度更新） =====================
-const TOOL_VERSION = "v0.3.0";
+const TOOL_VERSION = "v0.4.1";
 document.getElementById("versionBadge").textContent = TOOL_VERSION;
 const VERIFIED_STATUS = {
   lastUpdated: "2026-08-11",
   bosses: ["デモライギス：アルファ", "デモライギス：ベータ", "不死王モグルス", "オルトロス", "乖離"],
-  characters: ["ドレスアセラ", "セイラ", "バニーシャルル", "ティリア", "水着スマイル", "ロベルタ", "フェイ", "バニースカーレット", "エミリー", "キラ", "花嫁カルメン", "トリッシュ", "カネリア", "クラリッサ",
+  characters: ["ドレスアセラ", "セイラ", "バニーシャルル", "ティリア", "水着スマイル", "ロベルタ", "フェイ", "バニースカーレット", "エミリー", "キラ", "花嫁カルメン", "トリッシュ", "カネリア", "クラリッサ", "マルシル", "バニークレア",
     { name:"ベスタ", caution:"全体攻撃被弾時40%で「撃退」トリガー反撃は確認済み。ただし被弾後・跳躍最大時の2Tバリア発生は本ツール未実装" }
   ]
 };
@@ -1474,7 +1484,18 @@ const DATED_LOG = [
   { date:"2026-08-11", version:"v0.2.53", text:"①カネリアの「漆黒の残響」がターン終了時ではなく、汎用のバフ経過処理（本人の次の自ターン開始時に-1）に乗っていたため、トリガー判定より先に消えてしまう不具合を修正。新規フラグdecrementAtOwnTurnEndを新設し、汎用処理から除外したうえでfinalizeActionChain（本人の行動チェーンが完了した直後）で明示的に-1するよう変更。さらに調査の過程で、afterOwnトリガーは『基本スキル使用後のみ』が既定仕様であり、firesAfterAnyOwnAttack:trueを明示しないと特殊・究極使用後は無条件で候補ゼロ扱いになる（＝カネリアの特殊が発動条件を満たしていても再発動候補に出ない）別の不具合も発見・修正した（カネリアの特殊にfiresAfterAnyOwnAttack:trueを追加）。②乖離の特殊「消去」が、残滓の乖離が最大スタックで基本攻撃しても自動的にトリガー候補として提示されない不具合を修正。本ツールには元々「敵側が自分の行動を条件に追加スキルを自動発動する」候補提示機構が存在しなかったため、新規にpendingEnemySelfTriggerという仕組みを新設（useEnemySkillで攻撃『前』の残滓の乖離スタック値を記録し、基本攻撃後にそれが最大値なら候補パネルを提示。被弾トリガーパネルの後・反撃トリガー確認パネルの後という位置に配置）。confirmEnemySelfTrigger()で確定すると通常のuseEnemySkillフローに合流し、対象は引き続きプレイヤーが手動選択する" },
   { date:"2026-08-11", version:"v0.2.54", text:"カネリアの特殊「導きの暁闇」・究極「乖離解放」の強靭削りが両方とも非バースト時0になっていた誤りを修正し、1に統一（バースト時+1で計2）。ノヴァフォースは両方とも元から1で正しかったため変更なし。キャラ詳細_カネリア.mdの記載も訂正" },
   { date:"2026-08-11", version:"v0.2.55", text:"乖離の究極「審判」のCTを4→5ターンに修正" },
-  { date:"2026-08-11", version:"v0.3.0", text:"ギーレの「昼の周期」「夜の周期」の表示区分をdebuff（赤系）からbuff（青系）に統一。以前は昼の周期のみdebuff扱いだった（効果耐性0固定＝デバフが入りやすいという性質から弱体化寄りと判断していたが、実際はギーレ自身のバフ扱いとのこと）。バージョンをv0.3.0に更新。動作確認済みリスト（VERIFIED_STATUS）にボス：乖離、キャラ：トリッシュ・カネリア・クラリッサを追加" }
+  { date:"2026-08-11", version:"v0.3.0", text:"ギーレの「昼の周期」「夜の周期」の表示区分をdebuff（赤系）からbuff（青系）に統一。以前は昼の周期のみdebuff扱いだった（効果耐性0固定＝デバフが入りやすいという性質から弱体化寄りと判断していたが、実際はギーレ自身のバフ扱いとのこと）。バージョンをv0.3.0に更新。動作確認済みリスト（VERIFIED_STATUS）にボス：乖離、キャラ：トリッシュ・カネリア・クラリッサを追加" },
+  { date:"2026-08-11", version:"v0.3.1", text:"弱体化（type:\"debuff\"）全般のターン経過タイミングを、本人のターン開始時から本人のターン終了時に修正（構造変更）。以前は汎用処理で「本人の次の自ターン開始時」に一律-1していたため、例えばギーレの特殊で付与された沈黙が、対象の自ターンが来た瞬間（行動する前）に消えてしまい、本来ターン終了まで残り続けるべき状態異常が短くなってしまう不具合があった。openActionFor側の汎用処理からtype:\"debuff\"を除外し、finalizeActionChain（味方）・useEnemySkill末尾（敵）の『本人の行動チェーンが完了した直後』でdecrementOwnTurnEndBuffsにより明示的に-1するよう変更。第十の課業（専用ロジックのため引き続き除外）・permanent:trueのデバフ（周期戒律・心象亀裂等、解除不可で単純減少しないもの）はこれまで通り対象外。35味方・8ボス全件で「ターン開始直後は減らず、行動後に-1される」ことを回帰確認した" },
+  { date:"2026-08-11", version:"v0.3.2", text:"マルシルの特殊「釘打ち」のバースト強化時「自身のCTが2ターン短縮される」効果が未実装だったのを実装。新規フィールドburstSelfCtReduceTurnsを新設し、useAllySkill・fireTriggerの両方でバースト強化時にCTセット直後追加で-2するよう対応" },
+  { date:"2026-08-11", version:"v0.3.3", text:"マルシルの固有パッシブ「槌と金床」（壊れたナット／ヘキサナット）をフル実装。①戦闘開始時・味方の誰かがブレイクを成功させた時に壊れたナット+2（新規フィールドbattleStartBrokenNutGain/gainsBrokenNutOnAnyAllyBreak。自分以外の味方のブレイクにも反応する点に注意し、useAllySkill・fireTriggerのbrokeAny確定後に全味方をチェックする形で実装）。②本人のターン開始時、壊れたナットが最大（3）ならヘキサナットを付与し壊れたナットを全解除（openActionForに実装、ギーレの周期戒律と同じ「本人のターン開始時に処理」パターン）。③特殊・究極の「会心が発生した場合、自身ゲージ+30%・壊れたナット+1」を、本ツールの会心発生前提の方針に従い常時適用として実装（新規フィールドbrokenNutGainOnUse）。スナップショット表に壊れたナットのスタック表示（🔩）も追加。会心ダメージ+3%×点火スタック等のダメージ計算系効果は引き続き非対応" },
+  { date:"2026-08-11", version:"v0.3.4", text:"①スマイルの特殊「猫のタップダンス」（跳躍最大時のafterOwnトリガー）に、トリガー候補として提示する判定（triggerRequiresSelfStackMax）は実装済みだったが、実際に発動した際にスタックを消費する処理（consumeStackOnlyIfMax）が抜けていたのを修正。②新規潜在「XX1号」を追加：攻撃を受けた時、一定確率（20%か25%）で基本スキルによる反撃が発生する潜在。本ツールは確率判定を行わず、被弾時に反撃候補として提示しプレイヤーが都度発動有無を判断する仕様で実装。基本スキル自体のtriggerTypeは通常「none」のため、computeOffersにこの潜在専用のバイパス条件（isRelicCounterMatch）を追加し、対象本人が単体攻撃を受けEVADEしていない場合のみ基本スキルを候補として特別に扱うようにした。潜在チェックボックス一覧にXX1GOU（XX1号（確率反撃））を追加" },
+  { date:"2026-08-11", version:"v0.3.5", text:"バニークレアをキャラ詳細ドキュメントと突き合わせ、特殊「どこを見ているのですか？」の強靭削り（0→1）・バーストポイント付与数（1→0、ノヴァフォースは究極のみ）を修正。あわせてドキュメントに明記されていながら未実装だった特殊の「行動ゲージ+30%」（selfGaugeGain:30）、および「自身の冷却が最大スタックの場合、全て消費して発動」（consumeStackOnlyIfMax、スマイルと同じ抜けパターン）も実装した。究極（強靭2・ノヴァ1）は元から正しい値のため変更なし" },
+  { date:"2026-08-11", version:"v0.3.6", text:"潜在「XX1号」の反撃トリガー候補が、EVADE成立時に除外されてしまう誤りを修正。この潜在は「攻撃を受けた時」に発動する仕様であり、EVADE成立・不成立にかかわらず候補として提示すべきところ、実装時に誤ってEVADE不成立限定の条件を入れてしまっていた（花嫁カルメンの守護の騎士で過去に踏んだのと同じ勘違いパターン）。該当の除外条件を削除" },
+  { date:"2026-08-11", version:"v0.3.7", text:"スマイル「猫のタップダンス」・バニークレア「どこを見ているのですか？」のafterOwnトリガー判定を、攻撃『前』のスタック値判定（triggerRequiresSelfStackMax）から攻撃『後』のスタック値判定（新設のtriggerRequiresSelfStackMaxAfterAction）に変更。両キャラとも「基本スキルでスタックが増え、その結果として最大に達したケースも含めて発動する」仕様であり、これまで使っていた「攻撃前から最大でないと発動しない」判定（v0.2.26でキラ等向けに確立したロジック）とは逆の挙動が必要だった。既存のtriggerRequiresSelfStackMax（攻撃前判定）はキラ等の他キャラ向けにそのまま維持し、新フィールドを追加する形で両立させた" },
+  { date:"2026-08-11", version:"v0.3.8", text:"キラの「基本スキル使用後、点火スタックが最大なら全消費して自身に1ターン潜伏付与」が未実装だったのを実装。この効果は特殊スキルを別枠で発動するafterOwnトリガー形式ではなく、基本スキル自身の解決処理内で完結する効果のため、新規フィールドselfBuffIfStackMaxAfterActionを新設し、useAllySkill・fireTriggerの両方でスタック増加処理の直後（＝行動後の値）に判定するようにした。スマイル・バニークレアと同じく「行動自身によるスタック増加分も含めた行動後の値」で判定する" },
+  { date:"2026-08-11", version:"v0.3.9", text:"潜在「XX1号」の反撃トリガー候補が、全体攻撃で狙われた場合に出ない不具合を修正。isRelicCounterMatchの判定がtargetType===\"single\"限定になっていたため、targetType===\"all\"（全体攻撃）でも候補に出るよう条件を拡張した。単体攻撃時と同様、EVADE成立・不成立は問わない" },
+  { date:"2026-08-11", version:"v0.4.0", text:"潜在「XX1号」の反撃トリガー候補が、発動・キャンセルしても消えず何度も再表示される不具合を修正。原因は、被弾トリガー確認パネル（pendingTriggerContext、targetType:single/all）が複数候補をまとめて扱う仕様上、1つ発動してもパネル自体は維持され続ける設計になっているのに対し、XX1号の候補はbasicのCT/onceUsedによる通常の『発動済み判定』を意図的にバイパスしていたため、このスキル自体には『このヒットに対してもう発動済み』を記録する手段が存在しなかったこと。u.onceUsed.xx1gouCounterという専用フラグを新設し、発動確定時（confirmTriggerFire）に立てる形で解決した。このフラグは既存のonceUsedリセット処理（新しい行動が始まるたび全ユニット分リセット）にそのまま乗るため、次のヒットでは正しく再度候補に出る。openTriggerFireForm/pendingTriggerFire/confirmTriggerFireにisRelicCounterフラグを追加してoffers側からこの情報を橋渡しした。あわせてEXの遺物についても同様の症状が報告されたが、単体の再現テストでは確認できなかった（EX自体はpendingExCheckを発動確定時に正しくクリアしており、別経路の問題の可能性がある）" },
+  { date:"2026-08-11", version:"v0.4.1", text:"乖離の「攻撃を受けた際、自身が弱体化状態であれば自身のゲージ+20%」を、基本スキルによる攻撃を受けた場合限定に修正（特殊・究極の被弾時は対象外）。useAllySkill・fireTrigger両方の被弾処理にskillKey===\"basic\"の条件を追加" }
 ];
 
 // ===================== 更新履歴 =====================
@@ -1613,6 +1634,12 @@ function startBattle(){
       passiveNote: a.passiveNote || "",
       effectiveAtk: (a.effectiveAtk!=null && a.effectiveAtk!=="") ? Number(a.effectiveAtk) : null,
       critDmgPct: a.critDmgPct!=null ? Number(a.critDmgPct) : 50,
+      brokenNutStackName: a.brokenNutStackName || null,
+      brokenNutMax: a.brokenNutMax || 0,
+      brokenNutStacks: 0,
+      hexanutBuffName: a.hexanutBuffName || null,
+      battleStartBrokenNutGain: a.battleStartBrokenNutGain || 0,
+      gainsBrokenNutOnAnyAllyBreak: a.gainsBrokenNutOnAnyAllyBreak || 0,
       skills:{ basic: {...a.basic}, special:{...a.special}, ultimate:{...a.ultimate} },
       ct:{ special:0, ultimate: ultimateDelayTurns },
       onceUsed:{ basic:false, special:false, ultimate:false },
@@ -1747,6 +1774,11 @@ function startBattle(){
     ally.battleStartSelfBuffs.forEach(b=>{
       applyBuffWithMaxDuration(ally.buffs, {name:b.name, turns:b.turns, type:"buff", speedModPct:b.speedModPct||0, atkModPct:b.atkModPct||0, critDmgModPct:b.critDmgModPct||0, decrementAtOwnTurnEnd:!!b.decrementAtOwnTurnEnd});
     });
+  });
+
+  // マルシル「槌と金床」：戦闘開始時、自身に壊れたナットを指定数発生させる
+  units.filter(x=>x.kind==="ally" && x.battleStartBrokenNutGain>0).forEach(ally=>{
+    ally.brokenNutStacks = Math.min(ally.brokenNutMax||99, (ally.brokenNutStacks||0) + ally.battleStartBrokenNutGain);
   });
 
   // 戦闘開始時、水着ルナ専用アルカナ（ディフェンダー専用）を持つ味方は、自身のみに2ターンバリアを付与
@@ -1921,20 +1953,28 @@ function openActionFor(unitId, arrivalType){
   const isExtraTurnWithinSameTurn = (arrivalType||"").startsWith("追加ターン");
   if(!isExtraTurnWithinSameTurn){
     // 第十の課業は汎用の自動減少から除外し、専用ロジック（applyTenthLaborTurnGimmick、行動確定時に呼び出し）だけで
-    // 増減・解除を完結させる。理由：この汎用処理は「本人の次の自ターン開始時」に減少させるため、
-    // 1ターンで付与される第十の課業をここで先に0まで減らして消してしまうと、
-    // 同じ行動内で単体攻撃による+1相殺が判定される前にデバフ自体が消滅してしまう不具合が発生するため
+    // 増減・解除を完結させる（理由は下記の通り、attack判定と絡む特殊なタイミング要件があるため）。
     // permanent:true の状態（例：花嫁カルメンの「愛の誓約（解除不可）」）は、ターン経過による自動減少・消滅の対象外
     // decrementOnAnyTurn:true の状態（例：鉄血の鱗甲）は「本人の自ターン」ではなく「誰かのターンが開始するたび」に
     // 全ユニット分を対象として減らす専用ループ（下のspeedZeroLockと同じ場所）で処理するため、ここでは除外する
-    // decrementAtOwnTurnEnd:true の状態（例：カネリアの「漆黒の残響」）は、本人の自ターン開始時ではなく
-    // 「本人の自ターンの行動が終わった直後」に専用ロジック（decrementOwnTurnEndBuffs）で減らすため、ここでは除外する
-    u.buffs = u.buffs.map(b=> (b.speedZeroLock || b.permanent || b.decrementOnAnyTurn || b.decrementAtOwnTurnEnd || (b.name && b.name.includes("第十の課業"))) ? b : ({...b, turns:b.turns-1}))
-                     .filter(b=> b.speedZeroLock || b.permanent || b.decrementOnAnyTurn || b.decrementAtOwnTurnEnd || (b.name && b.name.includes("第十の課業")) || b.turns>0);
+    // type==="debuff" の状態（例：第十の課業以外の弱体化全般）は「本人のターン開始時」ではなく「本人のターン終了時」に
+    // 減少するのが正しい仕様のため、ここでは除外し、finalizeActionChain内のdecrementOwnTurnEndBuffsで処理する
+    // （以前はここでバフ・デバフ問わず一律に「本人の次の自ターン開始時」に減らしていたため、
+    // 　例えばギーレの沈黙のように本人のターン終了時まで残るべきデバフが、そのターンが来る前に消えてしまう不具合があった）
+    u.buffs = u.buffs.map(b=> (b.type==="debuff" || b.speedZeroLock || b.permanent || b.decrementOnAnyTurn || b.decrementAtOwnTurnEnd || (b.name && b.name.includes("第十の課業"))) ? b : ({...b, turns:b.turns-1}))
+                     .filter(b=> b.type==="debuff" || b.speedZeroLock || b.permanent || b.decrementOnAnyTurn || b.decrementAtOwnTurnEnd || (b.name && b.name.includes("第十の課業")) || b.turns>0);
     // ギーレ「厳重な戒律」：自身の周期戒律スタックは、本人のターン開始時にすべて解除される
     if(u.cyclePreceptName){
       const removedCount = u.buffs.filter(b=>b.name===u.cyclePreceptName).length;
       if(removedCount>0){ u.buffs = u.buffs.filter(b=>b.name!==u.cyclePreceptName); }
+    }
+    // マルシル「槌と金床」：本人のターン開始時、自身の壊れたナットが最大スタックであれば、
+    // 自身にヘキサナットを発生させ、壊れたナットをすべて解除する
+    if(u.brokenNutStackName && u.brokenNutMax>0 && (u.brokenNutStacks||0) >= u.brokenNutMax){
+      u.brokenNutStacks = 0;
+      if(u.hexanutBuffName){
+        applyBuffWithMaxDuration(u.buffs, {name:u.hexanutBuffName, turns:9999, type:"buff", permanent:true});
+      }
     }
   }
   // ターン開始処理：CT概念なし系トリガー（1ターン1回制限）の使用済みフラグをリセット
@@ -2063,6 +2103,10 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
   if(burstOn){ state.teamBurst -= 4; }
   // stackMaxConsumedSkipCt: 点火等が最大スタックで全消費した場合はCTに入らない（バニーシャルルの究極等）
   if(skillKey!=="basic" && !stackMaxConsumedSkipCt){ u.ct[skillKey] = s.ct; }
+  // マルシルの特殊等、バースト強化時に自身のCTがそのぶん短縮される（次回使用時に早く使えるようになる）スキル
+  if(burstOn && s.burstSelfCtReduceTurns > 0 && skillKey!=="basic"){
+    u.ct[skillKey] = Math.max(0, u.ct[skillKey] - s.burstSelfCtReduceTurns);
+  }
   // 愛の行進（花嫁カルメン専用潜在）：特殊または究極スキル使用後、ノヴァフォース+2（basic以外）
   const carmenArcanaBurstBonus = (u.relics && u.relics.CARMEN_ARCANA && (skillKey==="special"||skillKey==="ultimate")) ? 2 : 0;
   state.teamBurst = Math.min(12, state.teamBurst + s.burstGain + carmenArcanaBurstBonus);
@@ -2164,8 +2208,8 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
           logAction(target, "被弾判定", `🌙 厳重な戒律：夜の周期のため究極CT-${react.ctReduce||0}・ゲージ+${react.gaugeGainPct||0}%`, "-", false, `残CT:${target.ct.ultimate}`);
         }
       }
-      // 乖離：攻撃を受けた際、自身が弱体化状態であれば自身のゲージ+20%
-      if(!isEvaded && target.gaugeGainOnHitIfSelfDebuffed && target.buffs.some(b=>b.type==="debuff")){
+      // 乖離：基本スキルによる攻撃を受けた際、自身が弱体化状態であれば自身のゲージ+20%（特殊・究極を受けた時は対象外）
+      if(!isEvaded && skillKey==="basic" && target.gaugeGainOnHitIfSelfDebuffed && target.buffs.some(b=>b.type==="debuff")){
         target.gauge = Math.min(100, target.gauge + target.gaugeGainOnHitIfSelfDebuffed);
         logAction(target, "被弾判定", `😰 自身が弱体化状態のためゲージ+${target.gaugeGainOnHitIfSelfDebuffed}%`, "-", false, "");
       }
@@ -2273,10 +2317,31 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       if(s.selfStackGain > 0){ u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0)+s.selfStackGain); stackMemo += `／自身${stackName}+${s.selfStackGain}(${u.elementStack}/${ELEMENT_STACK_MAX})`; }
     if(s.selfSenkohanabiGain > 0){ u.senkohanabiStacks = Math.min(3, (u.senkohanabiStacks||0) + s.selfSenkohanabiGain); stackMemo += `／自身線香花火+${s.selfSenkohanabiGain}(${u.senkohanabiStacks})`; }
       if((s.selfStackConsumeAll || stackMaxConsumedForExtraTurn || stackMaxConsumedNoExtraTurn || stackMaxConsumedSkipCt) && (u.elementStack||0)>0){ stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)${stackMaxConsumedSkipCt?"／スタック最大消費のためCTに入らない":""}`; u.elementStack = 0; }
+      // マルシル「会心が発生した場合、壊れたナット+1」（本ツールは会心発生前提のため常時適用）
+      if(s.brokenNutGainOnUse > 0 && u.brokenNutStackName){
+        u.brokenNutStacks = Math.min(u.brokenNutMax||99, (u.brokenNutStacks||0) + s.brokenNutGainOnUse);
+        stackMemo += `／自身${u.brokenNutStackName}+${s.brokenNutGainOnUse}(${u.brokenNutStacks}/${u.brokenNutMax||"-"})`;
+      }
+      // キラ「基本スキル使用後、点火スタックが最大なら全消費して自身に1ターン潜伏付与」
+      // ※このスキル自身によるスタック増加が反映された『後』の値で判定する（スマイル・バニークレアと同じ考え方）
+      if(s.selfBuffIfStackMaxAfterAction && (u.elementStack||0) >= ELEMENT_STACK_MAX){
+        const b = s.selfBuffIfStackMaxAfterAction;
+        u.elementStack = 0;
+        applyBuffWithMaxDuration(u.buffs, {name:b.name, turns:b.turns, type:"buff"});
+        stackMemo += `／${stackName}が最大に達したため全消費し、自身に${b.name}(${b.turns}T)を付与`;
+      }
     }
 
     // 第十の課業：全体攻撃なら解除、単体攻撃ならターン+1（自然減少と相殺）。EVADEでも「行動の種類」自体は成立しているため対象
     const tenthLaborMemo = applyTenthLaborTurnGimmick(u, s.target==="all");
+
+    // マルシル「槌と金床」：味方の誰かがブレイクを成功させた時、自身に壊れたナットを発生させる
+    // （攻撃したのが自分自身でも、他の味方でも、ブレイクが発生した時点で全員分チェックする）
+    if(brokeAny){
+      state.units.filter(x=>x.kind==="ally" && x.alive && (x.gainsBrokenNutOnAnyAllyBreak||0)>0).forEach(al=>{
+        al.brokenNutStacks = Math.min(al.brokenNutMax||99, (al.brokenNutStacks||0) + al.gainsBrokenNutOnAnyAllyBreak);
+      });
+    }
 
     logAction(u, state.pendingArrivalType, skillCategoryLabel(skillKey) + "：" + s.name + (burstOn&&!isEvaded?"（バースト）":"") + (isEvaded?"（EVADE）":""), String(toughnessDmgSum), brokeAny,
       `${perTargetMemo.join(" ｜ ")}${isEvaded?"／EVADE成立のため強靭ダメージ0・会心扱いなし":""}${hasAdvantageAny?"／属性有利+1":""}${(!isEvaded && (s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0))>0) ? `／自身ゲージ+${s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0)}%`:""}${burstOn?"／BP-4":""}${s.burstGain>0?`／BP+${s.burstGain}`:""}${carmenArcanaBurstBonus>0?`／愛の行進でBP+${carmenArcanaBurstBonus}`:""}（BP残${state.teamBurst}）${buffMemo}${stackMemo}${tenthLaborMemo}`);
@@ -2451,6 +2516,9 @@ function useEnemySkill(unitId, skillKey){
   ["special","ultimate"].forEach(k=>{
     if(u.ct[k]>0) u.ct[k] = Math.max(0, u.ct[k]-1);
   });
+  // 敵自身の弱体化（type==="debuff"）も、本人のターン終了時にここで-1する
+  // （味方側のfinalizeActionChainに相当する処理。useEnemySkillはfinalizeActionChainを経由しないため個別に必要）
+  decrementOwnTurnEndBuffs(u);
 
   if(s.target==="all"){
     state.pendingTriggerContext = { targetType:"selectHitAoe", evadeMap:{}, sourceUnitId: unitId, skillKey,
@@ -2511,18 +2579,23 @@ function applyTenthLaborTurnGimmick(u, isDispel){
   }
 }
 
-// decrementAtOwnTurnEnd:true が付いたバフ（例：カネリアの「漆黒の残響」）を、本人の行動が終わった直後に-1する。
-// ※通常の汎用バフ経過処理（本人の次の自ターン開始時に-1）だと、このターン中の自分の行動（トリガー発動条件チェック等）
-//   より先にバフが切れてしまい、同ターン中に条件を満たしているはずなのに無効判定になってしまう不具合が起きるため、
-//   この種のバフは汎用処理から除外し、行動確定のこのタイミングで明示的に-1する
+// decrementAtOwnTurnEnd:true が付いたバフ（例：カネリアの「漆黒の残響」）、および type==="debuff" の弱体化全般
+// （第十の課業等、専用ロジックを持つものを除く）を、本人の行動チェーンが完了した直後（＝本人のターン終了時）に-1する。
+// ※以前は汎用バフ経過処理で「本人の次の自ターン開始時」に一律減少させていたため、
+//   ①このターン中の自分の行動（トリガー発動条件チェック等）より先にバフが切れてしまう不具合（漆黒の残響等）
+//   ②本人のターンが終わってもいないのに、次に自分の番が回ってくるまでデバフが残り続けてしまい、
+//     逆に「本人のターン終了時に切れるべきデバフ」（沈黙等）が、そのターンの間ずっと有効なままになってしまう不具合
+//   の両方が起きていた。debuff全般をこちらに統一することで解消する
 function decrementOwnTurnEndBuffs(u){
   if(!u || !u.buffs) return "";
   let memo = "";
+  const shouldDecay = b=> b.decrementAtOwnTurnEnd
+    || (b.type==="debuff" && !b.permanent && !b.speedZeroLock && !b.decrementOnAnyTurn && !(b.name && b.name.includes("第十の課業")));
   u.buffs = u.buffs.map(b=>{
-    if(!b.decrementAtOwnTurnEnd) return b;
+    if(!shouldDecay(b)) return b;
     return {...b, turns: b.turns - 1};
   }).filter(b=>{
-    if(!b.decrementAtOwnTurnEnd) return true;
+    if(!shouldDecay(b)) return true;
     if(b.turns<=0){ memo += `／自身の${b.name}がターン終了により消滅`; return false; }
     return true;
   });
@@ -2582,11 +2655,20 @@ function computeOffers(targetType, ctx){
       // 花嫁カルメン等「戦闘開始時に指定した特定の味方が単体攻撃を受けた時」に発動する対象指定型トリガー
       // （行動主体u自身が被弾したわけではなく、u.guardTargetIdで指定された別の味方が被弾した場合に発動する）
       const isGuardedAllyMatch = targetType==="single" && s.triggerType==="guardedAlly" && u.guardTargetId && u.guardTargetId===ctx.hitAllyId;
-      if(!isGuardedAllyMatch){
+      // XX1号（潜在）：攻撃を受けた時、一定確率で基本スキルによる反撃が発生する。基本スキル自体のtriggerTypeは
+      // 通常"none"のため、この潜在を持つ本人が単体攻撃を受けた場合に限り、基本スキルを候補として特別に扱う
+      // （実際に反撃したかどうかは確率依存のためプレイヤーが都度判断する）。全体攻撃で狙われた場合も対象
+      // ※このパネル自体は複数の味方の反撃候補をまとめて出す都合上、発動後もpendingTriggerContextを維持し続ける仕様のため、
+      //   1回のヒットにつき1回だけ候補に出すよう、発動済みかどうかをonceUsedで管理する（さもないと同じ候補が消えず残り続ける）
+      const isRelicCounterMatch = key==="basic" && u.relics && u.relics.XX1GOU
+        && ((targetType==="single" && u.id===ctx.hitAllyId) || targetType==="all")
+        && !(u.onceUsed && u.onceUsed.xx1gouCounter);
+      if(!isGuardedAllyMatch && !isRelicCounterMatch){
         if((targetType==="single" || targetType==="afterOwn") && u.id!==ctx.hitAllyId) return;
         if(!matchTypes.includes(s.triggerType)) return;
       }
-      if(!skillTriggerAvailable(u,key)) return;
+      if(!isRelicCounterMatch && !skillTriggerAvailable(u,key)) return;
+      if(isRelicCounterMatch && u.kind==="ally" && u.broken) return; // 味方はブレイク中トリガー不可（通常ルールと統一）
       if(s.triggerRequiresSelfBuffName && !hasBuffNamed(u, s.triggerRequiresSelfBuffName)) return;
       if(s.triggerRequiresEnemyStackName){
         const lastTarget = state.units.find(x=>x.id===u.lastBasicTargetId);
@@ -2597,13 +2679,18 @@ function computeOffers(targetType, ctx){
         const preActionStack = (u._preActionElementStackSnapshot!=null) ? u._preActionElementStackSnapshot : (u.elementStack||0);
         if(preActionStack < ELEMENT_STACK_MAX) return;
       }
+      if(s.triggerRequiresSelfStackMaxAfterAction){
+        // スマイル・バニークレア等：この行動自体によるスタック増加が反映された「後」の値（＝現在値）で判定する
+        if((u.elementStack||0) < ELEMENT_STACK_MAX) return;
+      }
       if(s.requiresEvade){
         if(targetType==="single" && !ctx.hitEvaded) return;
         if(targetType==="all" && !(ctx.evadeMap && ctx.evadeMap[u.id])) return;
       }
+      // XX1号は「攻撃を受けた時」に発動する仕様のため、EVADE成立時（攻撃自体を回避した場合）でも候補から除外しない
       // 花嫁カルメンの守護の騎士は「対象が単体攻撃を受けた（＝狙われた）時」に発動する仕様のため、
       // 対象がEVADEに成功していても候補から除外しない（EVADE不成立時限定にしていたのは誤りだった）
-      offers.push({allyId:u.id, allyName:u.name, key, skillName:s.name, guardedAlly:isGuardedAllyMatch});
+      offers.push({allyId:u.id, allyName:u.name, key, skillName:s.name, guardedAlly:isGuardedAllyMatch, relicCounter:isRelicCounterMatch});
     });
   });
   return offers;
@@ -3083,7 +3170,7 @@ function confirmAoeEvade(){
   renderBattle();
 }
 
-function openTriggerFireForm(allyId, key, presetAllyTargetId){
+function openTriggerFireForm(allyId, key, presetAllyTargetId, isRelicCounter){
   const u = state.units.find(x=>x.id===allyId);
   const s = u && u.skills[key];
   if(s && s.targetsAlly && presetAllyTargetId){
@@ -3092,7 +3179,7 @@ function openTriggerFireForm(allyId, key, presetAllyTargetId){
     fireTrigger(allyId, key, presetAllyTargetId, false, false);
     return;
   }
-  state.pendingTriggerFire = {allyId, key};
+  state.pendingTriggerFire = {allyId, key, isRelicCounter: !!isRelicCounter};
   renderBattle();
 }
 
@@ -3106,11 +3193,18 @@ function confirmTriggerFire(){
   const evadeToggle = document.getElementById("triggerEvadeToggle");
   const gaugeReduceToggle = document.getElementById("triggerGaugeReduceToggle");
   if(!state.pendingTriggerFire) return;
-  const { allyId, key } = state.pendingTriggerFire;
+  const { allyId, key, isRelicCounter } = state.pendingTriggerFire;
   const targetId = targetSelect ? targetSelect.value : null;
   const evaded = evadeToggle ? evadeToggle.checked : false;
   const applyGaugeReduction = gaugeReduceToggle ? gaugeReduceToggle.checked : true;
   state.pendingTriggerFire = null;
+  // XX1号：このヒットに対しては1回だけ候補に出すため、発動確定時点でonceUsedフラグを立てる
+  // （このパネル自体はpendingTriggerContextを維持したまま複数候補をまとめて処理する仕様のため、
+  //   このフラグがないと同じ候補が消えずに残り続けてしまう）
+  if(isRelicCounter){
+    const u = state.units.find(x=>x.id===allyId);
+    if(u){ u.onceUsed = u.onceUsed || {}; u.onceUsed.xx1gouCounter = true; }
+  }
   fireTrigger(allyId, key, targetId, false, evaded, applyGaugeReduction);
 }
 
@@ -3158,6 +3252,10 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
     if(!evaded && s.selfCtReduceOnCritTrigger && skillKey!=="basic" && u.ct[skillKey]>0){
       u.ct[skillKey] = Math.max(0, u.ct[skillKey] - 1);
     }
+    // マルシルの特殊等、バースト強化時に自身のCTがそのぶん短縮される（次回使用時に早く使えるようになる）スキル
+    if(burstOn && s.burstSelfCtReduceTurns > 0 && skillKey!=="basic"){
+      u.ct[skillKey] = Math.max(0, u.ct[skillKey] - s.burstSelfCtReduceTurns);
+    }
   } else {
     if(u.onceUsed) u.onceUsed[skillKey] = true;
   }
@@ -3203,8 +3301,8 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
         logAction(target, "被弾判定", `🌙 厳重な戒律：夜の周期のため究極CT-${react.ctReduce||0}・ゲージ+${react.gaugeGainPct||0}%`, "-", false, `残CT:${target.ct.ultimate}`);
       }
     }
-    // 乖離：攻撃を受けた際、自身が弱体化状態であれば自身のゲージ+20%
-    if(!evaded && !s.targetsAlly && target.gaugeGainOnHitIfSelfDebuffed && target.buffs.some(b=>b.type==="debuff")){
+    // 乖離：基本スキルによる攻撃を受けた際、自身が弱体化状態であれば自身のゲージ+20%（特殊・究極を受けた時は対象外）
+    if(!evaded && !s.targetsAlly && skillKey==="basic" && target.gaugeGainOnHitIfSelfDebuffed && target.buffs.some(b=>b.type==="debuff")){
       target.gauge = Math.min(100, target.gauge + target.gaugeGainOnHitIfSelfDebuffed);
       logAction(target, "被弾判定", `😰 自身が弱体化状態のためゲージ+${target.gaugeGainOnHitIfSelfDebuffed}%`, "-", false, "");
     }
@@ -3308,10 +3406,29 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
       stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)${stackMaxConsumedSkipCt?"／スタック最大消費のためCTに入らない":""}`;
       u.elementStack = 0;
     }
+    // マルシル「会心が発生した場合、壊れたナット+1」（本ツールは会心発生前提のため常時適用）
+    if(s.brokenNutGainOnUse > 0 && u.brokenNutStackName){
+      u.brokenNutStacks = Math.min(u.brokenNutMax||99, (u.brokenNutStacks||0) + s.brokenNutGainOnUse);
+      stackMemo += `／自身${u.brokenNutStackName}+${s.brokenNutGainOnUse}(${u.brokenNutStacks}/${u.brokenNutMax||"-"})`;
+    }
+    // キラ「基本スキル使用後、点火スタックが最大なら全消費して自身に1ターン潜伏付与」（攻撃後の値で判定）
+    if(s.selfBuffIfStackMaxAfterAction && (u.elementStack||0) >= ELEMENT_STACK_MAX){
+      const b = s.selfBuffIfStackMaxAfterAction;
+      u.elementStack = 0;
+      applyBuffWithMaxDuration(u.buffs, {name:b.name, turns:b.turns, type:"buff"});
+      stackMemo += `／${stackName}が最大に達したため全消費し、自身に${b.name}(${b.turns}T)を付与`;
+    }
   }
 
   // 第十の課業：トリガー発動も行動として扱う（全体攻撃or味方対象の非攻撃行動なら解除、単体攻撃ならターン+1で自然減少と相殺）
   const tenthLaborMemo = applyTenthLaborTurnGimmick(u, s.targetsAlly || s.target==="all");
+
+  // マルシル「槌と金床」：味方の誰かがブレイクを成功させた時、自身に壊れたナットを発生させる
+  if(brokeAny){
+    state.units.filter(x=>x.kind==="ally" && x.alive && (x.gainsBrokenNutOnAnyAllyBreak||0)>0).forEach(al=>{
+      al.brokenNutStacks = Math.min(al.brokenNutMax||99, (al.brokenNutStacks||0) + al.gainsBrokenNutOnAnyAllyBreak);
+    });
+  }
 
   logAction(u, "トリガー発動", skillCategoryLabel(skillKey) + "：" + s.name + (burstOn&&!evaded?"（バースト）":"") + (evaded?"（EVADE）":""), String(toughnessDmgSum), brokeAny,
     `${perTargetMemo.join(" ｜ ")}${hasAdvantageAny?"／属性有利+1":""}${evaded?"／EVADE成立のため強靭ダメージ0・会心扱いなし":""}${gaugeGain>0?`／自身ゲージ+${gaugeGain}%`:""}${burstOn?"／BP-4":""}${s.burstGain>0?`／BP+${s.burstGain}`:""}${carmenArcanaBurstBonus>0?`／愛の行進でBP+${carmenArcanaBurstBonus}`:""}（BP残${state.teamBurst}）${buffMemo}${stackMemo}${tenthLaborMemo}`);
@@ -3541,6 +3658,7 @@ function renderBattle(){
     if(u.kind==="enemy" && (u.specialTriggerHitCount||0)>0) statusTags.push(`<span class="tag permanent">🎯特殊被弾:${u.hitCounter||0}/${u.specialTriggerHitCount}</span>`);
     if(u.kind==="enemy" && (u.basicTriggerHitCount||0)>0) statusTags.push(`<span class="tag permanent">🎯単体被弾:${u.singleTargetHitCounter||0}/${u.basicTriggerHitCount}</span>`);
     if(u.kind==="ally" && u.usesSevenBallMechanic) statusTags.push(`<span class="tag permanent">🎱ピンボール速度+${u.pinballSpeedStacks||0}/10</span>`);
+    if(u.kind==="ally" && u.brokenNutStackName && (u.brokenNutStacks||0)>0) statusTags.push(`<span class="tag permanent">🔩${u.brokenNutStackName}:${u.brokenNutStacks}/${u.brokenNutMax||3}</span>`);
     if(u.envSpeedBonusPct) statusTags.push(`<span class="tag permanent">環境速度+${u.envSpeedBonusPct}%</span>`);
     if(u.kind==="ally" && u.relics && u.relics.AX) statusTags.push(`<span class="tag buff">AX:ATK+${(u.axStacks||0)*8}%</span>`);
     if(u.kind==="ally" && u.relics && u.relics.EX) statusTags.push(`<span class="tag buff">EX装備</span>`);
@@ -3650,8 +3768,8 @@ function renderBattle(){
       panel.innerHTML = `<h3>${ctx.sourceLabel}：トリガースキル発動チェック</h3>
         <div class="smallnote" style="margin-bottom:8px;">発動条件を満たしていそうなら、下のボタンから発動を記録できます（発動しない場合はスキップしてください）。</div>
         ${offers.length===0 ? '<div class="smallnote">発動可能なトリガースキルは見つかりませんでした</div>' : ""}
-        <div class="skillbtn-row">${offers.map(o=>`<button class="skillbtn" onclick="openTriggerFireForm('${o.allyId}','${o.key}'${o.guardedAlly ? `,'${ctx.hitAllyId}'` : ""})">
-          <div class="name">🔔 ${o.allyName} - ${o.skillName}${o.guardedAlly?"（対象指定型・自動対象）":""}</div>
+        <div class="skillbtn-row">${offers.map(o=>`<button class="skillbtn" onclick="openTriggerFireForm('${o.allyId}','${o.key}'${o.guardedAlly ? `,'${ctx.hitAllyId}'` : ",null"}${o.relicCounter ? ",true" : ""})">
+          <div class="name">🔔 ${o.allyName} - ${o.skillName}${o.guardedAlly?"（対象指定型・自動対象）":""}${o.relicCounter?"（XX1号・確率反撃、20%か25%で判断）":""}</div>
         </button>`).join("")}</div>
         <button class="btn-secondary" style="margin-top:6px;" onclick="dismissTriggerContext()">これ以上発動しない・続ける</button>`;
     }
