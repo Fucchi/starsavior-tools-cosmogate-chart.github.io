@@ -1,0 +1,163 @@
+:root{
+  --bg: #0b0e1a;
+  --bg-panel: #12162a;
+  --bg-panel-2: #171c35;
+  --line: #2a3158;
+  --text: #e6e8f5;
+  --text-dim: #8890b8;
+  --accent: #6ee7d8;
+  --accent-2: #b98cf2;
+  --danger: #f27b7b;
+  --warn: #f2c46d;
+  --buff: #7dd3fc;
+  --ally: #6ee7d8;
+  --enemy: #f2789a;
+  font-family: "Yu Gothic", "Hiragino Sans", sans-serif;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background: radial-gradient(ellipse at top, #161c3a 0%, var(--bg) 60%);
+  color: var(--text);
+  min-height:100vh;
+  padding: 24px;
+}
+h1{
+  font-size: 20px;
+  letter-spacing: 0.08em;
+  margin: 0 0 4px 0;
+  color: var(--text);
+  display:flex; align-items:center; gap:10px;
+}
+h1 .badge{
+  font-size:11px; letter-spacing:0.1em; color:var(--bg);
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  padding: 3px 8px; border-radius: 100px; font-weight:700;
+}
+.subtitle{ color:var(--text-dim); font-size:12px; margin-bottom:20px;}
+.wrap{max-width:1180px;margin:0 auto;}
+.grid{display:grid; grid-template-columns: 1fr 1fr; gap:16px;}
+.panel{
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.panel h2{
+  font-size:13px; letter-spacing:0.06em; margin:0 0 12px 0; color: var(--accent);
+  text-transform:uppercase; display:flex; align-items:center; justify-content:space-between;
+}
+.panel h2 .hint{ color:var(--text-dim); font-size:11px; text-transform:none; letter-spacing:0; font-weight:normal;}
+.unit-card{
+  background: var(--bg-panel-2);
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:10px 12px;
+  margin-bottom:10px;
+}
+.unit-card.enemy{ border-color:#4a2438; }
+.unit-card .row{ display:flex; gap:8px; margin-bottom:6px; flex-wrap:wrap;}
+.unit-card input[type=text], .unit-card input[type=number]{
+  background:#0d1024; border:1px solid var(--line); color:var(--text);
+  border-radius:5px; padding:5px 7px; font-size:12px;
+}
+.unit-card label{ font-size:10px; color:var(--text-dim); display:block; margin-bottom:2px;}
+.field{display:flex; flex-direction:column; min-width:64px;}
+.field.grow{flex:1; min-width:120px;}
+.skillblock{ border-top:1px dashed var(--line); margin-top:8px; padding-top:8px;}
+.skillblock .stitle{font-size:11px; color:var(--warn); margin-bottom:4px; font-weight:bold;}
+button{
+  font-family:inherit; cursor:pointer; border:none; border-radius:6px;
+  padding:8px 14px; font-size:12px; font-weight:bold; letter-spacing:0.02em;
+}
+.btn-primary{ background: linear-gradient(90deg, var(--accent), #4fd1c5); color:#062421;}
+.btn-secondary{ background: var(--bg-panel-2); color:var(--text); border:1px solid var(--line);}
+.btn-danger{ background: var(--danger); color:#2a0808;}
+.btn-small{ padding:5px 9px; font-size:11px;}
+.btn-row{display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;}
+table{ width:100%; border-collapse:collapse; font-size:12px;}
+th,td{ padding:6px 8px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap;}
+th{ color:var(--text-dim); font-weight:normal; font-size:11px;}
+.gaugebar{ width:100%; height:6px; background:#0d1024; border-radius:4px; overflow:hidden; margin-top:3px;}
+.gaugebar > div{ height:100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+.gaugebar.enemyfill > div{ background: linear-gradient(90deg, var(--enemy), #ffb37a); }
+.tag{ display:inline-block; font-size:10px; padding:2px 6px; border-radius:100px; margin-right:4px; margin-bottom:2px;}
+.tag.break{ background: var(--danger); color:#2a0808;}
+.tag.buff{ background: rgba(125,211,252,0.18); color:var(--buff); border:1px solid rgba(125,211,252,0.4);}
+.tag.debuff{ background: rgba(242,123,123,0.18); color:var(--danger); border:1px solid rgba(242,123,123,0.4);}
+.tag.permanent{ background: linear-gradient(90deg, rgba(185,140,242,0.28), rgba(110,231,216,0.18)); color:var(--accent-2); border:1px solid rgba(185,140,242,0.5);}
+#battleArea{ display:none; }
+#setupArea.hidden{ display:none; }
+.actionPanel{
+  border: 1px solid var(--accent);
+  background: rgba(110,231,216,0.06);
+  border-radius:10px; padding:16px; margin-bottom:16px;
+}
+.actionPanel h3{ margin:0 0 10px 0; font-size:14px; color:var(--accent);}
+.skillbtn-row{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
+.skillbtn{
+  display:block; text-align:left;
+  flex:1 1 220px; min-width:180px; max-width:100%;
+  background:var(--bg-panel-2); border:1px solid var(--line); color:var(--text);
+  padding:10px 12px; border-radius:8px;
+}
+.skillbtn:disabled{ opacity:0.35; cursor:not-allowed;}
+.skillbtn .name{font-weight:bold; color:var(--warn);}
+.skillbtn .meta{ font-size:11px; color:var(--text-dim); margin-top:2px;}
+.smallnote{ font-size:11px; color:var(--text-dim); line-height:1.6;}
+.checkline{display:flex; align-items:center; gap:6px; font-size:12px; margin:6px 0;}
+.tie-choice{display:flex; gap:8px; flex-wrap:wrap;}
+.logwrap{ max-height:340px; overflow:auto; }
+.empty{ color:var(--text-dim); font-size:12px; padding:12px 0; text-align:center;}
+.topbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;}
+.topbar-wrap{ margin-bottom:14px; }
+.statusRow{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+.toolSection{
+  background:var(--bg-panel); border:1px solid var(--line); border-radius:10px;
+  padding:8px 10px; margin-bottom:8px; display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+}
+.toolSection .sectionLabel{ font-size:11px; color:var(--text-dim); font-weight:700; white-space:nowrap; margin-right:2px; }
+.toolSection select, .toolSection input[type="number"]{ font-size:11px; padding:3px 5px; }
+.miniField{ display:flex; align-items:center; gap:3px; font-size:11px; color:var(--text-dim); white-space:nowrap; }
+.miniField input{ width:40px; }
+.toolbarGroup{ display:flex; flex-wrap:wrap; align-items:center; gap:5px; }
+.toolbarGroup .groupLabel{ font-size:10px; color:var(--text-dim); margin-right:2px; }
+.toolDivider{ width:1px; align-self:stretch; background:var(--line); margin:0 4px; }
+.pill{ font-size:11px; padding:4px 10px; border-radius:100px; background:var(--bg-panel-2); border:1px solid var(--line); color:var(--text-dim);}
+.pill-main{ font-size:15px; padding:8px 16px; border-radius:100px; background:var(--bg-panel-2); border:1px solid var(--line); color:var(--text-dim); font-weight:600; }
+.pill-main b, .pill-main span{ color:var(--accent); font-size:16px; }
+.badge-grid{ display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 10px; }
+.attr-badge{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:5px 12px 5px 5px; border-radius:100px;
+  background:var(--bg-panel-2); border:1px solid var(--line); color:var(--text);
+  font-size:12px; font-weight:500; white-space:nowrap; cursor:pointer;
+  transition: border-color 0.1s ease, background 0.1s ease;
+}
+.attr-badge:hover{ border-color:var(--accent); background:var(--bg-panel); }
+.attr-badge .dot{ width:16px; height:16px; border-radius:50%; flex-shrink:0; border:1px solid rgba(255,255,255,0.3); }
+.attr-badge.custom{ border-style:dashed; color:var(--text-dim); }
+.attr-badge.custom .dot{ background:transparent; border-style:dashed; display:flex; align-items:center; justify-content:center; font-size:11px; }
+.pill b{ color:var(--accent);}
+select{ background:#0d1024; color:var(--text); border:1px solid var(--line); border-radius:5px; padding:5px 7px; font-size:12px;}
+
+/* ===== スマホ簡易対応 ===== */
+@media (max-width: 760px){
+  body{ padding:8px; }
+  .wrap{ max-width:100%; }
+  h1{ font-size:16px; }
+  .subtitle{ font-size:11px; }
+  .grid{ grid-template-columns: 1fr; gap:10px; } /* 味方/敵パネルを縦積みに */
+  .panel{ padding:10px; }
+  .unit-card{ padding:8px; }
+  .field{ min-width:56px; }
+  .field.grow{ min-width:100%; } /* growフィールドは折り返し時に幅いっぱいに */
+  button{ padding:9px 12px; font-size:13px; } /* タップしやすいサイズに */
+  .btn-small{ padding:7px 10px; font-size:12px; }
+  .unit-card input[type=text], .unit-card input[type=number], select{ font-size:14px; padding:7px 8px; } /* iOS拡大防止のため14px以上 */
+  table{ font-size:11px; }
+  th,td{ padding:5px 6px; }
+  .topbar-wrap .statusRow, .toolSection{ font-size:11px; }
+  .toolSection select, .toolSection input[type="number"]{ font-size:12px; }
+}
