@@ -235,7 +235,10 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
     triggerRequiresSelfStackMaxAfterAction: !!extraEffects.triggerRequiresSelfStackMaxAfterAction,
     alsoGaugeToTarget: extraEffects.alsoGaugeToTarget || 0,
     targetClearAllDebuffs: !!extraEffects.targetClearAllDebuffs,
-    targetStackGainIfSameAttributeAsSelf: extraEffects.targetStackGainIfSameAttributeAsSelf || 0};
+    targetStackGainIfSameAttributeAsSelf: extraEffects.targetStackGainIfSameAttributeAsSelf || 0,
+    // selfGaugeGainPerHitPct: 命中した敵1体につき自身ゲージ+この%（EVADE時は0体扱い）。selfGaugeGainPerHitMaxPctで上限（例：セレスの特殊）
+    selfGaugeGainPerHitPct: extraEffects.selfGaugeGainPerHitPct || 0,
+    selfGaugeGainPerHitMaxPct: extraEffects.selfGaugeGainPerHitMaxPct || 0};
 }
 
 function defaultEnemySkill(name, ct, note, target, selfGaugeGainPct, targetEffectIfNoBarrier, selfBuffIfTwistedWill, targetEffect, selfClearAllDebuffs, targetGaugeReductionPct, selfBuff, extra){
@@ -250,6 +253,9 @@ function defaultEnemySkill(name, ct, note, target, selfGaugeGainPct, targetEffec
     //   resetResidueStacksOnUse: true の場合、このスキル使用時に自身の残滓の乖離スタックを0にリセットする（乖離の消去）
     //   targetCtExtendAllTurns: 対象の特殊・究極CTを指定ターン数だけ延長する（乖離の消去：調律湾曲と併用）
     //   targetGaugeResetToZero: true の場合、対象の行動ゲージを0にリセットする（%減算ではなく絶対値、乖離の消去）
+    //   escortGaugeGainPct: 自身の取り巻き（isEscort・自身がescortOwnerIdの生存個体）全体の行動ゲージを+pct%する（ティリアの特殊等）
+    //   targetHighestGaugeAllyDebuff: {name, turns, speedZeroLock} 行動ゲージが最も高い味方（＝敵から見た「敵」）1体に付与するデバフ。
+    //     speedZeroLockは実際に速度0固定として反映されるが、被ダメ増加系の数値は本ツールの被ダメ計算非対応方針により注記のみ（nameに含めて表示）
     selfGaugeGainIfCycleState: extra.selfGaugeGainIfCycleState || null,
     dmgBonusNoteIfCycleState: extra.dmgBonusNoteIfCycleState || null,
     selfStackGainIfHasEcho: extra.selfStackGainIfHasEcho || 0,
@@ -257,7 +263,9 @@ function defaultEnemySkill(name, ct, note, target, selfGaugeGainPct, targetEffec
     setEchoStacksTo: extra.setEchoStacksTo!=null ? extra.setEchoStacksTo : null,
     resetResidueStacksOnUse: !!extra.resetResidueStacksOnUse,
     targetCtExtendAllTurns: extra.targetCtExtendAllTurns || 0,
-    targetGaugeResetToZero: !!extra.targetGaugeResetToZero
+    targetGaugeResetToZero: !!extra.targetGaugeResetToZero,
+    escortGaugeGainPct: extra.escortGaugeGainPct || 0,
+    targetHighestGaugeAllyDebuff: extra.targetHighestGaugeAllyDebuff || null
   }; // target: "single" | "all"
 }
 </script>
@@ -1924,11 +1932,15 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       });
     }
 
+    // セレスの特殊等：命中した敵の数に応じて自身ゲージ+X%ずつ（EVADE時は0体扱い、selfGaugeGainPerHitMaxPctで上限）
+    const perHitGaugeGainRaw = (!isEvaded && s.selfGaugeGainPerHitPct) ? targets.length * s.selfGaugeGainPerHitPct : 0;
+    const perHitGaugeGain = s.selfGaugeGainPerHitMaxPct ? Math.min(perHitGaugeGainRaw, s.selfGaugeGainPerHitMaxPct) : perHitGaugeGainRaw;
+
     logAction(u, state.pendingArrivalType, skillCategoryLabel(skillKey) + "：" + s.name + (burstOn&&!isEvaded?"（バースト）":"") + (isEvaded?"（EVADE）":""), String(toughnessDmgSum), brokeAny,
-      `${perTargetMemo.join(" ｜ ")}${isEvaded?"／EVADE成立のため強靭ダメージ0・会心扱いなし":""}${hasAdvantageAny?"／属性有利+1":""}${(!isEvaded && (s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0))>0) ? `／自身ゲージ+${s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0)}%`:""}${burstOn?"／BP-4":""}${s.burstGain>0?`／BP+${s.burstGain}`:""}${carmenArcanaBurstBonus>0?`／愛の行進でBP+${carmenArcanaBurstBonus}`:""}（BP残${state.teamBurst}）${buffMemo}${stackMemo}${tenthLaborMemo}`);
+      `${perTargetMemo.join(" ｜ ")}${isEvaded?"／EVADE成立のため強靭ダメージ0・会心扱いなし":""}${hasAdvantageAny?"／属性有利+1":""}${(!isEvaded && (s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0))>0) ? `／自身ゲージ+${s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0)}%`:""}${perHitGaugeGain>0?`／命中${targets.length}体分で自身ゲージ+${perHitGaugeGain}%`:""}${burstOn?"／BP-4":""}${s.burstGain>0?`／BP+${s.burstGain}`:""}${carmenArcanaBurstBonus>0?`／愛の行進でBP+${carmenArcanaBurstBonus}`:""}（BP残${state.teamBurst}）${buffMemo}${stackMemo}${tenthLaborMemo}`);
 
     u.gauge = 0;
-    const gaugeGain = isEvaded ? 0 : (s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0));
+    const gaugeGain = (isEvaded ? 0 : (s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0))) + perHitGaugeGain;
     if(gaugeGain > 0){
       const primaryTarget = targets[0];
       if(s.gaugeToTarget && primaryTarget && primaryTarget.kind==="ally"){ primaryTarget.gauge = Math.min(100, primaryTarget.gauge+gaugeGain); }
@@ -2115,6 +2127,23 @@ function useEnemySkill(unitId, skillKey){
   }
   if(s.dmgBonusNoteIfCycleState && cycleBeforeAction===s.dmgBonusNoteIfCycleState.state){
     logAction(u, "被弾判定", `⚠ ${cycleBeforeAction==="day"?"昼":"夜"}の周期のため攻撃ダメージ+${s.dmgBonusNoteIfCycleState.pct}%（本ツールはダメージ計算非対応のため手動反映）`, "-", false, "");
+  }
+  // ティリア：特殊使用後、自身の取り巻き全体の行動ゲージ+pct%
+  if(s.escortGaugeGainPct > 0){
+    const escortsOfMine = state.units.filter(x=>x.kind==="enemy" && x.isEscort && x.escortOwnerId===u.id && x.alive);
+    escortsOfMine.forEach(e=>{ e.gauge = Math.min(100, e.gauge + s.escortGaugeGainPct); });
+    if(escortsOfMine.length>0){
+      logAction(u, "被弾判定", `👥 取り巻き全体の行動ゲージ+${s.escortGaugeGainPct}%`, "-", false, escortsOfMine.map(e=>`${e.name}:${e.gauge.toFixed(1)}%`).join("、"));
+    }
+  }
+  // ティリア：特殊使用後、行動ゲージが最も高い味方（＝敵から見た「敵」）1体にタイムパラドックス等のデバフを付与
+  if(s.targetHighestGaugeAllyDebuff){
+    const highestGaugeAlly = state.units.filter(x=>x.kind==="ally" && x.alive).sort((a,b)=>b.gauge-a.gauge)[0];
+    if(highestGaugeAlly){
+      const d = s.targetHighestGaugeAllyDebuff;
+      const applied = applyBuffWithMaxDuration(highestGaugeAlly.buffs, {name:d.name, turns:d.turns, type:"debuff", speedZeroLock:!!d.speedZeroLock});
+      logAction(u, "被弾判定", `⏱ 行動ゲージ最高の${highestGaugeAlly.name}に${applied.name}(${applied.turns}T)を付与`, "-", false, "");
+    }
   }
   // ギーレ「周期の循環」：スキル使用後、自身が昼の周期なら夜の周期へ、夜の周期なら昼の周期へ切り替わる（解除不可・自動トグル）
   if(u.togglesDayNightCycle){
@@ -3061,7 +3090,10 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
     }
   });
 
-  const gaugeGain = evaded ? 0 : ((s.selfGaugeGain||0) + (burstOn ? (s.burstGaugeGainAdd||0) : 0));
+  // セレスの特殊等：命中した敵の数に応じて自身ゲージ+X%ずつ（EVADE時は0体扱い、selfGaugeGainPerHitMaxPctで上限）
+  const perHitGaugeGainRaw = (!evaded && !s.targetsAlly && s.selfGaugeGainPerHitPct) ? targets.length * s.selfGaugeGainPerHitPct : 0;
+  const perHitGaugeGain = s.selfGaugeGainPerHitMaxPct ? Math.min(perHitGaugeGainRaw, s.selfGaugeGainPerHitMaxPct) : perHitGaugeGainRaw;
+  const gaugeGain = (evaded ? 0 : ((s.selfGaugeGain||0) + (burstOn ? (s.burstGaugeGainAdd||0) : 0))) + perHitGaugeGain;
   if(gaugeGain > 0){ u.gauge = Math.min(100, u.gauge + gaugeGain); }
 
   let stackMemo = "";
