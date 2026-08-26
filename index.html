@@ -89,6 +89,7 @@
         <span style="font-size:10px; color:var(--text-dim);">🐞Debug：</span>
         <button class="btn-secondary btn-small" onclick="openBuffForm()">バフ付与</button>
         <button class="btn-secondary btn-small" onclick="openAllyToughnessDamageForm()">強靭記録</button>
+        <button class="btn-secondary btn-small" onclick="openEscortDefeatForm()">取り巻き撃破</button>
         <button class="btn-secondary btn-small" onclick="openExtraTurn()">追加ターン</button>
         <button class="btn-secondary btn-small" onclick="maxOutBurst()">ノヴァMAX</button>
         <button class="btn-secondary btn-small" onclick="maxOutBreakPoints()">PT MAX</button>
@@ -114,6 +115,8 @@
       <h2>状態スナップショット</h2>
       <div style="overflow-x:auto;"><table id="snapshotTable"></table></div>
     </div>
+
+    <div id="escortDefeatCheckPanel"></div>
 
     <div id="actionArea"></div>
 
@@ -359,6 +362,11 @@ function computeCritDmgBuffPct(unit){
   (unit.buffs||[]).forEach(b=>{ if(b.critDmgModPct) total += b.critDmgModPct; });
   return total;
 }
+// 対象の敵が持つ「被ダメ増加」系デバフ（ティリアのタイムパラドックス等）の合計%を返す
+function computeTargetDmgTakenBonusPct(targetEnemy){
+  if(!targetEnemy || !targetEnemy.buffs) return 0;
+  return targetEnemy.buffs.reduce((sum,b)=>sum+(b.dmgTakenMultPct||0), 0);
+}
 function estimateDamage(unit, skill, burstOn, targetEnemy){
   if(unit.effectiveAtk==null || !skill.atkPct) return null;
   const atkBuffPct = computeAtkBuffPct(unit);
@@ -366,11 +374,12 @@ function estimateDamage(unit, skill, burstOn, targetEnemy){
   const base = unit.effectiveAtk * (skill.atkPct/100) * atkMult;
   const bossReductionPct = (targetEnemy && targetEnemy.starDamageReductionPct) || 0;
   const reductionMult = 1 - bossReductionPct/100;
+  const dmgTakenMult = 1 + computeTargetDmgTakenBonusPct(targetEnemy)/100;
   const critDmgPct = (unit.critDmgPct||50) + computeCritDmgBuffPct(unit);
   const critMult = 1 + critDmgPct/100;
   const burstDmgMult = (burstOn && skill.burstDamagePct) ? (1+skill.burstDamagePct/100) : 1;
-  const normalDamage = base * burstDmgMult * reductionMult;
-  const critDamage = base * critMult * reductionMult;
+  const normalDamage = base * burstDmgMult * reductionMult * dmgTakenMult;
+  const critDamage = base * critMult * reductionMult * dmgTakenMult;
   return {normalDamage: Math.round(normalDamage), critDamage: Math.round(critDamage), atkBuffPct, critDmgPct};
 }
 // 実測ダメージ（会心発生時の想定）から実効ATKを逆算する
@@ -380,9 +389,10 @@ function reverseCalcEffectiveAtk(observedDamage, unit, skill, targetEnemy){
   const atkMult = 1 + atkBuffPct/100;
   const bossReductionPct = (targetEnemy && targetEnemy.starDamageReductionPct) || 0;
   const reductionMult = 1 - bossReductionPct/100;
+  const dmgTakenMult = 1 + computeTargetDmgTakenBonusPct(targetEnemy)/100;
   const critDmgPct = (unit.critDmgPct||50) + computeCritDmgBuffPct(unit);
   const critMult = 1 + critDmgPct/100;
-  const denom = (skill.atkPct/100) * atkMult * critMult * reductionMult;
+  const denom = (skill.atkPct/100) * atkMult * critMult * reductionMult * dmgTakenMult;
   if(denom<=0) return null;
   return observedDamage / denom;
 }
@@ -1186,7 +1196,18 @@ function startBattle(){
       crackDebuffName: e.crackDebuffName||null,
       residueStackName: e.residueStackName||null,
       residueStacks: 0,
-      residueStackMax: e.residueStackMax||0
+      residueStackMax: e.residueStackMax||0,
+      // ティリア「取り巻き召喚／歪んだ時計針／タイムパラドックス」ギミック
+      summonsEscortsAfterOwnAction: !!e.summonsEscortsAfterOwnAction,
+      escortMax: e.escortMax||0,
+      escortName: e.escortName||"取り巻き",
+      escortSpeed: e.escortSpeed||0,
+      escortToughnessMax: e.escortToughnessMax||3,
+      wrongClockStackName: e.wrongClockStackName||null,
+      wrongClockStackMax: e.wrongClockStackMax||0,
+      wrongClockStacks: 0,
+      timeParadoxName: e.timeParadoxName||null,
+      timeParadoxTurns: e.timeParadoxTurns||0
     });
     // ギーレ「周期の循環」：戦闘開始時、自身に昼の周期（解除不可）を発生させる
     if(e.togglesDayNightCycle){
@@ -1629,6 +1650,7 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
   let hasAdvantageAny = false;
   let brokeAny = false;
   let toughnessDmgSum = 0;
+  let hitEscortIds = [];
 
   if(s.targetsAlly){
     // ---- 味方対象（バフ・回復系）：強靭計算なし ----
@@ -1702,6 +1724,8 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
         if(s.target!=="all") target.singleTargetHitCounter = (target.singleTargetHitCounter||0) + 1;
       }
       toughnessDmgSum += toughnessDmg;
+      // ティリアの取り巻き等：撃破確認パネルに出す対象として記録（攻撃後にプレイヤーが撃破有無をチェックする）
+      if(!isEvaded && target.isEscort) hitEscortIds.push(target.id);
 
       let brokeNow = false;
       if(target.toughness<=0 && !target.broken){
@@ -1741,6 +1765,17 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
           });
           logAction(target, "被弾判定", `💔 ${target.crackDebuffName}を発生。味方全体の全スキルCT-${react.ctReduceAllAlliesSkills||0}`, "-", false, "");
         }
+      }
+      // ティリア：歪んだ時計針が最大スタックの状態で攻撃を受けた時、全消費して自身に4Tタイムパラドックスを発動
+      if(!isEvaded && target.wrongClockStackName && (target.wrongClockStacks||0) >= (target.wrongClockStackMax||3)){
+        target.wrongClockStacks = 0;
+        const applied = applyBuffWithMaxDuration(target.buffs, {name:target.timeParadoxName, turns:target.timeParadoxTurns||4, type:"debuff", speedZeroLock:true, dmgTakenMultPct:100});
+        logAction(target, "被弾判定", `⏱ ${target.wrongClockStackName}が最大のため全消費し、自身に${applied.name}(${applied.turns}T)を発動`, "-", false, "");
+      }
+      // ティリア：タイムパラドックス状態中に全体攻撃を受けると、歪んだ時計針が再度発生する
+      else if(!isEvaded && effectiveTarget==="all" && target.wrongClockStackName && target.buffs.some(b=>b.name===target.timeParadoxName)){
+        target.wrongClockStacks = Math.min(target.wrongClockStackMax||3, (target.wrongClockStacks||0) + 1);
+        logAction(target, "被弾判定", `⏱ ${target.timeParadoxName}中に全体攻撃を受けたため${target.wrongClockStackName}+1(${target.wrongClockStacks}/${target.wrongClockStackMax||3})`, "-", false, "");
       }
 
       // 敵の行動ゲージ減少（★開幕免疫中は無効。潜伏中限定等の条件付き効果はapplyGaugeReductionチェックボックスで手動制御）
@@ -1796,6 +1831,9 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
 
       perTargetMemo.push(`${target.name}:強靭削り${toughnessDmg}／残強靭${target.toughness}${brokeNow?"→ブレイク！":""}${reductionText}${effText}${gimmickText}`);
     });
+    if(hitEscortIds.length>0){
+      state.pendingEscortDefeatCheck = Array.from(new Set([...(state.pendingEscortDefeatCheck||[]), ...hitEscortIds]));
+    }
 
     if(s.consumeSenkohanabiForExtraHits && (u.senkohanabiStacks||0) > 0 && targets.length>0){
       const extraCount = u.senkohanabiStacks;
@@ -1976,6 +2014,39 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
   }
 }
 
+// ティリア「ギミック」：取り巻きを、生存数がescortMaxに達するまで召喚する（速度0固定・攻撃はしない）
+// 取り巻きは常に「escortMax体分の固定枠（取り巻き1／取り巻き2…）」として扱う。
+// 枠が空いていれば、新規個体としてではなく同じ枠のユニットが「復活」する形で埋める（名前・強靭度等はリセット）
+function spawnEscorts(u){
+  const max = u.escortMax || 0;
+  if(max<=0) return;
+  const revivedNames = [];
+  for(let slot=1; slot<=max; slot++){
+    const existing = state.units.find(x=>x.kind==="enemy" && x.isEscort && x.escortOwnerId===u.id && x.escortSlot===slot);
+    if(existing && existing.alive) continue; // 既に生存中の枠はそのまま
+    const name = `${u.escortName||"取り巻き"}${slot}`;
+    if(existing){
+      // 撃破済みの枠を復活させる（同じユニットを再利用。ログ等の過去参照はそのまま残る）
+      existing.alive = true;
+      existing.toughness = existing.toughnessMax;
+      existing.gauge = 0;
+      existing.buffs = [];
+    } else {
+      state.units.push({
+        id: uid("enemy"), kind:"enemy", name, speed:u.escortSpeed||0, baseSpeed:u.escortSpeed||0, gauge:0, alive:true,
+        toughnessMax:u.escortToughnessMax||3, toughness:u.escortToughnessMax||3, broken:false, breakDmgPct:0,
+        skills:{ basic: defaultEnemySkill("（取り巻き・行動なし）", 0, ""), special: defaultEnemySkill("（取り巻き・行動なし）", 99, ""), ultimate: defaultEnemySkill("（取り巻き・行動なし）", 99, "") },
+        ct:{ special:0, ultimate:0 }, buffs:[], attribute:u.attribute, role:"ディフェンダー",
+        isEscort:true, escortOwnerId:u.id, escortSlot:slot
+      });
+    }
+    revivedNames.push(name);
+  }
+  if(revivedNames.length>0){
+    logAction(u, "被弾判定", `👥 取り巻きが復活：${revivedNames.join("、")}`, "-", false, `生存中の取り巻き:${max}/${max}`);
+  }
+}
+
 function useEnemySkill(unitId, skillKey){
   const u = state.units.find(x=>x.id===unitId);
   const s = u.skills[skillKey];
@@ -2076,6 +2147,9 @@ function useEnemySkill(unitId, skillKey){
   // （味方側のfinalizeActionChainに相当する処理。useEnemySkillはfinalizeActionChainを経由しないため個別に必要）
   decrementOwnTurnEndBuffs(u);
 
+  // ティリア「ギミック」：自身の行動後、取り巻きが2体になるように召喚する（既に1体いれば1体のみ追加）
+  if(u.summonsEscortsAfterOwnAction){ spawnEscorts(u); }
+
   if(s.target==="all"){
     state.pendingTriggerContext = { targetType:"selectHitAoe", evadeMap:{}, sourceUnitId: unitId, skillKey,
       sourceLabel: u.name + "の「" + s.name + "」（全体攻撃）", thenExtraTurn:false };
@@ -2107,6 +2181,7 @@ function applyBuffWithMaxDuration(buffsArray, newBuff){
     existing.undispellable = !!newBuff.undispellable || !!existing.undispellable;
     existing.decrementOnAnyTurn = !!newBuff.decrementOnAnyTurn || !!existing.decrementOnAnyTurn;
     existing.decrementAtOwnTurnEnd = !!newBuff.decrementAtOwnTurnEnd || !!existing.decrementAtOwnTurnEnd;
+    existing.dmgTakenMultPct = newBuff.dmgTakenMultPct||0;
     return existing;
   } else {
     buffsArray.push(newBuff);
@@ -2847,6 +2922,7 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
   let hasAdvantageAny = false;
   let brokeAny = false;
   let toughnessDmgSum = 0;
+  let hitEscortIds = [];
 
   targets.forEach(target=>{
     const hasAdvantage = !evaded && !s.targetsAlly && hasElementAdvantage(u.attribute, target.attribute);
@@ -2863,6 +2939,8 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
       if(s.target!=="all") target.singleTargetHitCounter = (target.singleTargetHitCounter||0) + 1;
     }
     toughnessDmgSum += toughnessDmg;
+    // ティリアの取り巻き等：撃破確認パネルに出す対象として記録（攻撃後にプレイヤーが撃破有無をチェックする）
+    if(!evaded && !s.targetsAlly && target.isEscort) hitEscortIds.push(target.id);
 
     let brokeNow = false;
     if(target.toughness<=0 && !target.broken && !s.targetsAlly){
@@ -2900,6 +2978,17 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
         });
         logAction(target, "被弾判定", `💔 ${target.crackDebuffName}を発生。味方全体の全スキルCT-${react.ctReduceAllAlliesSkills||0}`, "-", false, "");
       }
+    }
+    // ティリア：歪んだ時計針が最大スタックの状態で攻撃を受けた時、全消費して自身に4Tタイムパラドックスを発動
+    if(!evaded && !s.targetsAlly && target.wrongClockStackName && (target.wrongClockStacks||0) >= (target.wrongClockStackMax||3)){
+      target.wrongClockStacks = 0;
+      const applied = applyBuffWithMaxDuration(target.buffs, {name:target.timeParadoxName, turns:target.timeParadoxTurns||4, type:"debuff", speedZeroLock:true, dmgTakenMultPct:100});
+      logAction(target, "被弾判定", `⏱ ${target.wrongClockStackName}が最大のため全消費し、自身に${applied.name}(${applied.turns}T)を発動`, "-", false, "");
+    }
+    // ティリア：タイムパラドックス状態中に全体攻撃を受けると、歪んだ時計針が再度発生する
+    else if(!evaded && !s.targetsAlly && s.target==="all" && target.wrongClockStackName && target.buffs.some(b=>b.name===target.timeParadoxName)){
+      target.wrongClockStacks = Math.min(target.wrongClockStackMax||3, (target.wrongClockStacks||0) + 1);
+      logAction(target, "被弾判定", `⏱ ${target.timeParadoxName}中に全体攻撃を受けたため${target.wrongClockStackName}+1(${target.wrongClockStacks}/${target.wrongClockStackMax||3})`, "-", false, "");
     }
 
     let reductionText = "";
@@ -2954,6 +3043,9 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
 
     perTargetMemo.push(`${target.name}:${s.targetsAlly?"バフ・回復等の効果（強靭計算対象外）":`強靭削り${toughnessDmg}／残強靭${target.toughness}${brokeNow?"→ブレイク！":""}`}${reductionText}${effText}${gimmickText}`);
   });
+  if(hitEscortIds.length>0){
+    state.pendingEscortDefeatCheck = Array.from(new Set([...(state.pendingEscortDefeatCheck||[]), ...hitEscortIds]));
+  }
 
   // バフ/デバフ自動付与（トリガー発動時・対象非依存）。selfBuffManualOnlyが立っているものは
   // 通常発動時のみ適用し、トリガー発動では付与しない（例：ティリアの速度アップ）
@@ -3087,6 +3179,71 @@ function openAllyToughnessDamageForm(){
     u.broken = true;
     alert(`${u.name}はブレイク状態になりました。ブレイク中はトリガースキルが発動できません。`);
   }
+  renderBattle();
+}
+
+// ティリア「ギミック」：取り巻きを撃破したことを手動で記録する（本ツールはHP・被ダメ計算非対応のため、
+// 「倒したかどうか」はプレイヤーが実際のゲーム画面を見て判断する）。撃破すると、その取り巻きの主（ティリア）に
+// 歪んだ時計針スタックを1付与する
+// 取り巻きを撃破済みにし、その主（ティリア等）に歪んだ時計針スタックを1付与する共通処理
+function defeatEscort(u){
+  u.alive = false;
+  logAction(u, "被弾判定", `💀 ${u.name}を撃破`, "-", false, "");
+  const owner = state.units.find(x=>x.id===u.escortOwnerId && x.kind==="enemy" && x.alive && x.wrongClockStackName);
+  if(owner){
+    owner.wrongClockStacks = Math.min(owner.wrongClockStackMax||3, (owner.wrongClockStacks||0) + 1);
+    logAction(owner, "被弾判定", `⏱ ${u.name}撃破により自身に${owner.wrongClockStackName}+1(${owner.wrongClockStacks}/${owner.wrongClockStackMax||3})`, "-", false, "");
+  }
+}
+function openEscortDefeatForm(){
+  const escorts = state.units.filter(u=>u.kind==="enemy" && u.isEscort && u.alive);
+  if(escorts.length===0){ alert("生存中の取り巻きがいません"); return; }
+  const names = escorts.map(u=>u.name).join(" / ");
+  const target = prompt("撃破した取り巻きの名前を入力してください（候補：" + names + "）", escorts[0].name);
+  if(!target) return;
+  const u = state.units.find(x=>x.kind==="enemy" && x.isEscort && x.alive && x.name===target);
+  if(!u){ alert("見つかりません"); return; }
+  pushHistory();
+  defeatEscort(u);
+  renderBattle();
+}
+
+// 攻撃後に表示される「取り巻きを撃破しましたか？」パネル（renderBattle内から呼ばれる）
+function renderEscortDefeatCheckPanel(){
+  const wrap = document.getElementById("escortDefeatCheckPanel");
+  if(!wrap) return;
+  const ids = (state.pendingEscortDefeatCheck||[]).filter(id=>{
+    const u = state.units.find(x=>x.id===id);
+    return u && u.alive;
+  });
+  if(ids.length===0){ wrap.innerHTML = ""; return; }
+  const items = ids.map(id=>{
+    const u = state.units.find(x=>x.id===id);
+    return `<label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="escortDefeat_${id}"> ${u.name}を撃破した</label>`;
+  }).join("");
+  wrap.innerHTML = `<div class="panel" style="border-color:var(--danger);">
+    <h2 style="margin-top:0;">💀 取り巻きを撃破しましたか？</h2>
+    <div class="smallnote" style="margin-bottom:8px;">直前の攻撃で以下の取り巻きに命中しました。実際のゲーム画面を見て、撃破したものにチェックを入れてから確定してください（本ツールは被ダメ計算非対応のため自動判定はできません）</div>
+    <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;">${items}</div>
+    <div class="btn-row">
+      <button class="btn-primary btn-small" onclick="confirmEscortDefeatCheck()">確定</button>
+      <button class="btn-secondary btn-small" onclick="dismissEscortDefeatCheck()">閉じる（まだ生存）</button>
+    </div>
+  </div>`;
+}
+function confirmEscortDefeatCheck(){
+  const ids = state.pendingEscortDefeatCheck || [];
+  pushHistory();
+  ids.forEach(id=>{
+    const cb = document.getElementById("escortDefeat_" + id);
+    const u = state.units.find(x=>x.id===id && x.alive);
+    if(cb && cb.checked && u){ defeatEscort(u); }
+  });
+  state.pendingEscortDefeatCheck = [];
+  renderBattle();
+}
+function dismissEscortDefeatCheck(){
+  state.pendingEscortDefeatCheck = [];
   renderBattle();
 }
 
@@ -3248,6 +3405,8 @@ function renderBattle(){
   const table = document.getElementById("snapshotTable");
   let rows = `<tr><th>ユニット</th><th>速度</th><th>ゲージ</th><th>強靭度</th><th>CT(特殊/究極)</th><th>状態</th></tr>`;
   state.units.forEach(u=>{
+    // 撃破済みの取り巻き等は、状態スナップショットの一覧から除外する（他の状態管理には影響しない）
+    if(u.kind==="enemy" && u.isEscort && !u.alive) return;
     const gaugeBarClass = u.kind==="enemy" ? "gaugebar enemyfill" : "gaugebar";
     const toughnessCell = `${u.toughness}/${u.toughnessMax}`;
     const statusTags = [];
@@ -3260,6 +3419,8 @@ function renderBattle(){
     if(u.kind==="enemy" && (u.twistedWillStacks||0)>0) statusTags.push(`<span class="tag permanent">😈歪んだ意志:${u.twistedWillStacks}/3</span>`);
     if(u.kind==="enemy" && u.echoStackName && (u.echoStacks||0)>0) statusTags.push(`<span class="tag permanent">💗${u.echoStackName}:${u.echoStacks}</span>`);
     if(u.kind==="enemy" && u.residueStackName && (u.residueStacks||0)>0) statusTags.push(`<span class="tag permanent">🌀${u.residueStackName}:${u.residueStacks}/${u.residueStackMax||3}</span>`);
+    if(u.kind==="enemy" && u.wrongClockStackName && (u.wrongClockStacks||0)>0) statusTags.push(`<span class="tag permanent">⏱${u.wrongClockStackName}:${u.wrongClockStacks}/${u.wrongClockStackMax||3}</span>`);
+    if(u.kind==="enemy" && u.isEscort) statusTags.push(`<span class="tag permanent">👥取り巻き</span>`);
     if(u.kind==="enemy" && (u.specialTriggerHitCount||0)>0) statusTags.push(`<span class="tag permanent">🎯特殊被弾:${u.hitCounter||0}/${u.specialTriggerHitCount}</span>`);
     if(u.kind==="enemy" && (u.basicTriggerHitCount||0)>0) statusTags.push(`<span class="tag permanent">🎯単体被弾:${u.singleTargetHitCounter||0}/${u.basicTriggerHitCount}</span>`);
     if(u.kind==="ally" && u.usesSevenBallMechanic) statusTags.push(`<span class="tag permanent">🎱ピンボール速度+${u.pinballSpeedStacks||0}/10</span>`);
@@ -3301,6 +3462,8 @@ function renderBattle(){
     </tr>`;
   });
   table.innerHTML = rows;
+
+  renderEscortDefeatCheckPanel();
 
   // アクションエリア
   const area = document.getElementById("actionArea");
