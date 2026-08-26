@@ -27,19 +27,16 @@
   <div id="setupArea">
     <div class="panel" style="padding:8px 12px;">
       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12px;">
-        <b title="ボス開幕免疫・ボス速度補正は先頭の敵（ボス）に適用">星の挑戦</b>
-        <b>★免疫</b>
-        <select id="starImmunitySelect" onchange="if(enemies[0]) enemies[0].starImmunityTurns=Number(this.value); renderEnemySetup();">
-          <option value="0">0</option><option value="3">3</option>
+        <b title="段階に応じて速度・強靭度上限・開幕免疫が自動で加算される（先頭の敵＝ボスに適用）">星の挑戦</b>
+        <b>★段階</b>
+        <select id="starStageSelect" onchange="if(enemies[0]) applyStarStage(enemies[0], Number(this.value)); renderEnemySetup();">
+          <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+          <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+          <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+          <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+          <option value="13">13</option><option value="14">14</option><option value="15">15</option>
         </select>
-        <b>★速度</b>
-        <select id="starSpeedSelect" onchange="if(enemies[0]) enemies[0].starSpeedBonusPct=Number(this.value); renderEnemySetup();">
-          <option value="0">+0%</option><option value="30">+30%</option>
-        </select>
-        <b>★被ダメ減少</b>
-        <select id="starReductionSelect" onchange="if(enemies[0]) enemies[0].starDamageReductionPct=Number(this.value); renderEnemySetup();">
-          <option value="0">-0%</option><option value="10">-10%</option><option value="20">-20%</option><option value="30">-30%</option>
-        </select>
+        <span id="starStageInfo" class="smallnote"></span>
       </div>
       <div id="envBuffSetup" style="margin-top:6px;"></div>
     </div>
@@ -642,9 +639,46 @@ function isBreakSkillToughnessBonusActive(){
   return !!typeInfo.hasToughnessBonus;
 }
 
-let enemies = [
-  { ...bossPreset("demoraigis_alpha"), starImmunityTurns:3, starSpeedBonusPct:30 }
+// ===================== 星の挑戦：段階テーブル =====================
+// 段階を選ぶと、その段階以下で解放された効果がすべて累積で有効になる。
+// 追加スコア／攻撃力・HP・防御力上昇は本ツールの計算対象外（被ダメ計算・スコア計算は非対応）のため表示のみ。
+// 実際にシミュレーターへ反映されるのは speedBonusAt(9)・toughnessBonusAt(12)・immunityAt(15) の3つ。
+const STAR_STAGE_TABLE = [
+  { stage:1,  scorePct:40,  atkPct:20,  hpPct:10, defPct:10, newEffect:null },
+  { stage:2,  scorePct:80,  atkPct:30,  hpPct:15, defPct:15, newEffect:null },
+  { stage:3,  scorePct:120, atkPct:40,  hpPct:20, defPct:20, newEffect:"敵ボスがスキル使用後、与ダメージが5%ずつ上がる（最大10回スタック）" },
+  { stage:4,  scorePct:150, atkPct:50,  hpPct:25, defPct:25, newEffect:null },
+  { stage:5,  scorePct:180, atkPct:60,  hpPct:30, defPct:30, newEffect:null },
+  { stage:6,  scorePct:210, atkPct:70,  hpPct:35, defPct:35, newEffect:"敵ボスが攻撃を受けた後、攻撃者の最大HPを5%ずつ下げる（最大10回スタック）" },
+  { stage:7,  scorePct:230, atkPct:80,  hpPct:40, defPct:40, newEffect:null },
+  { stage:8,  scorePct:250, atkPct:90,  hpPct:45, defPct:45, newEffect:null },
+  { stage:9,  scorePct:270, atkPct:100, hpPct:50, defPct:50, newEffect:"ボスの速度が30%上がる" },
+  { stage:10, scorePct:285, atkPct:110, hpPct:55, defPct:55, newEffect:null },
+  { stage:11, scorePct:300, atkPct:120, hpPct:60, defPct:60, newEffect:null },
+  { stage:12, scorePct:315, atkPct:130, hpPct:65, defPct:65, newEffect:"敵ボスの強靭度最大値が5上がる" },
+  { stage:13, scorePct:325, atkPct:140, hpPct:70, defPct:70, newEffect:null },
+  { stage:14, scorePct:335, atkPct:150, hpPct:75, defPct:75, newEffect:null },
+  { stage:15, scorePct:345, atkPct:160, hpPct:80, defPct:80, newEffect:"戦闘開始時に、ボスが自身に3ターン、免疫（解除不可）を発生させる" }
 ];
+// 段階から、シミュレーターが実際に使う派生値（速度・強靭度上限ボーナス・開幕免疫）を計算してenemyオブジェクトに反映する
+function applyStarStage(enemy, stage){
+  enemy.starStage = stage;
+  enemy.starImmunityTurns = stage>=15 ? 3 : 0;
+  enemy.starSpeedBonusPct = stage>=9 ? 30 : 0;
+  enemy.starToughnessBonus = stage>=12 ? 5 : 0;
+}
+function renderStarStageInfo(stage){
+  const row = STAR_STAGE_TABLE.find(r=>r.stage===stage);
+  if(!row) return "";
+  const unlocked = STAR_STAGE_TABLE.filter(r=>r.stage<=stage && r.newEffect);
+  const effectsHtml = unlocked.length ? `　解放中：${unlocked.map(r=>r.newEffect).join("／")}` : "";
+  return `追加スコア+${row.scorePct}%／攻撃力+${row.atkPct}%／HP+${row.hpPct}%／防御力+${row.defPct}%（参考表示のみ・計算には未使用）${effectsHtml}`;
+}
+
+let enemies = [
+  { ...bossPreset("demoraigis_alpha") }
+];
+applyStarStage(enemies[0], 15);
 
 // ===================== ボスプリセット =====================
 // プリセットを選ぶと、その敵カードの内容がまるごと上書きされる
@@ -656,14 +690,9 @@ function bossPreset(key){
 function applyBossPreset(idx, key){
   const data = bossPreset(key);
   if(!data) return;
-  // 先頭の敵（ボス）を切り替える際、★免疫・★速度・★被ダメ減少の設定は引き継ぐ（プリセット切り替えでリセットしない）
-  if(idx===0 && enemies[0]){
-    data.starImmunityTurns = enemies[0].starImmunityTurns!=null ? enemies[0].starImmunityTurns : 3;
-    data.starSpeedBonusPct = enemies[0].starSpeedBonusPct!=null ? enemies[0].starSpeedBonusPct : 30;
-    data.starDamageReductionPct = enemies[0].starDamageReductionPct || 0;
-  } else if(idx===0){
-    data.starImmunityTurns = 3;
-    data.starSpeedBonusPct = 30;
+  // 先頭の敵（ボス）を切り替える際、★段階の設定は引き継ぐ（プリセット切り替えでリセットしない）
+  if(idx===0){
+    applyStarStage(data, (enemies[0] && enemies[0].starStage!=null) ? enemies[0].starStage : 15);
   }
   enemies[idx] = data;
   bossPickerOpen[idx] = false;
@@ -850,12 +879,11 @@ function renderEnemySetup(){
   // 上部「星の挑戦」欄のセレクトを、先頭の敵（ボス）の現在値と同期する
   const boss0 = enemies[0];
   if(boss0){
-    const immEl = document.getElementById("starImmunitySelect");
-    const spdEl = document.getElementById("starSpeedSelect");
-    const redEl = document.getElementById("starReductionSelect");
-    if(immEl) immEl.value = boss0.starImmunityTurns||0;
-    if(spdEl) spdEl.value = boss0.starSpeedBonusPct||0;
-    if(redEl) redEl.value = boss0.starDamageReductionPct||0;
+    const stageEl = document.getElementById("starStageSelect");
+    const infoEl = document.getElementById("starStageInfo");
+    const stage = boss0.starStage||1;
+    if(stageEl) stageEl.value = stage;
+    if(infoEl) infoEl.innerHTML = renderStarStageInfo(stage);
   }
   enemies.forEach((e, idx)=>{
     const card = document.createElement("div");
@@ -873,7 +901,7 @@ function renderEnemySetup(){
       <div class="row">
         <div class="field grow"><label>名前</label><input type="text" value="${e.name}" oninput="enemies[${idx}].name=this.value"></div>
         <div class="field"><label>速度</label><input type="number" value="${e.speed}" style="width:60px" oninput="enemies[${idx}].speed=Number(this.value)"></div>
-        <div class="field"><label>強靭度上限</label><input type="number" value="${e.toughnessMax}" style="width:60px" oninput="enemies[${idx}].toughnessMax=Number(this.value)"></div>
+        <div class="field"><label>強靭度上限${idx===0 && e.starToughnessBonus ? `<span class="hint">(+${e.starToughnessBonus} ★段階反映で戦闘開始時に加算)</span>` : ""}</label><input type="number" value="${e.toughnessMax}" style="width:60px" oninput="enemies[${idx}].toughnessMax=Number(this.value)"></div>
         <div class="field"><label>ブレイク被ダメ%</label><input type="number" value="${e.breakDmgPct}" style="width:60px" oninput="enemies[${idx}].breakDmgPct=Number(this.value)"></div>
         <div class="field"><label>被弾時ゲージ増加(デバフ数以下なら発動)</label>
           <div style="display:flex; gap:4px; align-items:center;">
@@ -895,7 +923,7 @@ function renderEnemySetup(){
         </div>
         <div class="field" style="justify-content:flex-end"><label>&nbsp;</label><button class="btn-danger btn-small" onclick="removeEnemy(${idx})">削除</button></div>
       </div>
-      ${idx===0 ? `<div class="smallnote" style="margin-bottom:6px;">★免疫・★速度・★被ダメ減少は画面上部の「星の挑戦」欄で設定します</div>` : ""}
+      ${idx===0 ? `<div class="smallnote" style="margin-bottom:6px;">★段階（速度・強靭度上限・開幕免疫への反映）は画面上部の「星の挑戦」欄で設定します</div>` : ""}
       ${renderEnemySkillBlock(e, idx, "basic", "基本スキル")}
       ${renderEnemySkillBlock(e, idx, "special", "特殊スキル")}
       ${renderEnemySkillBlock(e, idx, "ultimate", "究極スキル")}
@@ -1080,6 +1108,7 @@ function startBattle(){
       sevenBallAppliedThisTurn: false,
       sevenBallCount: 0,
       gainStackOnHit: !!a.gainStackOnHit,
+      starHpDownStacks: 0,
       envSpeedBonusPct: envBonus,
       passiveNote: a.passiveNote || "",
       effectiveAtk: (a.effectiveAtk!=null && a.effectiveAtk!=="") ? Number(a.effectiveAtk) : null,
@@ -1114,14 +1143,18 @@ function startBattle(){
   });
   enemies.forEach(e=>{
     const envBonus = computeEnvSpeedBonus(e.attribute, e.role);
+    // ★段階12以上：強靭度最大値+5（星の挑戦システム）
+    const effectiveEnemyToughnessMax = e.toughnessMax + (e.starToughnessBonus||0);
     units.push({
       id: uid("enemy"), kind:"enemy", name:e.name, speed:e.speed, baseSpeed:e.speed, gauge:0, alive:true,
-      toughnessMax:e.toughnessMax, toughness:e.toughnessMax, broken:false, breakDmgPct:e.breakDmgPct,
+      toughnessMax:effectiveEnemyToughnessMax, toughness:effectiveEnemyToughnessMax, broken:false, breakDmgPct:e.breakDmgPct,
       skills:{ basic:{...e.basic}, special:{...e.special}, ultimate:{...e.ultimate} },
       ct:{ special:0, ultimate: e.ultimate.ct },
       buffs: [],
+      starStage: e.starStage||0,
       starSpeedBonusPct: e.starSpeedBonusPct||0,
       starDamageReductionPct: e.starDamageReductionPct||0,
+      starDmgUpStacks: 0,
       hitCounter: 0,
       singleTargetHitCounter: 0,
       specialTriggerHitCount: e.specialTriggerHitCount||0,
@@ -1961,6 +1994,12 @@ function useEnemySkill(unitId, skillKey){
 
   logAction(u, state.pendingArrivalType, skillCategoryLabel(skillKey) + "：" + s.name, "-", false, s.note || "");
 
+  // ★段階3以上：スキル使用後、自身の与ダメージ+5%スタック（最大10、参考表示のみ・ダメージ計算には未反映）
+  if((u.starStage||0) >= 3){
+    u.starDmgUpStacks = Math.min(10, (u.starDmgUpStacks||0) + 1);
+    logAction(u, "被弾判定", `💢 ★挑戦(段階${u.starStage})：スキル使用により与ダメ+5%スタック(${u.starDmgUpStacks}/10)`, "-", false, "");
+  }
+
   if(s.selfBuffIfTwistedWill && (u.twistedWillStacks||0) > 0){
     applyBuffWithMaxDuration(u.buffs, {name:s.selfBuffIfTwistedWill.name, turns:s.selfBuffIfTwistedWill.turns, type:"buff", speedModPct:s.selfBuffIfTwistedWill.speedModPct||0});
     logAction(u, "被弾判定", "😈 歪んだ意志(" + u.twistedWillStacks + ")状態のため" + s.selfBuffIfTwistedWill.name + "(" + s.selfBuffIfTwistedWill.turns + "T)を自身に付与", "-", false, "");
@@ -2649,6 +2688,12 @@ function confirmHitAlly(allyId){
       hitUnit.elementStack = Math.min(ELEMENT_STACK_MAX, (hitUnit.elementStack||0) + 1);
       logAction(hitUnit, "被弾判定", `✨ 被弾により自身${stackName}+1(${hitUnit.elementStack}/${ELEMENT_STACK_MAX})`, "-", false, "");
     }
+    // ★段階6以上：ボスの攻撃を受けた後、攻撃者の最大HP-5%スタック（最大10、参考表示のみ）
+    const attackerForStarHp = ctx.sourceUnitId ? state.units.find(x=>x.id===ctx.sourceUnitId) : null;
+    if(hitUnit && attackerForStarHp && (attackerForStarHp.starStage||0) >= 6){
+      hitUnit.starHpDownStacks = Math.min(10, (hitUnit.starHpDownStacks||0) + 1);
+      logAction(hitUnit, "被弾判定", `💢 ★挑戦(段階${attackerForStarHp.starStage})：被弾により自身の最大HP-5%スタック(${hitUnit.starHpDownStacks}/10)`, "-", false, "");
+    }
   }
   if(barrierBreakCheck && barrierBreakCheck.checked){
     const target = state.units.find(x=>x.id===allyId);
@@ -2668,6 +2713,7 @@ function confirmAoeEvade(){
   if(!state.pendingTriggerContext) return;
   const ctx = state.pendingTriggerContext;
   const evadeMap = {};
+  const attackerForStarHp = ctx.sourceUnitId ? state.units.find(x=>x.id===ctx.sourceUnitId) : null;
   state.units.filter(x=>x.kind==="ally" && x.alive).forEach(u=>{
     const cb = document.getElementById("aoeEvade_" + u.id);
     const evaded = cb ? cb.checked : false;
@@ -2685,6 +2731,11 @@ function confirmAoeEvade(){
       const stackName = stackNameForAttribute(u.attribute);
       u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0) + 1);
       logAction(u, "被弾判定", `✨ 被弾により自身${stackName}+1(${u.elementStack}/${ELEMENT_STACK_MAX})`, "-", false, "");
+    }
+    // ★段階6以上：ボスの攻撃を受けた後、攻撃者の最大HP-5%スタック（最大10、参考表示のみ）
+    if(!evaded && attackerForStarHp && (attackerForStarHp.starStage||0) >= 6){
+      u.starHpDownStacks = Math.min(10, (u.starHpDownStacks||0) + 1);
+      logAction(u, "被弾判定", `💢 ★挑戦(段階${attackerForStarHp.starStage})：被弾により自身の最大HP-5%スタック(${u.starHpDownStacks}/10)`, "-", false, "");
     }
     const barrierCb = document.getElementById("aoeBarrierBreak_" + u.id);
     if(barrierCb && barrierCb.checked){
@@ -3202,7 +3253,10 @@ function renderBattle(){
     const statusTags = [];
     if(u.broken) statusTags.push('<span class="tag break">ブレイク中</span>');
     if(u.kind==="enemy" && u.immune) statusTags.push(`<span class="tag buff">免疫(残${u.immuneRemaining})</span>`);
+    if(u.kind==="enemy" && u.starStage) statusTags.push(`<span class="tag permanent">★段階${u.starStage}</span>`);
     if(u.kind==="enemy" && u.starSpeedBonusPct) statusTags.push(`<span class="tag permanent">★速度+${u.starSpeedBonusPct}%</span>`);
+    if(u.kind==="enemy" && (u.starDmgUpStacks||0)>0) statusTags.push(`<span class="tag permanent">💢与ダメ+${u.starDmgUpStacks*5}%(${u.starDmgUpStacks}/10)</span>`);
+    if(u.kind==="ally" && (u.starHpDownStacks||0)>0) statusTags.push(`<span class="tag permanent">💢最大HP-${u.starHpDownStacks*5}%(${u.starHpDownStacks}/10)</span>`);
     if(u.kind==="enemy" && (u.twistedWillStacks||0)>0) statusTags.push(`<span class="tag permanent">😈歪んだ意志:${u.twistedWillStacks}/3</span>`);
     if(u.kind==="enemy" && u.echoStackName && (u.echoStacks||0)>0) statusTags.push(`<span class="tag permanent">💗${u.echoStackName}:${u.echoStacks}</span>`);
     if(u.kind==="enemy" && u.residueStackName && (u.residueStacks||0)>0) statusTags.push(`<span class="tag permanent">🌀${u.residueStackName}:${u.residueStacks}/${u.residueStackMax||3}</span>`);
