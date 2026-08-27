@@ -2048,6 +2048,9 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
   // afterOwnCheckでfiresOnlyAfterKey（例：カネリアの「特殊使用後のみ再発動」）を判定するために、
   // 実際に使用したスキルキーをユニットに記録しておく（wasBasicSkillは基本/特殊/究極を区別できないため）
   u._actingSkillKeyForAfterOwn = skillKey;
+  // この行動（useAllySkillの直接呼び出し）は新しい行動の起点なので、afterOwn処理済みフラグをリセットする
+  // （挟撃/EX誘発の連鎖でafterOwnCheckに戻ってきても、同じ行動内でEX判定・トリガー確認が再度開かないようにする）
+  u._afterOwnHandledForThisAction = false;
 
   if(skillKey==="basic" && !isEvaded){
     if(u.relics && u.relics.GX && targetEnemyId){
@@ -2386,18 +2389,6 @@ function computeOffers(targetType, ctx){
         const preActionStack = (u._preActionElementStackSnapshot!=null) ? u._preActionElementStackSnapshot : (u.elementStack||0);
         if(preActionStack < ELEMENT_STACK_MAX) return;
       }
-      if(s.triggerRequiresSelfStackMaxAfterAction){
-        // スマイル・バニークレア等：この行動自体によるスタック増加が反映された「後」の値（＝現在値）で判定する
-        const stackAtMax = (u.elementStack||0) >= ELEMENT_STACK_MAX;
-        if(!stackAtMax){
-          // triggerManualConditionNoteが設定されているスキルは、基本スキル使用後（ctx.wasBasicSkill===true）に限り
-          // スタック以外のOR条件（敵HP等、本ツールでは自動判定不可）があるとみなし、スタック未達でも常に候補として
-          // 提示してプレイヤーに判断してもらう（例：スマイルの敵HP50%以下条件）。
-          // それ以外の発動源（究極使用後等）では、このOR条件は適用されず厳密にスタックMAXのみを要求する
-          const allowManualBypass = s.triggerManualConditionNote && ctx.wasBasicSkill===true;
-          if(!allowManualBypass) return;
-        }
-      }
       if(s.requiresEvade){
         if(targetType==="single" && !ctx.hitEvaded) return;
         if(targetType==="all" && !(ctx.evadeMap && ctx.evadeMap[u.id])) return;
@@ -2405,6 +2396,25 @@ function computeOffers(targetType, ctx){
       // XX1号は「攻撃を受けた時」に発動する仕様のため、EVADE成立時（攻撃自体を回避した場合）でも候補から除外しない
       // 花嫁カルメンの守護の騎士は「対象が単体攻撃を受けた（＝狙われた）時」に発動する仕様のため、
       // 対象がEVADEに成功していても候補から除外しない（EVADE不成立時限定にしていたのは誤りだった）
+      if(s.triggerRequiresSelfStackMaxAfterAction && s.triggerManualConditionNote){
+        // スマイル「猫のタップダンス」等：跳躍スタックMAXでの自動発動と、敵HP等の手動判定OR条件がある。
+        // 候補ボタンは常に1つだけ提示し、今回はどちらの理由で候補に出ているかをラベルに表示する
+        // （スタックMAXなら自動確定の理由を優先表示。MAXでなければ手動判定の理由を表示）。
+        // 1ターンに複数回発動しうるのは、基本スキル自体を複数回使う機会（追加ターン等）がある場合で、
+        // その都度この判定を通るため、1回のafterOwnチェックで候補が2つ並ぶことはない
+        const stackAtMax = (u.elementStack||0) >= ELEMENT_STACK_MAX;
+        const manualTriggerAlreadyUsedThisTurn = !!(u.onceUsed && u.onceUsed["manualTrigger_" + key]);
+        if(stackAtMax){
+          offers.push({allyId:u.id, allyName:u.name, key, skillName:s.name, guardedAlly:isGuardedAllyMatch, relicCounter:isRelicCounterMatch, afterAnyAlly:isAfterAnyAllyMatch, manualConditionNote:"跳躍MAX"});
+        } else if(ctx.wasBasicSkill===true && !manualTriggerAlreadyUsedThisTurn){
+          offers.push({allyId:u.id, allyName:u.name, key, skillName:s.name, guardedAlly:isGuardedAllyMatch, relicCounter:isRelicCounterMatch, afterAnyAlly:isAfterAnyAllyMatch, manualConditionNote:s.triggerManualConditionNote});
+        }
+        return;
+      }
+      if(s.triggerRequiresSelfStackMaxAfterAction){
+        // バニークレア等：この行動自体によるスタック増加が反映された「後」の値（＝現在値）で判定する
+        if((u.elementStack||0) < ELEMENT_STACK_MAX) return;
+      }
       offers.push({allyId:u.id, allyName:u.name, key, skillName:s.name, guardedAlly:isGuardedAllyMatch, relicCounter:isRelicCounterMatch, afterAnyAlly:isAfterAnyAllyMatch, manualConditionNote:s.triggerManualConditionNote||null});
     });
   });
@@ -2430,7 +2440,24 @@ function finalizeActionChain(unitId, extraTurnFlag){
   }
 }
 
-function afterOwnCheck(unitId, extraTurnFlag, wasBasicSkill){
+function afterOwnCheck(unitId, extraTurnFlag, wasBasicSkill, exGateResolved){
+  // 遺物EXは「通常攻撃時25%で誘発」という、afterOwnトリガーの成否とは独立した別枠の判定。
+  // EXの25%抽選確認はafterOwnトリガー候補パネルより先に行い、実際に「誰を誘発するか」の対象選択は
+  // トリガー処理がすべて片付いた後（concludeAfterOwnFlow）に行う。
+  const gateUnit = state.units.find(x=>x.id===unitId);
+  // EX誘発／挟撃が発動すると、その後始末として（誘発された側の攻撃の水爆弾リアクト等をチェックするため）
+  // 元のユニット（gateUnit）についてafterOwnCheckが再度呼ばれる。この時点では既にこの行動内で
+  // EX判定・afterOwnトリガー確認の両方を終えているはずなので、二重にパネルを開かず締めくくりへ進む
+  if(gateUnit && gateUnit._afterOwnHandledForThisAction){
+    concludeAfterOwnFlow(unitId, extraTurnFlag);
+    return;
+  }
+  // exGateResolvedは「EX判定は済んだ（confirmExActivated/dismissExCheck経由で戻ってきた）」印
+  if(wasBasicSkill && !exGateResolved && gateUnit && gateUnit.relics && gateUnit.relics.EX){
+    checkExProc(unitId, extraTurnFlag, wasBasicSkill);
+    return;
+  }
+  if(gateUnit) gateUnit._afterOwnHandledForThisAction = true;
   // 通常は「afterOwnトリガーは基本スキル使用後のみ」だが、firesAfterAnyOwnAttack:trueを持つスキルは
   // 特殊・究極使用後でも判定対象とする（例：スカーレットの点火最大スタック時の自動発動）。
   // firesOnlyAfterKey:"special"等を持つスキルは、そのキー（基本/特殊/究極）を使った時にしか
@@ -2457,13 +2484,20 @@ function afterOwnCheck(unitId, extraTurnFlag, wasBasicSkill){
       sourceLabel: (u?u.name:"") + "のスキル使用後", thenExtraTurn: !!extraTurnFlag };
     renderBattle();
   } else {
-    const u = state.units.find(x=>x.id===unitId);
-    // 遺物EXは「通常攻撃時25%で誘発」の仕様のため、基本スキル使用後（wasBasicSkill）に限り判定する
-    if(wasBasicSkill && u && u.relics && u.relics.EX){
-      checkExProc(unitId, extraTurnFlag);
-    } else {
-      finalizeActionChain(unitId, extraTurnFlag);
-    }
+    concludeAfterOwnFlow(unitId, extraTurnFlag);
+  }
+}
+
+// afterOwnトリガー関連の処理（候補パネルの表示・発動・見送り）がすべて完了した後の締めくくり。
+// EXが発動確定していれば（誘発対象を選ぶ）ここでその選択パネルに進み、なければ通常通り行動を終える
+function concludeAfterOwnFlow(unitId, extraTurnFlag){
+  if(state.pendingExPickAfterTrigger && state.pendingExPickAfterTrigger.sourceUnitId===unitId){
+    const info = state.pendingExPickAfterTrigger;
+    state.pendingExPickAfterTrigger = null;
+    state.pendingExCheck = { sourceUnitId: unitId, thenExtra: info.thenExtra, confirmed: true };
+    renderBattle();
+  } else {
+    finalizeActionChain(unitId, extraTurnFlag);
   }
 }
 
@@ -2499,12 +2533,17 @@ function dismissGxCheck(){
   else { renderBattle(); }
 }
 
-function checkExProc(unitId, extraTurnFlag){
-  state.pendingExCheck = { sourceUnitId: unitId, thenExtra: !!extraTurnFlag, confirmed: false };
+function checkExProc(unitId, extraTurnFlag, wasBasicSkill){
+  state.pendingExCheck = { sourceUnitId: unitId, thenExtra: !!extraTurnFlag, wasBasicSkill: !!wasBasicSkill, confirmed: false };
   renderBattle();
 }
 function confirmExActivated(){
-  if(state.pendingExCheck){ state.pendingExCheck.confirmed = true; renderBattle(); }
+  if(!state.pendingExCheck) return;
+  const ctx = state.pendingExCheck;
+  state.pendingExCheck = null;
+  // 誘発対象の選択はafterOwnトリガー処理がすべて片付いた後（concludeAfterOwnFlow）まで保留する
+  state.pendingExPickAfterTrigger = { sourceUnitId: ctx.sourceUnitId, thenExtra: ctx.thenExtra };
+  afterOwnCheck(ctx.sourceUnitId, ctx.thenExtra, ctx.wasBasicSkill, true);
 }
 
 // ===================== ドレスアセラ型「挟撃」（味方の通常スキル使用後、自身の属性スタック数×◯%で発動） =====================
@@ -2672,7 +2711,7 @@ function confirmPincerFire(){
 function dismissExCheck(){
   const ctx = state.pendingExCheck;
   state.pendingExCheck = null;
-  if(ctx){ finalizeActionChain(ctx.sourceUnitId, ctx.thenExtra); }
+  if(ctx){ afterOwnCheck(ctx.sourceUnitId, ctx.thenExtra, ctx.wasBasicSkill, true); }
   else { renderBattle(); }
 }
 
@@ -2793,6 +2832,9 @@ function dismissTriggerContext(){
     openActionFor(ctx.hitAllyId, "追加ターン(誘発)");
   } else if(ctx && ctx.continueAfterUnitId){
     afterOwnCheck(ctx.continueAfterUnitId, ctx.continueAfterExtra, ctx.continueAfterWasBasic);
+  } else if(ctx && ctx.targetType==="afterOwn"){
+    // afterOwnトリガー候補パネルが片付いた後、遺物EXが発動確定していれば誘発対象選択に進む
+    concludeAfterOwnFlow(ctx.hitAllyId, ctx.thenExtraTurn);
   } else {
     renderBattle();
   }
@@ -2973,6 +3015,14 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
   const stackMaxConsumedNoExtraTurn = !!(s.consumeStackOnlyIfMax && (u.elementStack||0) >= ELEMENT_STACK_MAX);
   const stackMaxConsumedSkipCt = !!(s.skipCtIfStackMaxConsumeAll && (u.elementStack||0) >= ELEMENT_STACK_MAX);
   u._preActionElementStackSnapshot = u.elementStack||0;
+  // triggerManualConditionNote（敵HP等、本ツールでは自動判定できない手動条件）での発動は1ターンに1回まで。
+  // スタックMAXを理由に発動した場合はスタック消費で自然に候補から消えるが、手動条件側はスタックの増減と
+  // 無関係なため、発動済みフラグ（onceUsed）を立てて、同じターン中に何度もパネルが出続けないようにする
+  // （スタックMAXの時はラベルが「跳躍MAX」になり、こちらの理由ではないので対象外）
+  if(s.triggerManualConditionNote && (u.elementStack||0) < ELEMENT_STACK_MAX){
+    u.onceUsed = u.onceUsed || {};
+    u.onceUsed["manualTrigger_" + skillKey] = true;
+  }
 
   let targets = [];
   if(s.targetsAlly){
