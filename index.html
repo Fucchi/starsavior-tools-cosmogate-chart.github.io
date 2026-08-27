@@ -1743,6 +1743,12 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       toughnessDmgSum += toughnessDmg;
       // ティリアの取り巻き等：撃破確認パネルに出す対象として記録（攻撃後にプレイヤーが撃破有無をチェックする）
       if(!isEvaded && target.isEscort) hitEscortIds.push(target.id);
+      // ★段階6以上：ボス（対象）を攻撃した時、攻撃した味方自身の最大HP-5%スタック（被弾側ではなく行動した側、参考表示のみ）
+      let starHpText = "";
+      if(!isEvaded && (target.starStage||0) >= 6){
+        u.starHpDownStacks = Math.min(10, (u.starHpDownStacks||0) + 1);
+        starHpText = `／💢★挑戦(段階${target.starStage})：攻撃により自身の最大HP-5%スタック(${u.starHpDownStacks}/10)`;
+      }
 
       let brokeNow = false;
       if(target.toughness<=0 && !target.broken){
@@ -1846,7 +1852,7 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
         }
       }
 
-      perTargetMemo.push(`${target.name}:強靭削り${toughnessDmg}／残強靭${target.toughness}${brokeNow?"→ブレイク！":""}${reductionText}${effText}${gimmickText}`);
+      perTargetMemo.push(`${target.name}:強靭削り${toughnessDmg}／残強靭${target.toughness}${brokeNow?"→ブレイク！":""}${reductionText}${effText}${gimmickText}${starHpText}`);
     });
     if(hitEscortIds.length>0){
       state.pendingEscortDefeatCheck = Array.from(new Set([...(state.pendingEscortDefeatCheck||[]), ...hitEscortIds]));
@@ -1860,6 +1866,8 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       const rawExtraToughnessPerHit = ((u.skills.special && u.skills.special.toughness) || 1) + (isBreakSkillToughnessBonusActive() ? 1 : 0);
       const extraToughnessPerHit = extraHasDisadvantage ? Math.max(0, rawExtraToughnessPerHit - 2) : rawExtraToughnessPerHit;
       const extraGimmickTexts = [];
+      // ★段階6以上：ボス（対象）を攻撃した時、攻撃した味方自身の最大HP-5%スタック（追加ヒット1発ごとに加算）
+      const extraTargetIsStar6Boss = (extraTarget.starStage||0) >= 6;
       for(let i=0; i<extraCount; i++){
         if(extraTarget.toughness<=0) break;
         // ギミック判定は各追加ヒット自身のデバフ付与より前＝被弾した瞬間の状態で判定（通常のヒットと同じ扱い）
@@ -1870,12 +1878,16 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
         extraTarget.toughness = Math.max(0, extraTarget.toughness - extraToughnessPerHit);
         extraTarget.hitCounter = (extraTarget.hitCounter||0) + 1;
         extraTarget.singleTargetHitCounter = (extraTarget.singleTargetHitCounter||0) + 1;
+        if(extraTargetIsStar6Boss){
+          u.starHpDownStacks = Math.min(10, (u.starHpDownStacks||0) + 1);
+        }
         if(extraTarget.toughness<=0 && !extraTarget.broken){
           extraTarget.broken = true; extraTarget.gauge = 0;
           state.breakPoints = Math.min(3, state.breakPoints + (extraTarget.toughnessMax>=15?3:1));
         }
       }
-      perTargetMemo.push(`線香花火${extraCount}スタック消費→クーリングシステム追加発動${extraCount}回（ダメージのみ／強靭合計-${extraCount*extraToughnessPerHit}／残強靭${extraTarget.toughness}）${extraGimmickTexts.length?"／"+extraGimmickTexts.join("／"):""}`);
+      const extraStarHpText = extraTargetIsStar6Boss ? `／💢★挑戦(段階${extraTarget.starStage})：攻撃により自身の最大HP-5%スタック(${u.starHpDownStacks}/10)` : "";
+      perTargetMemo.push(`線香花火${extraCount}スタック消費→クーリングシステム追加発動${extraCount}回（ダメージのみ／強靭合計-${extraCount*extraToughnessPerHit}／残強靭${extraTarget.toughness}）${extraGimmickTexts.length?"／"+extraGimmickTexts.join("／"):""}${extraStarHpText}`);
       u.senkohanabiStacks = 0;
     }
 
@@ -2711,8 +2723,15 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
     stackMemo += `／自身線香花火+${s.selfSenkohanabiGain}(${u.senkohanabiStacks})`;
   }
 
+  // ★段階6以上：ボス（対象）を攻撃した時、攻撃した味方自身の最大HP-5%スタック（被弾側ではなく行動した側、参考表示のみ）
+  let starHpText = "";
+  if((target.starStage||0) >= 6){
+    u.starHpDownStacks = Math.min(10, (u.starHpDownStacks||0) + 1);
+    starHpText = `／💢★挑戦(段階${target.starStage})：攻撃により自身の最大HP-5%スタック(${u.starHpDownStacks}/10)`;
+  }
+
   logAction(u, arrivalLabel, "通常：" + s.name + skillLabelSuffix, String(toughnessDmg), brokeNow,
-    `対象:${target.name}／残強靭:${target.toughness}${brokeNow?"→ブレイク！":""}${hasAdvantage?"／属性有利+1":""}／BP+${s.burstGain}（BP残${state.teamBurst}）${stackMemo}${gimmickMemo}`);
+    `対象:${target.name}／残強靭:${target.toughness}${brokeNow?"→ブレイク！":""}${hasAdvantage?"／属性有利+1":""}／BP+${s.burstGain}（BP残${state.teamBurst}）${stackMemo}${gimmickMemo}${starHpText}`);
 
   // EX誘発／挟撃発動は行動ゲージ・CTを消費しない追加行動
   const ctx = state.pendingExCheck;
@@ -2815,12 +2834,6 @@ function confirmHitAlly(allyId){
       hitUnit.elementStack = Math.min(ELEMENT_STACK_MAX, (hitUnit.elementStack||0) + 1);
       logAction(hitUnit, "被弾判定", `✨ 被弾により自身${stackName}+1(${hitUnit.elementStack}/${ELEMENT_STACK_MAX})`, "-", false, "");
     }
-    // ★段階6以上：ボスの攻撃を受けた後、攻撃者の最大HP-5%スタック（最大10、参考表示のみ）
-    const attackerForStarHp = ctx.sourceUnitId ? state.units.find(x=>x.id===ctx.sourceUnitId) : null;
-    if(hitUnit && attackerForStarHp && (attackerForStarHp.starStage||0) >= 6){
-      hitUnit.starHpDownStacks = Math.min(10, (hitUnit.starHpDownStacks||0) + 1);
-      logAction(hitUnit, "被弾判定", `💢 ★挑戦(段階${attackerForStarHp.starStage})：被弾により自身の最大HP-5%スタック(${hitUnit.starHpDownStacks}/10)`, "-", false, "");
-    }
   }
   if(barrierBreakCheck && barrierBreakCheck.checked){
     const target = state.units.find(x=>x.id===allyId);
@@ -2840,7 +2853,6 @@ function confirmAoeEvade(){
   if(!state.pendingTriggerContext) return;
   const ctx = state.pendingTriggerContext;
   const evadeMap = {};
-  const attackerForStarHp = ctx.sourceUnitId ? state.units.find(x=>x.id===ctx.sourceUnitId) : null;
   state.units.filter(x=>x.kind==="ally" && x.alive).forEach(u=>{
     const cb = document.getElementById("aoeEvade_" + u.id);
     const evaded = cb ? cb.checked : false;
@@ -2858,11 +2870,6 @@ function confirmAoeEvade(){
       const stackName = stackNameForAttribute(u.attribute);
       u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0) + 1);
       logAction(u, "被弾判定", `✨ 被弾により自身${stackName}+1(${u.elementStack}/${ELEMENT_STACK_MAX})`, "-", false, "");
-    }
-    // ★段階6以上：ボスの攻撃を受けた後、攻撃者の最大HP-5%スタック（最大10、参考表示のみ）
-    if(!evaded && attackerForStarHp && (attackerForStarHp.starStage||0) >= 6){
-      u.starHpDownStacks = Math.min(10, (u.starHpDownStacks||0) + 1);
-      logAction(u, "被弾判定", `💢 ★挑戦(段階${attackerForStarHp.starStage})：被弾により自身の最大HP-5%スタック(${u.starHpDownStacks}/10)`, "-", false, "");
     }
     const barrierCb = document.getElementById("aoeBarrierBreak_" + u.id);
     if(barrierCb && barrierCb.checked){
@@ -2996,6 +3003,12 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
     toughnessDmgSum += toughnessDmg;
     // ティリアの取り巻き等：撃破確認パネルに出す対象として記録（攻撃後にプレイヤーが撃破有無をチェックする）
     if(!evaded && !s.targetsAlly && target.isEscort) hitEscortIds.push(target.id);
+    // ★段階6以上：ボス（対象）を攻撃した時、攻撃した味方自身の最大HP-5%スタック（被弾側ではなく行動した側、参考表示のみ）
+    let starHpText = "";
+    if(!evaded && !s.targetsAlly && (target.starStage||0) >= 6){
+      u.starHpDownStacks = Math.min(10, (u.starHpDownStacks||0) + 1);
+      starHpText = `／💢★挑戦(段階${target.starStage})：攻撃により自身の最大HP-5%スタック(${u.starHpDownStacks}/10)`;
+    }
 
     let brokeNow = false;
     if(target.toughness<=0 && !target.broken && !s.targetsAlly){
@@ -3096,7 +3109,7 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
       }
     }
 
-    perTargetMemo.push(`${target.name}:${s.targetsAlly?"バフ・回復等の効果（強靭計算対象外）":`強靭削り${toughnessDmg}／残強靭${target.toughness}${brokeNow?"→ブレイク！":""}`}${reductionText}${effText}${gimmickText}`);
+    perTargetMemo.push(`${target.name}:${s.targetsAlly?"バフ・回復等の効果（強靭計算対象外）":`強靭削り${toughnessDmg}／残強靭${target.toughness}${brokeNow?"→ブレイク！":""}`}${reductionText}${effText}${gimmickText}${starHpText}`);
   });
   if(hitEscortIds.length>0){
     state.pendingEscortDefeatCheck = Array.from(new Set([...(state.pendingEscortDefeatCheck||[]), ...hitEscortIds]));
