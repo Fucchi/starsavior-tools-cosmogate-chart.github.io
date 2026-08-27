@@ -2212,7 +2212,9 @@ function useEnemySkill(unitId, skillKey){
     u.immuneRemaining--;
     if(u.immuneRemaining === 0){ u.immune = false; }
   }
+  // 今まさにCTをセットしたばかりの、この行動自身のスキルは対象外とする（味方側finalizeActionChainと同じ理由）
   ["special","ultimate"].forEach(k=>{
+    if(k===skillKey) return;
     if(u.ct[k]>0) u.ct[k] = Math.max(0, u.ct[k]-1);
   });
   // 敵自身の弱体化（type==="debuff"）も、本人のターン終了時にここで-1する
@@ -2423,10 +2425,14 @@ function computeOffers(targetType, ctx){
 
 function finalizeActionChain(unitId, extraTurnFlag){
   // 行動チェーン全体が完了したこのタイミングで、CTを1つ進める
-  // （自分が今使ったスキル自身も含めて、行動のたびに他の全スキルのCTが1減る）
+  // （行動のたびに他のスキルのCTが1減る。ただし、この行動自体で使用したスキル＝今まさにCTをセットした
+  // ばかりのスキルは対象外とする。そうしないと「CT3のスキルを使った直後にその場でCT2扱いになり、
+  // 本来3ターン後に使えるはずが2ターン後に使えてしまう」という不具合になる（バニークレアで発覚））
   const u = state.units.find(x=>x.id===unitId);
   if(u){
+    const justUsedKey = u._actingSkillKeyForAfterOwn;
     ["special","ultimate"].forEach(k=>{
+      if(k===justUsedKey) return;
       if(u.ct[k]>0) u.ct[k] = Math.max(0, u.ct[k]-1);
     });
     // decrementAtOwnTurnEnd:true のバフ（カネリアの漆黒の残響等）は、追加ターンが続く場合はまだ「ターン終了」ではないため
