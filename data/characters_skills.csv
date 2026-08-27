@@ -1,0 +1,149 @@
+﻿id,skill_type,name,note,ct,toughness,burst_add,burst_gain,extra_turn,trigger_type,trigger_ct_mode,self_gauge_gain,burst_gauge_gain_add,requires_evade,targets_ally,gauge_to_target,atk_pct,extra_effects_json
+asera,passive,,とばり斬り使用後、会心ダメ+6%スタック(最大5)。攻撃力+15%(3凸),,,,,,,,,,,,,,
+asera,basic,ストラニス式一閃,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1}"
+asera,special,とばり斬り,,3,0,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfBuff"": {""name"": ""速度アップ（+20%）"", ""turns"": 2, ""speedModPct"": 20}, ""target"": ""all""}"
+asera,ultimate,夜の曙光,,4,0,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfBuff"": {""name"": ""会心率アップ（+30%）"", ""turns"": 2}, ""target"": ""all""}"
+dress_asera,passive,,味方の通常スキル使用後、洞察スタック1つにつき20%の確率で挟撃(自身の通常攻撃)が発動(最大5個で100%)。基本スキル後、最低HP味方を回復,,,,,,,,,,,,,,"{""hasPincerAttack"": true, ""pincerStackPct"": 20}"
+dress_asera,basic,ベル・ラーム,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1, ""clearAllyDebuffCount"": 1, ""clearAllyDebuffBurstOnly"": true}"
+dress_asera,special,バル・ドレ,,3,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfBuff"": {""name"": ""星灯りの願い（速度+10%/効果耐性+30%・解除不可）"", ""turns"": 2, ""speedModPct"": 10}, ""selfStackGain"": 1}"
+dress_asera,ultimate,ルミエール・ソネット,,4,0,0,1,FALSE,none,hasCT,0,0,FALSE,TRUE,FALSE,,"{""teamGaugeGainPct"": 15, ""teamGaugeGainExcludeSelf"": true}"
+roberta,passive,,攻撃時会心率+50%(ほぼ無条件)。HP50%以上でダメ+8%/50%未満でダメ+16%。会心発生時、特殊「ファストトラック」自身のCTがさらに-1される(本ツールは会心前提のため常時適用、実装済み),,,,,,,,,,,,,,
+roberta,basic,作戦開始,,0,0,1,0,FALSE,none,hasCT,0,20,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1}"
+roberta,special,ファストトラック,,2,1,0,1,FALSE,aoe,hasCT,30,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1, ""selfCtReduceOnCritTrigger"": true}"
+roberta,ultimate,緊急現場判断,,4,2,1,1,FALSE,none,hasCT,30,0,FALSE,FALSE,FALSE,,"{""selfBuff"": {""name"": ""攻撃力アップ（+30%）"", ""turns"": 2}, ""selfStackConsumeAll"": true}"
+fei,passive,,戦闘開始時・ターン終了時に回避率+50%(常時回避50%)。回避成功時ATK+4%スタック(最大5),,,,,,,,,,,,,,
+fei,basic,月食,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1, ""selfBuff"": {""name"": ""攻撃力アップ"", ""turns"": 1}, ""burstOnlySelfBuff"": true}"
+fei,special,月食（反撃）,,0,1,1,0,FALSE,any,oncePerTurn,0,0,TRUE,FALSE,FALSE,,"{""selfStackGain"": 2}"
+fei,ultimate,清風朗月,,4,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfBuff"": {""name"": ""攻撃力アップ（+30%）"", ""turns"": 2}, ""selfStackConsumeAll"": true}"
+ede,passive,,戦闘開始時に自身へ1ターン守護＋バリアを発生(実装済み)。攻撃を受けた後、跳躍スタック+1(実装済み)。守護=味方の被ダメ30%肩代わり(本ツールはダメージ計算対象外のため参考情報),,,,,,,,,,,,,,"{""battleStartSelfBuffs"": [{""name"": ""守護"", ""turns"": 1}, {""name"": ""バリア"", ""turns"": 1}], ""gainStackOnHit"": true}"
+ede,basic,鋼鉄の雹,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1, ""selfBuff"": {""name"": ""バリア（バースト時のみ）"", ""turns"": 1}, ""burstOnlySelfBuff"": true}"
+ede,special,錐の鎧,,3,0,0,1,FALSE,none,hasCT,0,0,FALSE,TRUE,FALSE,,"{""selfBuff"": {""name"": ""守護＋防御力アップ（+30%）"", ""turns"": 3}, ""extraTurnIfStackMaxConsumeAll"": true}"
+ede,ultimate,棘の墓,,4,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfBuff"": {""name"": ""守護"", ""turns"": 3}, ""targetEffect"": {""name"": ""命中率ダウン（-30%）"", ""turns"": 2}}"
+emily,passive,,準備万端なメイド：エミリーの最大HPが上がる(3凸で15%)。戦闘開始時、自身に1ターンバリア(HP18%)を発生(実装済み)。攻撃を受けた後、究極スキル「ターンダウンサービス」のCTが1ターン短縮。全体攻撃を受けた後はさらに追加で1ターン短縮(単体-1／全体-2、実装済み)。自身に一定確率で冷却スタックを1つ付与(3凸で100%、実装済み・確率は常時発生として扱う),,,,,,,,,,,,,,"{""ultimateCtReduceOnHit"": true, ""gainStackOnHit"": true, ""battleStartSelfBarrier"": {""turns"": 1, ""hpPct"": 18}}"
+emily,basic,戦闘掃除開始,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1, ""selfBuff"": {""name"": ""バリア（バースト時のみ）"", ""turns"": 1}, ""burstOnlySelfBuff"": true}"
+emily,special,クリーニングサービス,,4,0,0,1,TRUE,none,hasCT,0,0,FALSE,TRUE,FALSE,,"{""targetEffect"": [{""name"": ""攻撃力アップ（+30%）"", ""turns"": 3, ""atkModPct"": 30}, {""name"": ""バリア（HP40%）"", ""turns"": 3}], ""selfStackGain"": 3}"
+emily,ultimate,ターンダウンサービス,,7,0,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackConsumeAll"": true, ""target"": ""all"", ""teamBuff"": {""name"": ""防御力アップ（+30%）"", ""turns"": 2}}"
+kanelia,passive,,回し車の輻：攻撃力+15%。戦闘開始時、自身に1ターン「漆黒の残響（解除不可）」を発生(実装済み：battleStartSelfBuffs)。攻撃時、激動スタック数に比例して攻撃力+6%(最大5、本ツール未実装)。戦闘不能に瀕すると1回だけ不死身発動(HP1%回復・全CTリセット、本ツール未実装)。特殊「導きの暁闇」は攻撃後、自身が漆黒の残響状態であればランダムな敵にもう一度発動(自身のターンに1回のみ、実装済み：afterOwnトリガー＋triggerRequiresSelfBuffName)。究極は自身が漆黒の残響状態ならダメージ+50%(本ツール未実装、ダメージ計算非対応方針),,,,,,,,,,,,,,"{""battleStartSelfBuffs"": [{""name"": ""漆黒の残響（解除不可・攻撃力/効果耐性+20%）"", ""turns"": 1, ""decrementAtOwnTurnEnd"": true}]}"
+kanelia,basic,暁の誘い,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1}"
+kanelia,special,導きの暁闇,,3,1,1,1,FALSE,afterOwn,oncePerTurn,0,0,FALSE,FALSE,FALSE,,"{""targetEffect"": {""name"": ""強化不可"", ""turns"": 2}, ""selfStackGain"": 1, ""triggerRequiresSelfBuffName"": ""漆黒の残響"", ""enemyGaugeReductionPct"": 25, ""firesAfterAnyOwnAttack"": true}"
+kanelia,ultimate,乖離解放,,4,1,1,1,FALSE,none,hasCT,30,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1, ""target"": ""all""}"
+clarissa,passive,,"絡みつく風道：会心率+15%(3凸)。ターン開始時、100%で跳躍スタック+1(基本スキルとは別に自動加算)。攻撃を受けた後、自身の跳躍スタックをすべて消去(本ツール未実装)。跳躍スタック段階効果：2で与ダメ+15%,3で命中+50%,4で自ゲージ+15%,5で敵ゲージ-15%(ダメージ・命中面は本ツールでは未計算。ゲージ効果は実装済み：攻撃後の自身の跳躍スタックが4以上で自ゲージ+15%、5以上で敵ゲージ-15%。攻撃を伴わないスキルでは発生しない)。特殊・究極は対象が月属性ならダメ+20%(本ツール未実装)。本ツールは会心発生前提のため、会心時効果(特殊の自ゲージ+15%・究極の敵ゲージ-20%)は常時適用として実装",,,,,,,,,,,,,,"{""turnStartStackGain"": true, ""passiveStackGaugeEffects"": {""selfGaugeThreshold"": 4, ""selfGaugePct"": 15, ""enemyGaugeThreshold"": 5, ""enemyGaugePct"": 15}}"
+clarissa,basic,少し離れて,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,65,"{""selfStackGain"": 1}"
+clarissa,special,感じるままに射撃,,3,1,1,1,FALSE,none,hasCT,40,0,FALSE,FALSE,FALSE,90,"{""targetEffect"": {""name"": ""速度ダウン（-20%）"", ""turns"": 1, ""speedModPct"": -20}, ""burstEnemyGaugeReductionAdd"": 15}"
+clarissa,ultimate,銃はこうやって撃つんだよ,,4,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,115,"{""selfBuff"": {""name"": ""速度アップ（+20%）"", ""turns"": 2, ""speedModPct"": 20}, ""selfStackGain"": 2, ""enemyGaugeReductionPct"": 20}"
+swimsuit_smile,passive,,スマイルの水中実験：スマイルの攻撃力が15%上がる(3凸)。戦闘開始時、速度が最も高い敵に100%の確率で水爆弾を3ターン付与(効果耐性・免疫・命中を無視して貫通、実装済み)。基本(水分補充)または究極(夏夜と花火)使用後、敵に100%の確率で水爆弾を3ターン付与(新しい水爆弾は既存のものを解除＝敵1体のみ有効)。攻撃時、対象が水爆弾状態なら自身の会心ダメージ+20%(3凸、本ツール未実装)。専用アルカナ「バカンスの準備はお買い物から！」を標準装備(ターン開始時跳躍+1／特殊使用時ダメ+20%は本ツール未反映)。特殊(クーリングシステム)は「自分以外の味方が水爆弾状態の敵を攻撃した後、跳躍2以上で自動発動」というトリガースキルで、実装済み(跳躍2消費・線香花火1付与・自ゲージ+15%)。究極発動時のクーリングシステム追加分はダメージのみで効果は乗らない(実装済み),,,,,,,,,,,,,,"{""relics"": {""SMILE_ARCANA"": true}, ""hasWaterBombReactAttack"": true, ""waterBombReactStackReq"": 2, ""waterBombReactDebuffName"": ""水爆弾""}"
+swimsuit_smile,basic,水分補充,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,50,"{""selfStackGain"": 1, ""targetEffect"": {""name"": ""水爆弾"", ""turns"": 3}, ""battleStartDebuffFastestEnemy"": {""name"": ""水爆弾"", ""turns"": 3, ""ignoresImmune"": true}}"
+swimsuit_smile,special,クーリングシステム,,0,1,1,0,FALSE,none,hasCT,15,0,FALSE,FALSE,FALSE,70,"{""selfSenkohanabiGain"": 1}"
+swimsuit_smile,ultimate,夏夜と花火,,4,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,115,"{""selfStackGain"": 3, ""targetEffect"": {""name"": ""水爆弾"", ""turns"": 3}, ""consumeSenkohanabiForExtraHits"": true}"
+smile,passive,,基本スキル使用後、自身の跳躍スタックが最大(5)、または敵HPが50%以下の場合、特殊(猫のタップダンス)が自動トリガー候補として提示される(特殊使用後は対象外)。跳躍スタック側の判定は基本スキル自体によるスタック増加分も含めた『行動後』の値で行う（実装済み：triggerRequiresSelfStackMaxAfterAction）。敵HP条件は本ツールがダメージ・HPを計算しない方針のため自動判定できず、常に候補として提示した上でプレイヤーが実際のHPを見て発動を判断する（実装済み：triggerManualConditionNote、基本スキル使用後限定）。究極スキル使用後も、跳躍スタックが最大(5)なら同様に特殊が自動トリガー候補として提示される(こちらは敵HP条件なし・スタックMAX時のみ、実装済み：firesAfterAnyOwnAttack)。発動時、スタックが最大ならスタックを全消費する（実装済み：consumeStackOnlyIfMax。敵HP条件のみで発動した場合はスタックは消費されない）。専用アルカナ「バカンスの準備はお買い物から！」を標準装備(ターン開始時跳躍+1／特殊スキル使用時、与ダメージ+20%は本ツール未反映),,,,,,,,,,,,,,"{""relics"": {""SMILE_ARCANA"": true}}"
+smile,basic,射撃座標確認,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1}"
+smile,special,猫のタップダンス,,1,0,1,1,FALSE,afterOwn,hasCT,0,0,FALSE,FALSE,FALSE,,"{""targetEffect"": {""name"": ""燃焼"", ""turns"": 1, ""dot"": true}, ""target"": ""all"", ""triggerRequiresSelfStackMaxAfterAction"": true, ""consumeStackOnlyIfMax"": true, ""triggerManualConditionNote"": ""跳躍MAX or 敵HP50%以下"", ""firesAfterAnyOwnAttack"": true}"
+smile,ultimate,全隊員、一斉射撃！,,4,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""targetEffect"": {""name"": ""防御力ダウン"", ""turns"": 2}, ""selfStackGain"": 3}"
+seira,passive,,攻撃時、敵HP75%以上でダメ+15%(3凸),,,,,,,,,,,,,,
+seira,basic,はかない夢,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1}"
+seira,special,星蝶の群れ,,4,0,0,1,TRUE,none,hasCT,25,25,FALSE,TRUE,TRUE,,"{""selfStackGain"": 3}"
+seira,ultimate,幻夢への招待,,5,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfBuff"": {""name"": ""霊夢の光（ATK+15%/速度+15%）"", ""turns"": 2, ""speedModPct"": 15}, ""targetEffect"": {""name"": ""速度ダウン（-20%）"", ""turns"": 2, ""speedModPct"": -20}, ""selfStackConsumeAll"": true}"
+ceres,passive,,特殊使用後、命中数に応じ自ゲージ+35%ずつ(最大175%、実装済み：selfGaugeGainPerHitPct/selfGaugeGainPerHitMaxPct)。敵が凍結状態でダメ+30%(本ツールはダメージ計算非対応のため未実装),,,,,,,,,,,,,,
+ceres,basic,第1型三日月,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1, ""burstEnemyGaugeReductionAdd"": 15}"
+ceres,special,第7型大地震,,4,0,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""targetEffect"": [{""name"": ""凍結"", ""turns"": 2, ""dot"": true}, {""name"": ""孤立"", ""turns"": 2}], ""target"": ""all"", ""selfGaugeGainPerHitPct"": 35, ""selfGaugeGainPerHitMaxPct"": 175}"
+ceres,ultimate,第21型刀風,,4,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfBuff"": {""name"": ""西部の風（速度+25%）"", ""turns"": 3, ""speedModPct"": 25}, ""targetEffect"": {""name"": ""気絶"", ""turns"": 1}, ""selfStackConsumeAll"": true, ""enemyGaugeReductionPct"": 20, ""enemyGaugeReductionPerStack"": 10}"
+tyria,passive,,基本スキル後100%で敵に惨劇の棘を1スタック付与（本ツールでは敵デバフとして蓄積・表示）。敵の棘が3スタック以上の状態で基本スキルを使用すると特殊(惨劇のレクイエム)が自動トリガー候補として提示される（基本スキル使用後のみ判定。特殊・究極使用後は対象外）。トリガー発動時は速度アップが付かず、CTにも入らない(通常発動時のみ速度+20%・CT4),,,,,,,,,,,,,,
+tyria,basic,終焉のプレリュード,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1, ""targetEffect"": {""name"": ""惨劇の棘"", ""turns"": 99, ""dot"": true, ""ignoresImmune"": true, ""undispellable"": true}}"
+tyria,special,惨劇のレクイエム,,4,0,1,1,FALSE,afterOwn,oncePerTurn,0,0,FALSE,FALSE,FALSE,,"{""selfBuff"": {""name"": ""速度アップ（+20%）"", ""turns"": 3, ""speedModPct"": 20}, ""selfBuffManualOnly"": true, ""selfStackConsumeAll"": true, ""triggerRequiresEnemyStackName"": ""惨劇の棘"", ""triggerRequiresEnemyStackCount"": 3, ""consumeAllTargetDebuffName"": ""惨劇の棘""}"
+tyria,ultimate,悲嘆のクレッシェンド,,5,0,1,1,TRUE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfBuff"": {""name"": ""破砕（ATK+10%）"", ""turns"": 2}, ""selfStackGain"": 2, ""target"": ""all"", ""extraTurnBurstOnly"": true}"
+bunny_clare,passive,,ターン開始時、会心率+10%スタック(最大3)。基本スキル使用後、自身の冷却スタックが最大(5)の場合、特殊(どこを見ているのですか？)が自動トリガー候補として提示される(特殊・究極使用後は対象外)。この判定は基本スキル自体によるスタック増加分も含めた『行動後』の値で行う（実装済み：triggerRequiresSelfStackMaxAfterAction）。発動時はスタックを全消費する（実装済み：consumeStackOnlyIfMax）,,,,,,,,,,,,,,
+bunny_clare,basic,目にも止まらぬ動き,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1}"
+bunny_clare,special,どこを見ているのですか？,,3,1,1,0,FALSE,afterOwn,hasCT,30,0,FALSE,FALSE,FALSE,,"{""selfBuff"": {""name"": ""攻撃力アップ（+30%）"", ""turns"": 2}, ""selfStackGain"": 3, ""triggerRequiresSelfStackMaxAfterAction"": true, ""consumeStackOnlyIfMax"": true}"
+bunny_clare,ultimate,バニージャックポット,,4,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfBuff"": {""name"": ""ジャックポット・ブルーム（会心率/会心ダメ+20%）"", ""turns"": 3}, ""selfStackGain"": 3}"
+bunny_charle,passive,,他の太陽味方のターン開始時、自身に点火+1。特殊(祝杯の歌)のラッキートークンが自身にある間のみ、通常攻撃(バニーステップ)使用後にもう一度通常攻撃が自動トリガー候補として提示される(1ターン1回。特殊・究極使用後は対象外)。基本スキル(バニーステップ)使用後、自身の行動ゲージ+10%(2回使用で+20%)。究極は点火スタックが最大(5)の時、全消費してCTに入らない(実装済み：skipCtIfStackMaxConsumeAll),,,,,,,,,,,,,,
+bunny_charle,basic,バニーステップ,,0,0,1,0,FALSE,afterOwn,oncePerTurn,10,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1, ""triggerRequiresSelfBuffName"": ""ラッキートークン""}"
+bunny_charle,special,祝杯の歌,,4,0,0,1,TRUE,none,hasCT,0,0,FALSE,TRUE,FALSE,,"{""selfBuff"": {""name"": ""ラッキートークン（解除不可＝防御力20%貫通）"", ""turns"": 3}, ""selfStackGain"": 3, ""teamBuff"": {""name"": ""攻撃力アップ（+30%）"", ""turns"": 2}}"
+bunny_charle,ultimate,窮地に追い込まれたウサギ,,5,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackConsumeAll"": true, ""skipCtIfStackMaxConsumeAll"": true}"
+luna,passive,,究極使用時、自身が強化状態なら会心ダメ+20%。全スキルが全体攻撃,,,,,,,,,,,,,,
+luna,basic,護身用魔力弾,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1, ""target"": ""all""}"
+luna,special,ヘカテの火種,,3,0,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfBuff"": {""name"": ""会心率アップ（+30%）"", ""turns"": 2}, ""target"": ""all""}"
+luna,ultimate,アタシの目に映った世界,,4,0,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""targetEffect"": {""name"": ""束縛"", ""turns"": 2}, ""target"": ""all""}"
+bride_epindel,passive,,味方の会心ヒットで点火+1。太陽味方のターン開始時、点火+2(3凸),,,,,,,,,,,,,,
+bride_epindel,basic,鷹の強襲,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1}"
+bride_epindel,special,ブーケトス,,3,0,1,1,TRUE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfBuff"": {""name"": ""攻撃力アップ（+30%）"", ""turns"": 2}, ""selfStackConsumeAll"": true, ""enemyGaugeReductionPct"": 20}"
+bride_epindel,ultimate,花嫁、入場,,4,0,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfBuff"": {""name"": ""速度アップ"", ""turns"": 2}, ""target"": ""all""}"
+bride_carmen,passive,,盟約：最大HPが15%上がる(未対応)。戦闘開始時、自身を除く攻撃力最高の味方に「愛の誓約（解除不可）」を付与(実装済み：上の対象選択欄で戦闘開始前に指定。permanent:trueの永続バフとして付与され、自動ターン減少・解除の対象外。効果耐性+20%の数値効果自体は本ツール非対応のため注記のみ)。対象が単体攻撃を受けた時、被ダメの40%をカルメンが代わりに受け自身ゲージ+30%(本ツールはダメージ計算非対応のため被ダメ肩代わり自体は手動判断)。特殊「守護の騎士」は対象指定型トリガー（実装済み：愛の誓約の対象が単体攻撃を受けた時に自動発動候補として提示、選択すると対象選択フォームなしで即時発動）。基本使用後、味方全体HP回復(本ツール未対応)。特殊・究極のノヴァフォース獲得量は1（実装済み）。専用潜在「愛の行進」：強靭度上限+1・特殊/究極使用後ノヴァフォース+2（実装済み：CARMEN_ARCANA、通常発動・トリガー発動どちらでも加算される）,,,,,,,,,,,,,,"{""requiresGuardTarget"": true}"
+bride_carmen,basic,邪魔しないでください,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1}"
+bride_carmen,special,守護の騎士,,2,0,0,1,FALSE,guardedAlly,hasCT,30,0,FALSE,TRUE,FALSE,,"{""targetEffect"": {""name"": ""バリア"", ""turns"": 2}, ""selfStackGain"": 2, ""alsoGaugeToTarget"": 30}"
+bride_carmen,ultimate,ウェディング・マーチ,,4,0,0,1,FALSE,none,hasCT,0,0,FALSE,TRUE,FALSE,,"{""selfStackGain"": 3, ""targetClearAllDebuffs"": true, ""targetStackGainIfSameAttributeAsSelf"": 3}"
+bunny_scarlet,passive,,ハイスコア！：会心率+15%(3凸)。攻撃時、点火スタックに比例してダメージ+7%ずつ(最大5スタック)。ターン開始時、自身にピンボールタイム！を3回発生させ(ノーマルボール/セブンボールを各1/2でランダム抽選、攻撃後に全解除)、セブンボール(解除不可)の数に応じて速度+1ずつ(最大10スタック、実装済み：セブンボール数欄に応じて自ターン開始時に自動加算)。ノーマルボール：ダメ+1%、セブンボール：ダメ+7%（本ツール未実装、ダメージ計算対象外のため）。セブンボールの数はランダム要素のため、実際のゲーム画面を見ながら下の「セブンボール数」欄を手動で0〜3にセットしてください（速度スタック増加・究極スキルのCT短縮の両方に使用）,,,,,,,,,,,,,,"{""usesSevenBallMechanic"": true}"
+bunny_scarlet,basic,一気に行くのだ！,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,65,"{""selfStackGain"": 1}"
+bunny_scarlet,special,これは無効なのだ！,,4,0,1,1,TRUE,none,hasCT,0,0,FALSE,FALSE,FALSE,70,"{""targetEffect"": {""name"": ""回復量ダウン（-50%）"", ""turns"": 2}, ""selfStackGain"": 1}"
+bunny_scarlet,ultimate,とりあえず勝ったのだ！,,5,0,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,40,"{""target"": ""all"", ""targetEffect"": [{""name"": ""速度ダウン（-20%）"", ""turns"": 1, ""speedModPct"": -20}, {""name"": ""回復量ダウン（-50%）"", ""turns"": 2}], ""selfStackGain"": 1, ""ctReduceBySevenBall"": true}"
+scarlet,passive,,わがはいが相手してやるのだ！：最大HPが15%上がる(3凸)。基本(裁断してやるのだ！)使用後、敵に100%で2ターン燃焼を発生(実装済み)。攻撃時、自身の点火が最大スタックであれば、スタックを全消去した後、特殊(思い切って行くのだ！)を発動(自身のターンに1回のみ、実装済み：afterOwnトリガーとして候補提示)。特殊の「敵の燃焼スタックに応じてダメ+15%ずつ(最大3)」・究極バーストの「燃焼追加発生」はダメージ計算対象外のため注記のみ,,,,,,,,,,,,,,
+scarlet,basic,裁断してやるのだ！,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,65,"{""selfStackGain"": 1, ""targetEffect"": {""name"": ""燃焼"", ""turns"": 2, ""dot"": true}}"
+scarlet,special,思い切って行くのだ！,,3,1,1,1,FALSE,afterOwn,oncePerTurn,0,0,FALSE,FALSE,FALSE,90,"{""selfBuff"": {""name"": ""攻撃力アップ（+30%）"", ""turns"": 2}, ""triggerRequiresSelfStackMax"": true, ""consumeStackOnlyIfMax"": true, ""firesAfterAnyOwnAttack"": true}"
+scarlet,ultimate,耐えられるかのう？,,5,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,115,"{""targetEffect"": [{""name"": ""燃焼"", ""turns"": 2, ""dot"": true}, {""name"": ""燃焼"", ""turns"": 2, ""dot"": true}], ""selfBuff"": {""name"": ""チョキチョキ！（攻撃力+効果命中+15%）"", ""turns"": 2}, ""selfStackGain"": 3}"
+christel,passive,,攻撃力+15%。戦闘開始時、自身に点火+3(実装済み：battleStartElementStackGain)。自身を除く味方が特殊・究極で攻撃時、自身に点火+1。攻撃した味方が太陽属性ならさらに+1(実装済み：gainsStackOnAllySpecialOrUltimate、useAllySkill・fireTrigger両方の攻撃解決処理に実装)。悪夢の開放(究極)使用時、敵が弱体化状態なら100%で自身の攻撃力に比例した連鎖ダメージ・自身ゲージ+30%(連鎖ダメージはダメージ計算非対応のため注記のみ、ゲージ増加は実装済み),,,,,,,,,,,,,,"{""battleStartElementStackGain"": 3, ""gainsStackOnAllySpecialOrUltimate"": {""baseAmount"": 1, ""bonusIfAttackerAttribute"": ""太陽"", ""bonusAmount"": 1}}"
+christel,basic,復讐と膺懲,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,50,"{""selfStackGain"": 1, ""targetEffect"": {""name"": ""燃焼"", ""turns"": 2, ""dot"": true, ""ignoresImmune"": true}, ""burstOnlyTargetEffect"": true}"
+christel,special,沸き立つ復讐心,,3,0,0,1,FALSE,afterAnyAlly,hasCT,40,0,FALSE,FALSE,FALSE,0,"{""target"": ""all"", ""selfBuff"": {""name"": ""復讐心（解除不可・攻撃力+効果命中+25%）"", ""turns"": 3}, ""targetEffect"": [{""name"": ""燃焼"", ""turns"": 2, ""dot"": true}, {""name"": ""燃焼"", ""turns"": 2, ""dot"": true}], ""alwaysGrantAllyStackToAttribute"": {""attribute"": ""太陽"", ""amount"": 2, ""excludeSelf"": true}, ""selfStackClearOnUse"": true, ""triggerRequiresSelfStackMaxAfterAction"": true}"
+christel,ultimate,悪夢の開放,,3,2,1,1,FALSE,none,hasCT,30,0,FALSE,FALSE,FALSE,0,"{""targetExtendDebuffDurationByName"": {""name"": ""燃焼"", ""turns"": 1}}"
+vesta,passive,,かすかな感情：最大HPが15%上がる(3凸)。攻撃を受けた後、自身の跳躍が最大スタックであれば自身に2Tバリアを発生させ跳躍を全消費(本ツール未実装)。全体攻撃を受けた後、40%でランダムな敵に「撃退」を追加発動(1ターンに1回のみ、ブレイク中でも発生。実装済み：候補として提示されるので、実際の40%抽選結果に応じて発動するか選んでください)。ダメージ・バリアはHP参照(本ツールはダメージ計算未対応のためatkPctは目安値),,,,,,,,,,,,,,
+vesta,basic,揺るぎなき槍,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,32,"{""selfStackGain"": 1, ""targetEffect"": {""name"": ""攻撃力ダウン（-30%・バースト時のみ）"", ""turns"": 1}, ""burstOnlyTargetEffect"": true}"
+vesta,special,撃退,,3,0,1,1,FALSE,aoe,hasCT,30,0,FALSE,FALSE,FALSE,45,"{""targetEffect"": {""name"": ""攻撃力ダウン（-30%）"", ""turns"": 2}, ""selfStackGain"": 1}"
+vesta,ultimate,止まらぬ突撃,,4,0,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,55,"{""teamBuff"": {""name"": ""防御力アップ（+30%）"", ""turns"": 2}, ""selfBuff"": {""name"": ""バリア"", ""turns"": 2}, ""selfStackGain"": 1}"
+swimsuit_luna,passive,,戦闘開始時、点火5スタック＋自身以外の味方全体にウォータープルーフ日焼け止め(会心ダメ耐性+50%)3T付与。特殊は「自分以外の味方が会心被弾した後」に自動発動するトリガー(対象を問わない広域型のため、本ツールでは通常スキルとして手動発動に読み替え),,,,,,,,,,,,,,
+swimsuit_luna,basic,バブル・スイング！,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,60,"{""selfStackGain"": 1}"
+swimsuit_luna,special,サマー・テンテーション♡,,1,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,85,"{""selfBuff"": {""name"": ""バリア"", ""turns"": 2}, ""targetEffect"": {""name"": ""防御力ダウン（-30%）"", ""turns"": 2}}"
+swimsuit_luna,ultimate,パラダイス・イン・サマー！,,4,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,90,"{""selfBuff"": {""name"": ""防御力アップ（+30%・本来は味方全体）"", ""turns"": 2}, ""targetEffect"": [{""name"": ""攻撃力ダウン（-30%）"", ""turns"": 2}, {""name"": ""挑発"", ""turns"": 1}]}"
+marcille,passive,,槌と金床：会心率+15%。戦闘開始時、または味方が敵の強靭度をブレイクした時、自身に壊れたナットを2回発生させる(実装済み：battleStartBrokenNutGain／gainsBrokenNutOnAnyAllyBreak、味方の誰のブレイクでも反応)。ターン開始時、自身の壊れたナットが最大(3)であれば、自身にヘキサナットを発生させ、壊れたナットをすべて解除(実装済み)。攻撃時、点火スタックに応じ会心ダメ+3%ずつ、最大5個まで適用(ダメージ計算非対応のため未実装)。特殊・究極は会心が発生した場合、自身の行動ゲージ+30%・壊れたナット+1(本ツールは会心発生前提のため常時適用として実装：selfGaugeGain・brokenNutGainOnUse)。特殊はバースト強化時、自身のCTが2ターン短縮される(実装済み：burstSelfCtReduceTurns),,,,,,,,,,,,,,"{""brokenNutStackName"": ""壊れたナット"", ""brokenNutMax"": 3, ""hexanutBuffName"": ""ヘキサナット"", ""battleStartBrokenNutGain"": 2, ""gainsBrokenNutOnAnyAllyBreak"": 2}"
+marcille,basic,ナット回し,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1}"
+marcille,special,釘打ち,,3,1,1,1,FALSE,none,hasCT,30,0,FALSE,FALSE,FALSE,,"{""selfBuff"": {""name"": ""速度アップ（+20%）"", ""turns"": 2, ""speedModPct"": 20}, ""targetEffect"": {""name"": ""燃焼"", ""turns"": 2, ""dot"": true}, ""burstSelfCtReduceTurns"": 2, ""brokenNutGainOnUse"": 1}"
+marcille,ultimate,ネジ破壊,,4,2,1,1,FALSE,none,hasCT,30,0,FALSE,FALSE,FALSE,,"{""selfBuff"": {""name"": ""攻撃力アップ（+30%）"", ""turns"": 2}, ""targetEffect"": {""name"": ""回復量ダウン（-50%）"", ""turns"": 2}, ""brokenNutGainOnUse"": 1}"
+charle,passive,,攻撃力+15%(3凸)。究極使用後、基本スキルのダメージ+10%スタック(最大3、ダメージ計算対象外のため本ツールでは未実装)。特殊はバースト強化時、自身の強靭度+1回復(本ツール未実装),,,,,,,,,,,,,,
+charle,basic,正直な突き,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,65,"{""selfStackGain"": 1}"
+charle,special,勝利の誓い,,4,0,0,1,TRUE,none,hasCT,0,0,FALSE,TRUE,FALSE,,"{""targetEffect"": [{""name"": ""会心率アップ"", ""turns"": 2}, {""name"": ""攻撃力アップ（100%付与）"", ""turns"": 1}]}"
+charle,ultimate,不屈の一撃,,5,2,1,1,FALSE,none,hasCT,30,0,FALSE,FALSE,FALSE,115,"{""targetEffect"": {""name"": ""攻撃力ダウン（100%付与）"", ""turns"": 2}, ""burstDamagePct"": 20}"
+trish,passive,,会心ダメ+25%(3凸)。戦闘開始時跳躍+3。攻撃時命中+50%。撃破時自ゲージ+30%・跳躍+3。究極は跳躍スタック×10%防御貫通(最大5)・HP25%以下でCT-1・撃破でCTリセット(いずれも本ツール未実装),,,,,,,,,,,,,,
+trish,basic,ファントムステップ,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,50,"{""selfStackGain"": 1}"
+trish,special,加速強襲,,2,1,1,1,FALSE,none,hasCT,50,0,FALSE,FALSE,FALSE,55,"{""selfBuff"": {""name"": ""会心率アップ"", ""turns"": 2}, ""selfStackGain"": 2}"
+trish,ultimate,連続斬り,,4,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,90,"{""selfBuff"": {""name"": ""攻撃力アップ（+30%）"", ""turns"": 2, ""atkModPct"": 30}, ""selfStackConsumeAll"": true, ""burstDamagePct"": 20}"
+ru,passive,,攻撃力+15%(3凸)。基本スキル(制圧符)使用後、敵に100%(3凸時。凸数が低いほど確率減、無凸データなし)で1ターン凍結を発生させる。究極は敵の究極スキルCTを+1ターンする効果あり(本ツール未実装)。特殊はバースト強化時、自身の速度アップ持続が1→2ターンに延長される(本ツール未実装、固定1ターンとして実装),,,,,,,,,,,,,,
+ru,basic,制圧符,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,65,"{""selfStackGain"": 1}"
+ru,special,雪中四友,,3,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,90,"{""targetEffect"": {""name"": ""凍結（速度-3%）"", ""turns"": 2, ""dot"": true}, ""selfBuff"": {""name"": ""速度アップ（+20%）"", ""turns"": 1, ""speedModPct"": 20}}"
+ru,ultimate,天道不容、悪即斬,,5,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,115,"{""targetEffect"": {""name"": ""防御力ダウン（-30%）"", ""turns"": 2}}"
+petra,passive,,攻撃力+15%(3凸)。自身を除く味方が敵の強靭度をブレイクした後、自身に点火スタック+1・自身ゲージ+20%(3凸時、1ターン1回)。究極は点火スタック数×4%ダメージ増加(最大5、攻撃後全消費。本ツール未実装),,,,,,,,,,,,,,
+petra,basic,即興設計,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,65,"{""selfStackGain"": 1}"
+petra,special,施工着手,,3,1,2,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,90,"{""selfBuff"": {""name"": ""速度アップ（+20%）"", ""turns"": 2, ""speedModPct"": 20}, ""selfStackGain"": 2}"
+petra,ultimate,建築協議,,4,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,115,"{""targetEffect"": {""name"": ""防御力ダウン（-30%）"", ""turns"": 2}, ""selfStackConsumeAll"": true}"
+lacy,passive,,攻撃力+15%(3凸)。絡み合う夢状態の敵から攻撃を受けた後、行動ゲージ+10%(3凸)、自身のHPを回復(現在攻撃力×0.54相当、本ツール未実装)。特殊は対象が絡み合う夢状態ならダメ+20%(未実装),,,,,,,,,,,,,,
+lacy,basic,火龍生天,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,65,"{""selfStackGain"": 1}"
+lacy,special,逆流水獄,,3,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,110,"{""selfBuff"": {""name"": ""速度アップ（+20%）"", ""turns"": 2, ""speedModPct"": 20}, ""burstDamagePct"": 20}"
+lacy,ultimate,水と火の詩,,4,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,52.5,"{""selfBuff"": {""name"": ""攻撃力アップ（+30%）"", ""turns"": 2, ""atkModPct"": 30}, ""targetEffect"": {""name"": ""絡み合う夢（攻撃力-10%）"", ""turns"": 3}, ""target"": ""all""}"
+tanya,passive,,攻撃力+15%(3凸)。敵の強靭度ブレイク後、自身に跳躍+3・自身以外の味方全体行動ゲージ+10%(3凸)。ターン開始時跳躍最大なら全消費して自身に3ターン解体モード(ダメ+10%、本ツール未実装)。究極は解体モード中なら強靭ダメージ+1(未実装),,,,,,,,,,,,,,
+tanya,basic,ドカーン工具,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,65,"{""selfStackGain"": 1}"
+tanya,special,バンバン電動ノコギリ,,3,1,1,1,FALSE,none,hasCT,30,0,FALSE,FALSE,FALSE,90,"{""teamBuff"": {""name"": ""会心率アップ（+30%）"", ""turns"": 1}, ""burstDamagePct"": 20}"
+tanya,ultimate,ガンガンバンカー,,4,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,115,"{""selfBuff"": {""name"": ""攻撃力アップ（+30%）"", ""turns"": 2, ""atkModPct"": 30}}"
+kira,passive,,攻撃力+15%(3凸)。スキル使用時、自分が潜伏状態ならダメ+10%(3凸、本ツール未実装)。基本スキル使用後、点火スタックが最大なら全消費して自身に1ターン潜伏付与(実装済み：selfBuffIfStackMaxAfterAction。この行動自身のスタック増加分も含めた『行動後』の値で判定する。スマイル・バニークレアと同じ考え方)。基本スキルはバースト強化時のみ、攻撃後1ターン潜伏を発動(実装済み：selfBuff+burstOnlySelfBuff)。特殊は潜伏中のみ敵ゲージ-30%・沈黙状態の敵へダメ+30%(いずれも条件付きのため本ツールでは自動判定できない。ゲージ-30%は行動フォームの「対象の行動ゲージ減少効果を適用する」チェックボックスで、潜伏中かどうかを見てプレイヤーが手動でON/OFFする),,,,,,,,,,,,,,
+kira,basic,非日常的な挨拶,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,65,"{""selfStackGain"": 1, ""selfBuff"": {""name"": ""潜伏"", ""turns"": 1}, ""burstOnlySelfBuff"": true, ""selfBuffIfStackMaxAfterAction"": {""name"": ""潜伏"", ""turns"": 1}}"
+kira,special,沈黙の代償,,3,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,90,"{""selfBuff"": {""name"": ""攻撃力アップ（+30%）"", ""turns"": 2, ""atkModPct"": 30}, ""selfStackGain"": 2, ""enemyGaugeReductionPct"": 30}"
+kira,ultimate,歪んだ関心,,4,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,115,"{""selfBuff"": {""name"": ""潜伏"", ""turns"": 2}, ""selfStackGain"": 2, ""targetEffect"": [{""name"": ""攻撃力ダウン（-30%）"", ""turns"": 2}, {""name"": ""沈黙"", ""turns"": 1}]}"
+belriese,passive,,攻撃力+15%(3凸)。自身を除く味方または敵が戦闘不能になるたびに自身の行動ゲージ+50%(3凸)・攻撃力+10%スタック(最大3)。基本のノヴァバーストで敵に命中率ダウン付与。究極は敵の強化効果を全解除(本ツール未実装)・跳躍スタック最大でダメ+30%(未実装),,,,,,,,,,,,,,
+belriese,basic,訃報,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,65,"{""selfStackGain"": 1, ""targetEffect"": {""name"": ""命中率ダウン（-30%）"", ""turns"": 1}, ""burstOnlyTargetEffect"": true}"
+belriese,special,弔問,,3,0,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,60,"{""target"": ""all"", ""targetEffect"": {""name"": ""命中率ダウン（-30%）"", ""turns"": 2}, ""selfBuff"": {""name"": ""速度アップ（+20%）"", ""turns"": 2, ""speedModPct"": 20}, ""selfStackGain"": 3}"
+belriese,ultimate,納棺,,4,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,115,"{""targetEffect"": {""name"": ""沈黙"", ""turns"": 2}}"
+bunny_frey,passive,,攻撃力+15%(3凸)。ターン開始時、冷却が最大スタックならハイローラー+1(全消費、解除不可)。ハイローラー最大時は基本スキルが強化されダメ+100%(本ツール未実装)。自身以外の月属性味方攻撃後、自ゲージ+8%・100%(3凸)でハイローラー+1(未実装),,,,,,,,,,,,,,
+bunny_frey,basic,ベッティング拒否,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,65,"{""selfStackGain"": 1, ""burstDamagePct"": 20}"
+bunny_frey,special,オールイン,,4,0,0,1,TRUE,none,hasCT,0,0,FALSE,TRUE,FALSE,,"{""teamBuff"": {""name"": ""会心率アップ（+30%）"", ""turns"": 3}, ""selfStackGain"": 3}"
+bunny_frey,ultimate,ブルズアイ,,5,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,40,"{""target"": ""all"", ""selfBuff"": {""name"": ""攻撃力アップ（+30%）"", ""turns"": 2, ""atkModPct"": 30}, ""selfStackGain"": 3}"
+yanagi_mina,passive,,攻撃力+15%(3凸)。攻撃後、自身攻撃力+4%スタック(最大5、3凸、本ツール未実装)。会心発生時、自ゲージ+15%(3凸、未実装)。特殊は跳躍最大なら出血を追加付与(未実装),,,,,,,,,,,,,,
+yanagi_mina,basic,パルスリボルバー,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,50,"{""selfStackGain"": 1, ""burstDamagePct"": 20}"
+yanagi_mina,special,パルスインパクト,,3,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,90,"{""selfBuff"": {""name"": ""会心率アップ（+30%）"", ""turns"": 2}, ""targetEffect"": {""name"": ""出血"", ""turns"": 2, ""dot"": true}}"
+yanagi_mina,ultimate,ウルブズベイン,,4,0,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,52.5,"{""target"": ""all"", ""selfBuff"": {""name"": ""攻撃力アップ（+30%）"", ""turns"": 2, ""atkModPct"": 30}, ""selfStackGain"": 2, ""targetEffect"": {""name"": ""出血"", ""turns"": 2, ""dot"": true}}"
+rosaria,passive,,攻撃力+15%(3凸)。基本使用後、激動スタックに比例して業火発生確率+20%ずつ(最大5回、3凸、本ツール未実装)。攻撃を受けた後HP40%以下に落ちず自身に3ターン攻撃力アップ(戦闘中1回のみ、3凸、未実装)。特殊は業火スタック数でダメ強化・3スタックで灰の炎追加発動(未実装)。究極は会心対象数に応じ業火発生(未実装)、バースト時会心率+30%も付与(本ツール未実装),,,,,,,,,,,,,,
+rosaria,basic,灰の炎,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,50,"{""selfStackGain"": 1}"
+rosaria,special,王の審判,,3,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,90,"{""selfStackGain"": 1}"
+rosaria,ultimate,格の差,,5,1,1,1,FALSE,none,hasCT,50,0,FALSE,FALSE,FALSE,80,"{""target"": ""all"", ""targetEffect"": {""name"": ""防御力ダウン（-30%）"", ""turns"": 2}, ""selfBuff"": {""name"": ""玉座の主（基本ダメ+速度15%）"", ""turns"": 3}}"
+rin,passive,,攻撃力+15%(3凸)。攻撃時跳躍スタック比例で攻撃力+4%ずつ(最大5、3凸、本ツール未実装)。特殊・究極はスキル使用順序で効果が変化する変則スキル(清風/明月状態の有無で分岐、実装済み)。特殊(幻影剣舞)：自身が清風状態でなければ自身に3ターン攻撃力アップを付与し、解決後に自身へ明月を付与。自身が清風状態なら代わりに星属性の味方全員に跳躍+3を付与し、清風を消費(実装済み：variantIfBuffName等)。究極(清風明月)：自身が明月状態でなければ星属性全体に会心ダメ増加を付与し、解決後に自身へ3ターン清風を付与。自身が明月状態なら代わりに単体攻撃に変化し、強靭削り+1(会心ダメ+50%はダメージ計算非対応のため未実装)、明月を消費。特殊・究極の両方が使用可能(CT0)な状態でどちらかを使用した場合、追加ターンを獲得(実装済み：extraTurnIfBothSkillsReady。変則発動の有無とは無関係の独立条件),,,,,,,,,,,,,,
+rin,basic,五連斬り,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,65,"{""selfStackGain"": 1, ""selfBuff"": {""name"": ""速度アップ（バースト時のみ）"", ""turns"": 1, ""speedModPct"": 20}, ""burstOnlySelfBuff"": true}"
+rin,special,幻影剣舞,,5,0,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,40,"{""target"": ""all"", ""selfBuff"": {""name"": ""攻撃力アップ（+30%）"", ""turns"": 3, ""atkModPct"": 30}, ""variantIfBuffName"": ""清風"", ""variantConsumeSelfBuffName"": ""清風"", ""variantGrantAllyStackToAttribute"": {""attribute"": ""星"", ""stackAmount"": 3}, ""alwaysSelfBuffAfterResolve"": {""name"": ""明月"", ""turns"": 9999}, ""extraTurnIfBothSkillsReady"": true}"
+rin,ultimate,清風明月,,5,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,52.5,"{""target"": ""all"", ""teamBuff"": {""name"": ""会心ダメージ増加（星属性限定・本ツールは全体扱い）"", ""turns"": 2, ""critDmgModPct"": 30}, ""variantIfBuffName"": ""明月"", ""variantConsumeSelfBuffName"": ""明月"", ""variantOverrideTargetToSingle"": true, ""variantBonusToughness"": 1, ""alwaysSelfBuffAfterResolve"": {""name"": ""清風（速度+10%）"", ""turns"": 3, ""speedModPct"": 10}, ""extraTurnIfBothSkillsReady"": true}"
+custom,passive,,,,,,,,,,,,,,,,"{""effectiveAtk"": null, ""critDmgPct"": 50}"
+custom,basic,基本スキル,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,
+custom,special,特殊スキル,,3,0,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,
+custom,ultimate,究極スキル,,4,0,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,

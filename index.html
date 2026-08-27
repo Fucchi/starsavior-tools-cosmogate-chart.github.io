@@ -170,6 +170,9 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
   //     （攻撃「前」＝この行動自身によるスタック増加が反映される前の値で判定する。行動によって最大に達したケースは対象外）
   //   triggerRequiresSelfStackMaxAfterAction: 上記と似ているが、攻撃「後」＝この行動自身によるスタック増加が反映された後の値で判定する
   //     （スマイル・バニークレア等：基本スキルで跳躍/冷却が増え、その結果として最大に達したケースも含めて発動する仕様のキャラ用）
+  //   triggerManualConditionNote: スタック条件以外にも「敵HPが50%以下」のような本ツールでは自動判定できないOR条件がある場合に設定する。
+  //     設定されている場合、triggerRequiresSelfStackMax(AfterAction)による自動除外を行わず常に候補として提示し、
+  //     このメモ文をトリガー候補ボタンに表示してプレイヤーに実際の条件成立を判断してもらう（例：スマイルの「猫のタップダンス」）
   extraEffects = extraEffects || {};
   return {name, ct, toughness, burstAdd, burstGain, extraTurn: !!extraTurn, extraTurnBurstOnly: !!extraEffects.extraTurnBurstOnly,
     triggerType: triggerType || "none", triggerCtMode: triggerCtMode || "hasCT",
@@ -233,6 +236,7 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
     triggerRequiresEnemyStackCount: extraEffects.triggerRequiresEnemyStackCount || 0,
     triggerRequiresSelfStackMax: !!extraEffects.triggerRequiresSelfStackMax,
     triggerRequiresSelfStackMaxAfterAction: !!extraEffects.triggerRequiresSelfStackMaxAfterAction,
+    triggerManualConditionNote: extraEffects.triggerManualConditionNote || null,
     alsoGaugeToTarget: extraEffects.alsoGaugeToTarget || 0,
     targetClearAllDebuffs: !!extraEffects.targetClearAllDebuffs,
     targetStackGainIfSameAttributeAsSelf: extraEffects.targetStackGainIfSameAttributeAsSelf || 0,
@@ -2345,7 +2349,15 @@ function computeOffers(targetType, ctx){
       }
       if(s.triggerRequiresSelfStackMaxAfterAction){
         // スマイル・バニークレア等：この行動自体によるスタック増加が反映された「後」の値（＝現在値）で判定する
-        if((u.elementStack||0) < ELEMENT_STACK_MAX) return;
+        const stackAtMax = (u.elementStack||0) >= ELEMENT_STACK_MAX;
+        if(!stackAtMax){
+          // triggerManualConditionNoteが設定されているスキルは、基本スキル使用後（ctx.wasBasicSkill===true）に限り
+          // スタック以外のOR条件（敵HP等、本ツールでは自動判定不可）があるとみなし、スタック未達でも常に候補として
+          // 提示してプレイヤーに判断してもらう（例：スマイルの敵HP50%以下条件）。
+          // それ以外の発動源（究極使用後等）では、このOR条件は適用されず厳密にスタックMAXのみを要求する
+          const allowManualBypass = s.triggerManualConditionNote && ctx.wasBasicSkill===true;
+          if(!allowManualBypass) return;
+        }
       }
       if(s.requiresEvade){
         if(targetType==="single" && !ctx.hitEvaded) return;
@@ -2354,7 +2366,7 @@ function computeOffers(targetType, ctx){
       // XX1号は「攻撃を受けた時」に発動する仕様のため、EVADE成立時（攻撃自体を回避した場合）でも候補から除外しない
       // 花嫁カルメンの守護の騎士は「対象が単体攻撃を受けた（＝狙われた）時」に発動する仕様のため、
       // 対象がEVADEに成功していても候補から除外しない（EVADE不成立時限定にしていたのは誤りだった）
-      offers.push({allyId:u.id, allyName:u.name, key, skillName:s.name, guardedAlly:isGuardedAllyMatch, relicCounter:isRelicCounterMatch, afterAnyAlly:isAfterAnyAllyMatch});
+      offers.push({allyId:u.id, allyName:u.name, key, skillName:s.name, guardedAlly:isGuardedAllyMatch, relicCounter:isRelicCounterMatch, afterAnyAlly:isAfterAnyAllyMatch, manualConditionNote:s.triggerManualConditionNote||null});
     });
   });
   return offers;
@@ -2386,7 +2398,7 @@ function afterOwnCheck(unitId, extraTurnFlag, wasBasicSkill){
   //   花嫁カルメンの守護の騎士やクリステルの沸き立つ復讐心のような、行動主体unitIdとは別の味方が
   //   オファーされるケース（対象指定型・afterAnyAlly型トリガー）では、行動主体unitId自身のスキルの
   //   firesAfterAnyOwnAttackを見ても無関係なため、常に候補として残す（＝基本スキル限定の対象外とする）
-  let offers = computeOffers("afterOwn", {hitAllyId:unitId});
+  let offers = computeOffers("afterOwn", {hitAllyId:unitId, wasBasicSkill});
   if(wasBasicSkill===false){
     offers = offers.filter(o=>{
       if(o.guardedAlly || o.afterAnyAlly) return true;
@@ -2396,7 +2408,7 @@ function afterOwnCheck(unitId, extraTurnFlag, wasBasicSkill){
   }
   if(offers.length>0){
     const u = state.units.find(x=>x.id===unitId);
-    state.pendingTriggerContext = { targetType:"afterOwn", hitAllyId:unitId,
+    state.pendingTriggerContext = { targetType:"afterOwn", hitAllyId:unitId, wasBasicSkill,
       sourceLabel: (u?u.name:"") + "のスキル使用後", thenExtraTurn: !!extraTurnFlag };
     renderBattle();
   } else {
@@ -3569,7 +3581,7 @@ function renderBattle(){
         <div class="smallnote" style="margin-bottom:8px;">発動条件を満たしていそうなら、下のボタンから発動を記録できます（発動しない場合はスキップしてください）。</div>
         ${offers.length===0 ? '<div class="smallnote">発動可能なトリガースキルは見つかりませんでした</div>' : ""}
         <div class="skillbtn-row">${offers.map(o=>`<button class="skillbtn" onclick="openTriggerFireForm('${o.allyId}','${o.key}'${o.guardedAlly ? `,'${ctx.hitAllyId}'` : ",null"}${o.relicCounter ? ",true" : ""})">
-          <div class="name">🔔 ${o.allyName} - ${o.skillName}${o.guardedAlly?"（対象指定型・自動対象）":""}${o.relicCounter?"（XX1号・確率反撃、20%か25%で判断）":""}</div>
+          <div class="name">🔔 ${o.allyName} - ${o.skillName}${o.guardedAlly?"（対象指定型・自動対象）":""}${o.relicCounter?"（XX1号・確率反撃、20%か25%で判断）":""}${o.manualConditionNote?`（${o.manualConditionNote}）`:""}</div>
         </button>`).join("")}</div>
         <button class="btn-secondary" style="margin-top:6px;" onclick="dismissTriggerContext()">これ以上発動しない・続ける</button>`;
     }
