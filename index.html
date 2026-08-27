@@ -1726,10 +1726,15 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       const hasAdvantage = !isEvaded && hasElementAdvantage(u.attribute, target.attribute);
       if(hasAdvantage) hasAdvantageAny = true;
       const advantageBonus = hasAdvantage ? 1 : 0;
+      // 不利属性（対象が自分に対して属性有利を持つ場合）：合計強靭ダメージが一律-2される（実測：基礎2→0、+1バースト時3→1、
+      // さらに+1ブレイクスキル時4→2。0未満にはならない）。太陽/星/月の三すくみでのみ発生し、秩序⇔混沌の相互有利ペアでは
+      // hasAdvantageが常に真になるため発生しない（!hasAdvantageで除外）
+      const hasDisadvantage = !isEvaded && !hasAdvantage && hasElementAdvantage(target.attribute, u.attribute);
       const breakSkillBonus = (!isEvaded && isBreakSkillToughnessBonusActive()) ? 1 : 0;
       // ギーレの究極「強靭度ダメージ無効」等、名前でマークされた無効化バフを持つ対象は強靭ダメージが常に0になる
       const hasToughnessImmuneBuff = target.buffs && target.buffs.some(b=>b.name.includes("強靭度ダメージ無効"));
-      const toughnessDmg = (isEvaded || hasToughnessImmuneBuff) ? 0 : (s.toughness + (burstOn?s.burstAdd:0) + advantageBonus + breakSkillBonus + (rinVariantActive ? (s.variantBonusToughness||0) : 0));
+      const rawToughnessDmg = s.toughness + (burstOn?s.burstAdd:0) + advantageBonus + breakSkillBonus + (rinVariantActive ? (s.variantBonusToughness||0) : 0);
+      const toughnessDmg = (isEvaded || hasToughnessImmuneBuff) ? 0 : (hasDisadvantage ? Math.max(0, rawToughnessDmg - 2) : rawToughnessDmg);
       target.toughness = Math.max(0, target.toughness - toughnessDmg);
       if(!isEvaded){
         target.hitCounter = (target.hitCounter||0) + 1;
@@ -1850,7 +1855,10 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
     if(s.consumeSenkohanabiForExtraHits && (u.senkohanabiStacks||0) > 0 && targets.length>0){
       const extraCount = u.senkohanabiStacks;
       const extraTarget = targets[0];
-      const extraToughnessPerHit = ((u.skills.special && u.skills.special.toughness) || 1) + (isBreakSkillToughnessBonusActive() ? 1 : 0);
+      // 不利属性ペナルティ（-2、0未満にはならない）はこの追加ヒットの1発ごとにも適用される
+      const extraHasDisadvantage = !hasElementAdvantage(u.attribute, extraTarget.attribute) && hasElementAdvantage(extraTarget.attribute, u.attribute);
+      const rawExtraToughnessPerHit = ((u.skills.special && u.skills.special.toughness) || 1) + (isBreakSkillToughnessBonusActive() ? 1 : 0);
+      const extraToughnessPerHit = extraHasDisadvantage ? Math.max(0, rawExtraToughnessPerHit - 2) : rawExtraToughnessPerHit;
       const extraGimmickTexts = [];
       for(let i=0; i<extraCount; i++){
         if(extraTarget.toughness<=0) break;
@@ -2670,7 +2678,10 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
   // 挟撃/EX誘発は他スキルのCTに影響しない
 
   const hasAdvantage = hasElementAdvantage(u.attribute, target.attribute);
-  const toughnessDmg = s.toughness + (burstOn ? s.burstAdd : 0) + (hasAdvantage ? 1 : 0) + (isBreakSkillToughnessBonusActive() ? 1 : 0);
+  // 不利属性ペナルティ：合計強靭ダメージが一律-2（0未満にはならない）。詳細はuseAllySkill内の同様の計算のコメントを参照
+  const hasDisadvantage = !hasAdvantage && hasElementAdvantage(target.attribute, u.attribute);
+  const rawToughnessDmg = s.toughness + (burstOn ? s.burstAdd : 0) + (hasAdvantage ? 1 : 0) + (isBreakSkillToughnessBonusActive() ? 1 : 0);
+  const toughnessDmg = hasDisadvantage ? Math.max(0, rawToughnessDmg - 2) : rawToughnessDmg;
   target.toughness = Math.max(0, target.toughness - toughnessDmg);
   target.hitCounter = (target.hitCounter||0) + 1;
   target.singleTargetHitCounter = (target.singleTargetHitCounter||0) + 1;
@@ -2969,11 +2980,14 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
     const hasAdvantage = !evaded && !s.targetsAlly && hasElementAdvantage(u.attribute, target.attribute);
     if(hasAdvantage) hasAdvantageAny = true;
     const advantageBonus = hasAdvantage ? 1 : 0;
+    // 不利属性ペナルティ：合計強靭ダメージが一律-2（0未満にはならない）。詳細はuseAllySkill内の同様の計算のコメントを参照
+    const hasDisadvantage = !evaded && !s.targetsAlly && !hasAdvantage && hasElementAdvantage(target.attribute, u.attribute);
     const breakSkillBonus = (!evaded && !s.targetsAlly && isBreakSkillToughnessBonusActive()) ? 1 : 0;
     // targetsAlly（花嫁カルメンの守護の騎士等、味方対象のトリガー）は攻撃ではないため強靭ダメージ・被弾カウントの対象外
     // ギーレの究極「強靭度ダメージ無効」等、名前でマークされた無効化バフを持つ対象は強靭ダメージが常に0になる
     const hasToughnessImmuneBuff = target.buffs && target.buffs.some(b=>b.name.includes("強靭度ダメージ無効"));
-    const toughnessDmg = (evaded || s.targetsAlly || hasToughnessImmuneBuff) ? 0 : (s.toughness + (burstOn ? s.burstAdd : 0) + advantageBonus + breakSkillBonus);
+    const rawToughnessDmg = s.toughness + (burstOn ? s.burstAdd : 0) + advantageBonus + breakSkillBonus;
+    const toughnessDmg = (evaded || s.targetsAlly || hasToughnessImmuneBuff) ? 0 : (hasDisadvantage ? Math.max(0, rawToughnessDmg - 2) : rawToughnessDmg);
     target.toughness = Math.max(0, target.toughness - toughnessDmg);
     if(!evaded && !s.targetsAlly){
       target.hitCounter = (target.hitCounter||0) + 1;
