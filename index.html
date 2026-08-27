@@ -173,6 +173,9 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
   //   triggerManualConditionNote: スタック条件以外にも「敵HPが50%以下」のような本ツールでは自動判定できないOR条件がある場合に設定する。
   //     設定されている場合、triggerRequiresSelfStackMax(AfterAction)による自動除外を行わず常に候補として提示し、
   //     このメモ文をトリガー候補ボタンに表示してプレイヤーに実際の条件成立を判断してもらう（例：スマイルの「猫のタップダンス」）
+  //   triggerIgnoresOwnCt: true の場合、このスキルがCT中（triggerCtMode:"hasCT"）でもスタック条件等を満たせばトリガー候補に
+  //     出続け、実際に発動してもこのスキル自身のCTには入らない（バニークレアの「どこを見ているのですか？」：冷却スタックが
+  //     最大になるたびに自身のCT状態と無関係に発動できる仕様のため）
   extraEffects = extraEffects || {};
   return {name, ct, toughness, burstAdd, burstGain, extraTurn: !!extraTurn, extraTurnBurstOnly: !!extraEffects.extraTurnBurstOnly,
     triggerType: triggerType || "none", triggerCtMode: triggerCtMode || "hasCT",
@@ -237,6 +240,7 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
     triggerRequiresSelfStackMax: !!extraEffects.triggerRequiresSelfStackMax,
     triggerRequiresSelfStackMaxAfterAction: !!extraEffects.triggerRequiresSelfStackMaxAfterAction,
     triggerManualConditionNote: extraEffects.triggerManualConditionNote || null,
+    triggerIgnoresOwnCt: !!extraEffects.triggerIgnoresOwnCt,
     alsoGaugeToTarget: extraEffects.alsoGaugeToTarget || 0,
     targetClearAllDebuffs: !!extraEffects.targetClearAllDebuffs,
     targetStackGainIfSameAttributeAsSelf: extraEffects.targetStackGainIfSameAttributeAsSelf || 0,
@@ -2309,6 +2313,9 @@ function skillTriggerAvailable(u, key){
   if(!s || s.triggerType==="none") return false;
   if(u.kind==="ally" && u.broken) return false; // 味方は強靭度ブレイク中トリガースキルが発動不可
   if(s.triggerCtMode==="hasCT"){
+    // triggerIgnoresOwnCt：バニークレア等、スタック条件によるトリガー発動が自身のCT状態と無関係に成立する仕様のスキル用
+    // （CT中でもスタックが最大なら発動でき、発動してもCTには入らない）
+    if(s.triggerIgnoresOwnCt) return true;
     return (key==="basic") ? true : u.ct[key]===0;
   } else {
     return !(u.onceUsed && u.onceUsed[key]);
@@ -2961,7 +2968,8 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
   state.teamBurst = Math.min(12, state.teamBurst + s.burstGain + carmenArcanaBurstBonus);
 
   if(s.triggerCtMode==="hasCT"){
-    if(skillKey!=="basic" && !stackMaxConsumedSkipCt) u.ct[skillKey] = s.ct;
+    // triggerIgnoresOwnCt：発動してもこのスキル自身はCTに入らない（バニークレア等）
+    if(skillKey!=="basic" && !stackMaxConsumedSkipCt && !s.triggerIgnoresOwnCt) u.ct[skillKey] = s.ct;
     // 会心発生時、自身のCTがさらに-1されるスキル（ロベルタ「ファストトラック」等。本ツールは会心前提のため常時適用）
     if(!evaded && s.selfCtReduceOnCritTrigger && skillKey!=="basic" && u.ct[skillKey]>0){
       u.ct[skillKey] = Math.max(0, u.ct[skillKey] - 1);
