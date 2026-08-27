@@ -176,6 +176,11 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
   //   triggerIgnoresOwnCt: true の場合、このスキルがCT中（triggerCtMode:"hasCT"）でもスタック条件等を満たせばトリガー候補に
   //     出続け、実際に発動してもこのスキル自身のCTには入らない（バニークレアの「どこを見ているのですか？」：冷却スタックが
   //     最大になるたびに自身のCT状態と無関係に発動できる仕様のため）
+  //   firesOnlyAfterKey: "basic"|"special"|"ultimate" のいずれかを指定すると、afterOwnトリガーは
+  //     そのキーのスキルを使った時にしか判定対象にならない（未指定時のデフォルトは"basic"限定、
+  //     firesAfterAnyOwnAttackを併用しない限り特殊・究極使用後は対象外という通常仕様と同じ）。
+  //     firesAfterAnyOwnAttackと違い「基本以外の特定の1つだけ」に限定したい場合に使う
+  //     （例：カネリアの「導きの暁闇」は自身の特殊使用後にのみ再発動しうる仕様のため"special"を指定）
   extraEffects = extraEffects || {};
   return {name, ct, toughness, burstAdd, burstGain, extraTurn: !!extraTurn, extraTurnBurstOnly: !!extraEffects.extraTurnBurstOnly,
     triggerType: triggerType || "none", triggerCtMode: triggerCtMode || "hasCT",
@@ -220,6 +225,7 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
     consumeStackOnlyIfMax: !!extraEffects.consumeStackOnlyIfMax,
     skipCtIfStackMaxConsumeAll: !!extraEffects.skipCtIfStackMaxConsumeAll,
     firesAfterAnyOwnAttack: !!extraEffects.firesAfterAnyOwnAttack,
+    firesOnlyAfterKey: extraEffects.firesOnlyAfterKey || null,
     consumeAllTargetDebuffName: extraEffects.consumeAllTargetDebuffName || null,
     target: extraEffects.target || "single",
     enemyGaugeReductionPct: extraEffects.enemyGaugeReductionPct || 0,
@@ -1695,9 +1701,10 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
     }
     let stackMemo = "";
     const stackName = stackNameForAttribute(u.attribute);
+    // 全消費はこのスキル自体のselfStackGainより先に行う（消費対象は発動条件になった既存スタックのため）
+    if((s.selfStackConsumeAll || stackMaxConsumedForExtraTurn || stackMaxConsumedNoExtraTurn || stackMaxConsumedSkipCt) && (u.elementStack||0)>0){ stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)${stackMaxConsumedSkipCt?"／スタック最大消費のためCTに入らない":""}`; u.elementStack = 0; }
     if(s.selfStackGain > 0){ u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0)+s.selfStackGain); stackMemo += `／自身${stackName}+${s.selfStackGain}(${u.elementStack}/${ELEMENT_STACK_MAX})`; }
     if(s.selfSenkohanabiGain > 0){ u.senkohanabiStacks = Math.min(3, (u.senkohanabiStacks||0) + s.selfSenkohanabiGain); stackMemo += `／自身線香花火+${s.selfSenkohanabiGain}(${u.senkohanabiStacks})`; }
-    if((s.selfStackConsumeAll || stackMaxConsumedForExtraTurn || stackMaxConsumedNoExtraTurn || stackMaxConsumedSkipCt) && (u.elementStack||0)>0){ stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)${stackMaxConsumedSkipCt?"／スタック最大消費のためCTに入らない":""}`; u.elementStack = 0; }
 
     // 第十の課業：攻撃ではないスキル（バフ・回復等）を使ったので解除
     const tenthLaborMemo = applyTenthLaborTurnGimmick(u, true);
@@ -1910,9 +1917,10 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
     let stackMemo = "";
     if(!isEvaded){
       const stackName = stackNameForAttribute(u.attribute);
+      // 全消費はこのスキル自体のselfStackGainより先に行う（消費対象は発動条件になった既存スタックのため）
+      if((s.selfStackConsumeAll || stackMaxConsumedForExtraTurn || stackMaxConsumedNoExtraTurn || stackMaxConsumedSkipCt) && (u.elementStack||0)>0){ stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)${stackMaxConsumedSkipCt?"／スタック最大消費のためCTに入らない":""}`; u.elementStack = 0; }
       if(s.selfStackGain > 0){ u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0)+s.selfStackGain); stackMemo += `／自身${stackName}+${s.selfStackGain}(${u.elementStack}/${ELEMENT_STACK_MAX})`; }
     if(s.selfSenkohanabiGain > 0){ u.senkohanabiStacks = Math.min(3, (u.senkohanabiStacks||0) + s.selfSenkohanabiGain); stackMemo += `／自身線香花火+${s.selfSenkohanabiGain}(${u.senkohanabiStacks})`; }
-      if((s.selfStackConsumeAll || stackMaxConsumedForExtraTurn || stackMaxConsumedNoExtraTurn || stackMaxConsumedSkipCt) && (u.elementStack||0)>0){ stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)${stackMaxConsumedSkipCt?"／スタック最大消費のためCTに入らない":""}`; u.elementStack = 0; }
       // マルシル「会心が発生した場合、壊れたナット+1」（本ツールは会心発生前提のため常時適用）
       if(s.brokenNutGainOnUse > 0 && u.brokenNutStackName){
         u.brokenNutStacks = Math.min(u.brokenNutMax||99, (u.brokenNutStacks||0) + s.brokenNutGainOnUse);
@@ -2036,6 +2044,10 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
 
   // 遺物AX：究極スキル発動でその場でリセット（そのターン終了時扱い）
   if(u.relics && u.relics.AX && skillKey==="ultimate"){ u.axStacks = 0; }
+
+  // afterOwnCheckでfiresOnlyAfterKey（例：カネリアの「特殊使用後のみ再発動」）を判定するために、
+  // 実際に使用したスキルキーをユニットに記録しておく（wasBasicSkillは基本/特殊/究極を区別できないため）
+  u._actingSkillKeyForAfterOwn = skillKey;
 
   if(skillKey==="basic" && !isEvaded){
     if(u.relics && u.relics.GX && targetEnemyId){
@@ -2420,19 +2432,25 @@ function finalizeActionChain(unitId, extraTurnFlag){
 
 function afterOwnCheck(unitId, extraTurnFlag, wasBasicSkill){
   // 通常は「afterOwnトリガーは基本スキル使用後のみ」だが、firesAfterAnyOwnAttack:trueを持つスキルは
-  // 特殊・究極使用後でも判定対象とする（例：スカーレットの点火最大スタック時の自動発動）
+  // 特殊・究極使用後でも判定対象とする（例：スカーレットの点火最大スタック時の自動発動）。
+  // firesOnlyAfterKey:"special"等を持つスキルは、そのキー（基本/特殊/究極）を使った時にしか
+  // 判定対象にならない（例：カネリアの「導きの暁闇」は自身の特殊使用後にのみ再発動しうる仕様）
   // ※この判定は「オファーしている当人（o.allyId）のスキル」で見る必要がある。
   //   花嫁カルメンの守護の騎士やクリステルの沸き立つ復讐心のような、行動主体unitIdとは別の味方が
   //   オファーされるケース（対象指定型・afterAnyAlly型トリガー）では、行動主体unitId自身のスキルの
-  //   firesAfterAnyOwnAttackを見ても無関係なため、常に候補として残す（＝基本スキル限定の対象外とする）
+  //   firesAfterAnyOwnAttack/firesOnlyAfterKeyを見ても無関係なため、常に候補として残す
+  const actingUnit = state.units.find(x=>x.id===unitId);
+  const actingSkillKey = actingUnit ? actingUnit._actingSkillKeyForAfterOwn : null;
   let offers = computeOffers("afterOwn", {hitAllyId:unitId, wasBasicSkill});
-  if(wasBasicSkill===false){
-    offers = offers.filter(o=>{
-      if(o.guardedAlly || o.afterAnyAlly) return true;
-      const offeringUnit = state.units.find(x=>x.id===o.allyId);
-      return offeringUnit && offeringUnit.skills[o.key] && offeringUnit.skills[o.key].firesAfterAnyOwnAttack;
-    });
-  }
+  offers = offers.filter(o=>{
+    if(o.guardedAlly || o.afterAnyAlly) return true;
+    const offeringUnit = state.units.find(x=>x.id===o.allyId);
+    const offeringSkill = offeringUnit && offeringUnit.skills[o.key];
+    if(!offeringSkill) return false;
+    if(offeringSkill.firesOnlyAfterKey) return offeringSkill.firesOnlyAfterKey === actingSkillKey;
+    if(wasBasicSkill===false) return !!offeringSkill.firesAfterAnyOwnAttack;
+    return true;
+  });
   if(offers.length>0){
     const u = state.units.find(x=>x.id===unitId);
     state.pendingTriggerContext = { targetType:"afterOwn", hitAllyId:unitId, wasBasicSkill,
@@ -2684,8 +2702,8 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
   skillLabelSuffix = skillLabelSuffix || "（EX誘発）";
   const u = state.units.find(x=>x.id===allyId);
   const s = u.skills.basic;
-  const target = state.units.find(x=>x.id===targetEnemyId);
-  if(!target){ alert("対象の敵を選択してください"); return; }
+  const selectedTarget = state.units.find(x=>x.id===targetEnemyId);
+  if(!selectedTarget){ alert("対象の敵を選択してください"); return; }
   // 挟撃発動の場合、1ターンに1回までの制限フラグを立てる（EXの誘発カウントとは別枠）
   if(String(skillLabelSuffix||"").includes("挟撃")){ u.pincerUsedThisTurn = true; }
 
@@ -2697,28 +2715,51 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
 
   // 挟撃/EX誘発は他スキルのCTに影響しない
 
-  const hasAdvantage = hasElementAdvantage(u.attribute, target.attribute);
-  // 不利属性ペナルティ：合計強靭ダメージが一律-2（0未満にはならない）。詳細はuseAllySkill内の同様の計算のコメントを参照
-  const hasDisadvantage = !hasAdvantage && hasElementAdvantage(target.attribute, u.attribute);
-  const rawToughnessDmg = s.toughness + (burstOn ? s.burstAdd : 0) + (hasAdvantage ? 1 : 0) + (isBreakSkillToughnessBonusActive() ? 1 : 0);
-  const toughnessDmg = hasDisadvantage ? Math.max(0, rawToughnessDmg - 2) : rawToughnessDmg;
-  target.toughness = Math.max(0, target.toughness - toughnessDmg);
-  target.hitCounter = (target.hitCounter||0) + 1;
-  target.singleTargetHitCounter = (target.singleTargetHitCounter||0) + 1;
+  // ルナ等、基本スキル自体がtarget:"all"（全体攻撃）のキャラは、EX誘発／挟撃でも同様に敵全体を対象にする
+  const targets = s.target === "all" ? state.units.filter(x=>x.kind==="enemy" && x.alive) : [selectedTarget];
+
+  let toughnessDmgSum = 0;
+  let hasAdvantageAny = false;
+  let brokeAny = false;
+  const perTargetMemo = [];
+
+  targets.forEach(target=>{
+    const hasAdvantage = hasElementAdvantage(u.attribute, target.attribute);
+    if(hasAdvantage) hasAdvantageAny = true;
+    // 不利属性ペナルティ：合計強靭ダメージが一律-2（0未満にはならない）。詳細はuseAllySkill内の同様の計算のコメントを参照
+    const hasDisadvantage = !hasAdvantage && hasElementAdvantage(target.attribute, u.attribute);
+    const rawToughnessDmg = s.toughness + (burstOn ? s.burstAdd : 0) + (hasAdvantage ? 1 : 0) + (isBreakSkillToughnessBonusActive() ? 1 : 0);
+    const toughnessDmg = hasDisadvantage ? Math.max(0, rawToughnessDmg - 2) : rawToughnessDmg;
+    target.toughness = Math.max(0, target.toughness - toughnessDmg);
+    target.hitCounter = (target.hitCounter||0) + 1;
+    if(s.target!=="all") target.singleTargetHitCounter = (target.singleTargetHitCounter||0) + 1;
+    toughnessDmgSum += toughnessDmg;
+
+    let brokeNow = false;
+    if(target.toughness<=0 && !target.broken){
+      target.broken = true;
+      target.gauge = 0;
+      brokeNow = true;
+      brokeAny = true;
+      state.breakPoints = Math.min(3, state.breakPoints + (target.toughnessMax>=15 ? 3 : 1));
+    }
+
+    const gimmickResult = checkGaugeOnHitGimmick(target);
+    const gimmickResult2 = checkGaugeOnHitIfAllyDebuffGimmick(target);
+    const gimmickMemo = (gimmickResult ? `／${target.name}のギミック発動:デバフ${gimmickResult.debuffCount}個以下のため自ゲージ+${gimmickResult.gainPct}%` : "")
+      + (gimmickResult2 ? `／${target.name}のギミック発動:味方が${gimmickResult2.debuffName}状態のため自ゲージ+${gimmickResult2.gainPct}%` : "");
+
+    // ★段階6以上：ボス（対象）を攻撃した時、攻撃した味方自身の最大HP-5%スタック（被弾側ではなく行動した側、参考表示のみ）
+    let starHpText = "";
+    if((target.starStage||0) >= 6){
+      u.starHpDownStacks = Math.min(10, (u.starHpDownStacks||0) + 1);
+      starHpText = `／💢★挑戦(段階${target.starStage})：攻撃により自身の最大HP-5%スタック(${u.starHpDownStacks}/10)`;
+    }
+
+    perTargetMemo.push(`${target.name}:強靭削り${toughnessDmg}／残強靭${target.toughness}${brokeNow?"→ブレイク！":""}${hasAdvantage?"／属性有利+1":""}${gimmickMemo}${starHpText}`);
+  });
+
   state.teamBurst = Math.min(12, state.teamBurst + s.burstGain);
-
-  let brokeNow = false;
-  if(target.toughness<=0 && !target.broken){
-    target.broken = true;
-    target.gauge = 0;
-    brokeNow = true;
-    state.breakPoints = Math.min(3, state.breakPoints + (target.toughnessMax>=15 ? 3 : 1));
-  }
-
-  const gimmickResult = checkGaugeOnHitGimmick(target);
-  const gimmickResult2 = checkGaugeOnHitIfAllyDebuffGimmick(target);
-  const gimmickMemo = (gimmickResult ? `／${target.name}のギミック発動:デバフ${gimmickResult.debuffCount}個以下のため自ゲージ+${gimmickResult.gainPct}%` : "")
-    + (gimmickResult2 ? `／${target.name}のギミック発動:味方が${gimmickResult2.debuffName}状態のため自ゲージ+${gimmickResult2.gainPct}%` : "");
 
   let stackMemo = "";
   if(s.selfStackGain > 0){
@@ -2731,15 +2772,8 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
     stackMemo += `／自身線香花火+${s.selfSenkohanabiGain}(${u.senkohanabiStacks})`;
   }
 
-  // ★段階6以上：ボス（対象）を攻撃した時、攻撃した味方自身の最大HP-5%スタック（被弾側ではなく行動した側、参考表示のみ）
-  let starHpText = "";
-  if((target.starStage||0) >= 6){
-    u.starHpDownStacks = Math.min(10, (u.starHpDownStacks||0) + 1);
-    starHpText = `／💢★挑戦(段階${target.starStage})：攻撃により自身の最大HP-5%スタック(${u.starHpDownStacks}/10)`;
-  }
-
-  logAction(u, arrivalLabel, "通常：" + s.name + skillLabelSuffix, String(toughnessDmg), brokeNow,
-    `対象:${target.name}／残強靭:${target.toughness}${brokeNow?"→ブレイク！":""}${hasAdvantage?"／属性有利+1":""}／BP+${s.burstGain}（BP残${state.teamBurst}）${stackMemo}${gimmickMemo}${starHpText}`);
+  logAction(u, arrivalLabel, "通常：" + s.name + skillLabelSuffix, String(toughnessDmgSum), brokeAny,
+    `${perTargetMemo.join(" ｜ ")}／BP+${s.burstGain}（BP残${state.teamBurst}）${stackMemo}`);
 
   // EX誘発／挟撃発動は行動ゲージ・CTを消費しない追加行動
   const ctx = state.pendingExCheck;
@@ -3147,6 +3181,13 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
   let stackMemo = "";
   if(!evaded){
     const stackName = stackNameForAttribute(u.attribute);
+    // 全消費は「このスキルの発動条件になったスタック」を消費する処理なので、このスキル自体が付与するselfStackGainより先に行う
+    // （バニークレアの特殊等：トリガー条件(スタック最大)で消費される分と、発動時に新たに得るselfStackGain(+3)は別物のため、
+    //   加算を先にしてしまうと新たに得たスタックまで巻き込んで消費されてしまう）
+    if((s.selfStackConsumeAll || stackMaxConsumedForExtraTurn || stackMaxConsumedNoExtraTurn || stackMaxConsumedSkipCt) && (u.elementStack||0) > 0){
+      stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)${stackMaxConsumedSkipCt?"／スタック最大消費のためCTに入らない":""}`;
+      u.elementStack = 0;
+    }
     if(s.selfStackGain > 0){
       u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0) + s.selfStackGain);
       stackMemo += `／自身${stackName}+${s.selfStackGain}(${u.elementStack}/${ELEMENT_STACK_MAX})`;
@@ -3154,10 +3195,6 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
     if(s.selfSenkohanabiGain > 0){
       u.senkohanabiStacks = Math.min(3, (u.senkohanabiStacks||0) + s.selfSenkohanabiGain);
       stackMemo += `／自身線香花火+${s.selfSenkohanabiGain}(${u.senkohanabiStacks})`;
-    }
-    if((s.selfStackConsumeAll || stackMaxConsumedForExtraTurn || stackMaxConsumedNoExtraTurn || stackMaxConsumedSkipCt) && (u.elementStack||0) > 0){
-      stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)${stackMaxConsumedSkipCt?"／スタック最大消費のためCTに入らない":""}`;
-      u.elementStack = 0;
     }
     // マルシル「会心が発生した場合、壊れたナット+1」（本ツールは会心発生前提のため常時適用）
     if(s.brokenNutGainOnUse > 0 && u.brokenNutStackName){
@@ -3222,6 +3259,10 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
       logAction(u, "トリガー発動", `⭐ 跳躍${stack}スタック段階効果`, "-", false, `${primaryTarget.name}のゲージ-${pe.enemyGaugePct}%`);
     }
   }
+
+  // afterOwnCheckでfiresOnlyAfterKeyを判定するために、実際に発動したスキルキーを記録しておく
+  // （カネリアの特殊がこのfireTrigger経由で自己再発動した場合も、正しく"special"として扱われる）
+  u._actingSkillKeyForAfterOwn = skillKey;
 
   if(s.targetsAlly){
     // 花嫁カルメン等、味方対象のトリガーは攻撃ではないため、挟撃・水爆弾リアクト・ボス被弾トリガーの
