@@ -2433,7 +2433,8 @@ function afterOwnCheck(unitId, extraTurnFlag, wasBasicSkill){
     renderBattle();
   } else {
     const u = state.units.find(x=>x.id===unitId);
-    if(u && u.relics && u.relics.EX){
+    // 遺物EXは「通常攻撃時25%で誘発」の仕様のため、基本スキル使用後（wasBasicSkill）に限り判定する
+    if(wasBasicSkill && u && u.relics && u.relics.EX){
       checkExProc(unitId, extraTurnFlag);
     } else {
       finalizeActionChain(unitId, extraTurnFlag);
