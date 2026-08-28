@@ -2051,6 +2051,8 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
   // この行動（useAllySkillの直接呼び出し）は新しい行動の起点なので、afterOwn処理済みフラグをリセットする
   // （挟撃/EX誘発の連鎖でafterOwnCheckに戻ってきても、同じ行動内でEX判定・トリガー確認が再度開かないようにする）
   u._afterOwnHandledForThisAction = false;
+  // finalizeActionChainの重複実行防止フラグも新しい行動の開始時にリセットする
+  u._finalizedForThisAction = false;
 
   if(skillKey==="basic" && !isEvaded){
     if(u.relics && u.relics.GX && targetEnemyId){
@@ -2212,9 +2214,7 @@ function useEnemySkill(unitId, skillKey){
     u.immuneRemaining--;
     if(u.immuneRemaining === 0){ u.immune = false; }
   }
-  // 今まさにCTをセットしたばかりの、この行動自身のスキルは対象外とする（味方側finalizeActionChainと同じ理由）
   ["special","ultimate"].forEach(k=>{
-    if(k===skillKey) return;
     if(u.ct[k]>0) u.ct[k] = Math.max(0, u.ct[k]-1);
   });
   // 敵自身の弱体化（type==="debuff"）も、本人のターン終了時にここで-1する
@@ -2425,14 +2425,18 @@ function computeOffers(targetType, ctx){
 
 function finalizeActionChain(unitId, extraTurnFlag){
   // 行動チェーン全体が完了したこのタイミングで、CTを1つ進める
-  // （行動のたびに他のスキルのCTが1減る。ただし、この行動自体で使用したスキル＝今まさにCTをセットした
-  // ばかりのスキルは対象外とする。そうしないと「CT3のスキルを使った直後にその場でCT2扱いになり、
-  // 本来3ターン後に使えるはずが2ターン後に使えてしまう」という不具合になる（バニークレアで発覚））
+  // （自分が今使ったスキル自身も含めて、行動のたびに他の全スキルのCTが1減る）
   const u = state.units.find(x=>x.id===unitId);
   if(u){
-    const justUsedKey = u._actingSkillKeyForAfterOwn;
+    // afterOwnトリガー候補パネルで唯一の候補を「発動」した場合、fireTrigger自身の連鎖
+    // （checkWaterBombReact～afterOwnCheck～concludeAfterOwnFlow）経由で既にこの行動の
+    // finalizeActionChainが呼ばれ済みのことがある。その状態でパネルの「続ける」を押すと
+    // 再度この関数に到達してしまうため、同一行動内での二重実行を防ぐ
+    // （バニークレア：冷却スタックが3・4の状態で特殊を使い、次のターンで基本を使った際に
+    // 　CTが2回減ってしまう不具合として発覚）
+    if(u._finalizedForThisAction){ renderBattle(); return; }
+    u._finalizedForThisAction = true;
     ["special","ultimate"].forEach(k=>{
-      if(k===justUsedKey) return;
       if(u.ct[k]>0) u.ct[k] = Math.max(0, u.ct[k]-1);
     });
     // decrementAtOwnTurnEnd:true のバフ（カネリアの漆黒の残響等）は、追加ターンが続く場合はまだ「ターン終了」ではないため
@@ -2825,16 +2829,41 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
   state.pendingExCheck = null;
   const pctx = state.pendingPincerCheck;
   state.pendingPincerCheck = null;
-  if(ctx){ checkWaterBombReact(ctx.sourceUnitId, targetEnemyId, ctx.thenExtra, true, allyId); }
-  else if(pctx){ checkWaterBombReact(pctx.sourceUnitId, pctx.targetEnemyId, pctx.thenExtra, true, allyId); }
-  else { renderBattle(); }
+  const exResumeSourceUnitId = ctx ? ctx.sourceUnitId : (pctx ? pctx.sourceUnitId : null);
+  const exResumeTargetEnemyId = ctx ? targetEnemyId : (pctx ? pctx.targetEnemyId : null);
+  const exResumeThenExtra = ctx ? ctx.thenExtra : (pctx ? pctx.thenExtra : false);
+  const exResumeFn = () => {
+    if(exResumeSourceUnitId){ checkWaterBombReact(exResumeSourceUnitId, exResumeTargetEnemyId, exResumeThenExtra, true, allyId); }
+    else { renderBattle(); }
+  };
+  // EXで選ばれたキャラ自身の行動ゲージ・CTには影響しない追加行動だが、その攻撃で自身の属性スタックが
+  // 最大に達し、スタックMAXトリガー（バニークレア「どこを見ているのですか？」等）の発動条件を満たす
+  // ことがある。呼び出し元（実際にターンを使った側）のチェーンをそのまま乗っ取らないよう、
+  // 専用のexContinuationを介して、この候補パネルの決着後に呼び出し元のチェーンへ戻す
+  const exAttackerOffers = (u.alive && !u.broken) ? computeOffers("afterOwn", {hitAllyId: allyId, wasBasicSkill: true}).filter(o=>o.allyId===allyId) : [];
+  if(exAttackerOffers.length > 0 && exResumeSourceUnitId){
+    state.pendingTriggerContext = {
+      targetType:"afterOwn", hitAllyId: allyId, wasBasicSkill:true,
+      sourceLabel: u.name + "のスキル使用後（" + arrivalLabel + "）", thenExtraTurn:false,
+      exContinuation: { sourceUnitId: exResumeSourceUnitId, targetEnemyId: exResumeTargetEnemyId, thenExtra: exResumeThenExtra }
+    };
+    renderBattle();
+  } else {
+    exResumeFn();
+  }
 }
 
 function dismissTriggerContext(){
   const ctx = state.pendingTriggerContext;
   state.pendingTriggerContext = null;
   state.pendingTriggerFire = null;
-  if(ctx && ctx.targetType==="afterOwn" && ctx.thenExtraTurn){
+  if(ctx && ctx.exContinuation){
+    // EX誘発／挟撃で選ばれたキャラのスタックMAXトリガー候補を見送った場合も、
+    // 通常のfinalizeActionChainには乗せず、呼び出し元（実際にターンを使った側）のチェーンへ戻る
+    const exc = ctx.exContinuation;
+    if(exc.sourceUnitId){ checkWaterBombReact(exc.sourceUnitId, exc.targetEnemyId, exc.thenExtra, true, ctx.hitAllyId); }
+    else { renderBattle(); }
+  } else if(ctx && ctx.targetType==="afterOwn" && ctx.thenExtraTurn){
     openActionFor(ctx.hitAllyId, "追加ターン(誘発)");
   } else if(ctx && ctx.continueAfterUnitId){
     afterOwnCheck(ctx.continueAfterUnitId, ctx.continueAfterExtra, ctx.continueAfterWasBasic);
@@ -2973,16 +3002,17 @@ function confirmAoeEvade(){
   renderBattle();
 }
 
-function openTriggerFireForm(allyId, key, presetAllyTargetId, isRelicCounter){
+function openTriggerFireForm(allyId, key, presetAllyTargetId, isRelicCounter, exSourceUnitId, exTargetEnemyId, exThenExtra){
+  const exContinuation = exSourceUnitId ? {sourceUnitId: exSourceUnitId, targetEnemyId: exTargetEnemyId, thenExtra: !!exThenExtra} : undefined;
   const u = state.units.find(x=>x.id===allyId);
   const s = u && u.skills[key];
   if(s && s.targetsAlly && presetAllyTargetId){
     // 花嫁カルメン等の対象指定型トリガー：対象（愛の誓約の相手）は既に確定しているため、
-    // 敵選択フォームを出さず即座に発動する（EVADEしていた場合はcomputeOffers側で候補から除外済み）
-    fireTrigger(allyId, key, presetAllyTargetId, false, false);
+    // 敵選択フォームを出さず即座に発動する（EVADEしていた場合はcomputeOffers側で除外済み）
+    fireTrigger(allyId, key, presetAllyTargetId, false, false, undefined, exContinuation);
     return;
   }
-  state.pendingTriggerFire = {allyId, key, isRelicCounter: !!isRelicCounter};
+  state.pendingTriggerFire = {allyId, key, isRelicCounter: !!isRelicCounter, exContinuation};
   renderBattle();
 }
 
@@ -2996,7 +3026,7 @@ function confirmTriggerFire(){
   const evadeToggle = document.getElementById("triggerEvadeToggle");
   const gaugeReduceToggle = document.getElementById("triggerGaugeReduceToggle");
   if(!state.pendingTriggerFire) return;
-  const { allyId, key, isRelicCounter } = state.pendingTriggerFire;
+  const { allyId, key, isRelicCounter, exContinuation } = state.pendingTriggerFire;
   const targetId = targetSelect ? targetSelect.value : null;
   const evaded = evadeToggle ? evadeToggle.checked : false;
   const applyGaugeReduction = gaugeReduceToggle ? gaugeReduceToggle.checked : true;
@@ -3008,10 +3038,10 @@ function confirmTriggerFire(){
     const u = state.units.find(x=>x.id===allyId);
     if(u){ u.onceUsed = u.onceUsed || {}; u.onceUsed.xx1gouCounter = true; }
   }
-  fireTrigger(allyId, key, targetId, false, evaded, applyGaugeReduction);
+  fireTrigger(allyId, key, targetId, false, evaded, applyGaugeReduction, exContinuation);
 }
 
-function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaugeReduction){
+function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaugeReduction, exContinuation){
   if(applyGaugeReduction===undefined) applyGaugeReduction = true; // 省略時は従来通り常に適用（後方互換）
   const u = state.units.find(x=>x.id===allyId);
   const s = u.skills[skillKey];
@@ -3319,6 +3349,23 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
   // afterOwnCheckでfiresOnlyAfterKeyを判定するために、実際に発動したスキルキーを記録しておく
   // （カネリアの特殊がこのfireTrigger経由で自己再発動した場合も、正しく"special"として扱われる）
   u._actingSkillKeyForAfterOwn = skillKey;
+
+  // EX誘発／挟撃で選ばれたキャラの攻撃が、そのキャラ自身のスタックMAXトリガー（バニークレア等）を
+  // さらに誘発したケース：このキャラは今回「自分の行動」を消化したわけではないため、通常の
+  // afterOwnCheck～finalizeActionChainには乗せず、EX/挟撃の呼び出し元チェーンへ直接戻る
+  // （でないと呼び出し元＝実際にターンを使った側のCT減算処理が永久に行われなくなる）
+  // ※この候補パネルはexContinuation発生時は1候補のみのため、発動と同時にパネル自体も閉じる
+  //   （閉じないと、この後の「これ以上発動しない・続ける」クリックでdismissTriggerContext側の
+  //   exContinuation処理が再度走り、呼び出し元のCTが二重に減ってしまう）
+  if(exContinuation){
+    state.pendingTriggerContext = null;
+    if(exContinuation.sourceUnitId){
+      checkWaterBombReact(exContinuation.sourceUnitId, exContinuation.targetEnemyId, exContinuation.thenExtra, true, allyId);
+    } else {
+      renderBattle();
+    }
+    return;
+  }
 
   if(s.targetsAlly){
     // 花嫁カルメン等、味方対象のトリガーは攻撃ではないため、挟撃・水爆弾リアクト・ボス被弾トリガーの
@@ -3713,7 +3760,7 @@ function renderBattle(){
       panel.innerHTML = `<h3>${ctx.sourceLabel}：トリガースキル発動チェック</h3>
         <div class="smallnote" style="margin-bottom:8px;">発動条件を満たしていそうなら、下のボタンから発動を記録できます（発動しない場合はスキップしてください）。</div>
         ${offers.length===0 ? '<div class="smallnote">発動可能なトリガースキルは見つかりませんでした</div>' : ""}
-        <div class="skillbtn-row">${offers.map(o=>`<button class="skillbtn" onclick="openTriggerFireForm('${o.allyId}','${o.key}'${o.guardedAlly ? `,'${ctx.hitAllyId}'` : ",null"}${o.relicCounter ? ",true" : ""})">
+        <div class="skillbtn-row">${offers.map(o=>`<button class="skillbtn" onclick="openTriggerFireForm('${o.allyId}','${o.key}'${o.guardedAlly ? `,'${ctx.hitAllyId}'` : ",null"}${o.relicCounter ? ",true" : ",false"}${ctx.exContinuation ? `,'${ctx.exContinuation.sourceUnitId}','${ctx.exContinuation.targetEnemyId||""}',${!!ctx.exContinuation.thenExtra}` : ""})">
           <div class="name">🔔 ${o.allyName} - ${o.skillName}${o.guardedAlly?"（対象指定型・自動対象）":""}${o.relicCounter?"（XX1号・確率反撃、20%か25%で判断）":""}${o.manualConditionNote?`（${o.manualConditionNote}）`:""}</div>
         </button>`).join("")}</div>
         <button class="btn-secondary" style="margin-top:6px;" onclick="dismissTriggerContext()">これ以上発動しない・続ける</button>`;
