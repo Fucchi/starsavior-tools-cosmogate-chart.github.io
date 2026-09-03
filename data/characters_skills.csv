@@ -63,6 +63,10 @@ luna,passive,,攻撃力+15%(3凸)。究極使用時、自身が強化状態な�
 luna,basic,護身用魔力弾,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1, ""target"": ""all""}"
 luna,special,ヘカテの火種,,3,0,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfBuff"": {""name"": ""会心率アップ（+30%）"", ""turns"": 2}, ""target"": ""all""}"
 luna,ultimate,アタシの目に映った世界,,4,0,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""targetEffect"": {""name"": ""束縛"", ""turns"": 2}, ""target"": ""all""}"
+amoramama,passive,,ストラニスの主：攻撃時、自身が弱体化状態でなければダメージ+30%(本ツールはダメージ計算非対応のため未実装)。攻撃を受けた後、自身が弱体化状態なら自身に洞察スタック+3(実装済み：gainStackOnHitIfDebuffed)。ターン開始時、自身の洞察が最大(5)なら全消費して自身の弱体化をすべて解除し、自身に攻撃力アップ2ターン・夜に咲く花（解除不可）2ターンを付与(実装済み：turnStartStackMaxCleanseAndBuff)。夜に咲く花は速度+10%・防御力20%貫通(防御貫通は本ツール未対応),,,,,,,,,,,,,,"{""gainStackOnHitIfDebuffed"": {""amount"": 3}, ""turnStartStackMaxCleanseAndBuff"": {""selfBuffs"": [{""name"": ""攻撃力アップ（+30%）"", ""turns"": 2, ""atkModPct"": 30}, {""name"": ""夜に咲く花（速度+10%/防御貫通20%・解除不可）"", ""turns"": 2, ""speedModPct"": 10, ""undispellable"": true}]}}"
+amoramama,basic,酔わない槍,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1}"
+amoramama,special,貫く星,,3,1,1,1,FALSE,none,hasCT,30,20,FALSE,FALSE,FALSE,,"{""targetEffect"": {""name"": ""命中率ダウン"", ""turns"": 1}, ""selfStackGain"": 1, ""ctReduceIfSelfBuffName"": {""buffName"": ""夜に咲く花"", ""turns"": 1}}"
+amoramama,ultimate,光を磨き上げた執行,,6,1,1,1,TRUE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""target"": ""all"", ""selfBuff"": {""name"": ""夜に咲く花（速度+10%/防御貫通20%・解除不可）"", ""turns"": 3, ""speedModPct"": 10, ""undispellable"": true}, ""targetEffect"": {""name"": ""命中率ダウン"", ""turns"": 2}}"
 bride_epindel,passive,,攻撃力+15%(3凸)。味方の会心ヒットで点火+1。太陽味方のターン開始時、点火+2(3凸),,,,,,,,,,,,,,
 bride_epindel,basic,鷹の強襲,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1}"
 bride_epindel,special,ブーケトス,,3,0,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfBuffIfStackMaxAfterAction"": {""name"": ""攻撃力アップ（+30%）"", ""turns"": 2}, ""extraTurnIfStackMaxConsumeAll"": true, ""enemyGaugeReductionPct"": 20}"
