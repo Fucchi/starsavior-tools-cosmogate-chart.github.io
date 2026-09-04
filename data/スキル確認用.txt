@@ -544,14 +544,15 @@ basic：ct=0, toughness=0, burst_add=1, burst_gain=0,
   {selfStackGain:1, targetEffect:惨劇の棘(dot,undispellable,ignoresImmune)}
   → 全項目一致
 
-special：ct=4, toughness=0, burst_add=1, burst_gain=1, trigger_type=afterOwn, trigger_ct_mode=oncePerTurn,
+special：ct=4, toughness=1（ユーザー確認により0→1へ修正。appmedia本文には強靭削り数値の記載が無く、
+  以前の「全項目一致」判定は誤り）, burst_add=1, burst_gain=1, trigger_type=afterOwn, trigger_ct_mode=oncePerTurn,
   {selfBuff:速度+20%(3T), selfBuffManualOnly:true, selfStackConsumeAll:true,
    triggerRequiresEnemyStackName:惨劇の棘, triggerRequiresEnemyStackCount:3, consumeAllTargetDebuffName:惨劇の棘}
   → ct/selfBuff(手動時のみ)/selfStackConsumeAll(点火全消滅)/consumeAllTargetDebuffName(棘解除)は一致
   → トリガーがCTを消費しない仕組みはtrigger_ct_mode=oncePerTurnで正しく実現されている
   （enemyStackCount:3の妥当性は上記の通り要確認）
 
-ultimate：ct=5, toughness=0, burst_add=1, burst_gain=1, extra_turn=TRUE,
+ultimate：ct=5, toughness=1（ユーザー確認により0→1へ修正）, burst_add=1, burst_gain=1, extra_turn=TRUE,
   {selfBuff:破砕(2T), selfStackGain:2, target:"all", extraTurnBurstOnly:true}
   → ct/selfBuff/selfStackGain/extraTurnBurstOnly(バースト時のみ追加ターン)は一致
   ★未実装：「敵全体に惨劇の棘を1回付与」がtargetEffectとして未登録（登録漏れ）

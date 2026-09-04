@@ -117,6 +117,8 @@
     </div>
 
     <div id="escortDefeatCheckPanel"></div>
+    <div id="chosenOneAssignPanel"></div>
+    <div id="tauntConfirmPanel"></div>
 
     <div id="actionArea"></div>
 
@@ -255,7 +257,10 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
     selfGaugeGainPerHitMaxPct: extraEffects.selfGaugeGainPerHitMaxPct || 0,
     // ctReduceIfSelfBuffName: 自身が指定名のバフを持っている場合、使用後に自身のCTがそのぶん短縮される
     // （アモラママの特殊：自身が「夜に咲く花」状態ならCT-1）
-    ctReduceIfSelfBuffName: extraEffects.ctReduceIfSelfBuffName || null};
+    ctReduceIfSelfBuffName: extraEffects.ctReduceIfSelfBuffName || null,
+    // clearEnemyBuffCount: 対象の敵（1体、target:"all"なら敵全体それぞれ）が持つ強化（type:"buff"）を、
+    // 解除不可(undispellable)でないものに限りこの数だけランダムではなく先頭から解除する（セレスの特殊「敵全体の強化1個解除」等）
+    clearEnemyBuffCount: extraEffects.clearEnemyBuffCount || 0};
 }
 
 function defaultEnemySkill(name, ct, note, target, selfGaugeGainPct, targetEffectIfNoBarrier, selfBuffIfTwistedWill, targetEffect, selfClearAllDebuffs, targetGaugeReductionPct, selfBuff, extra){
@@ -1293,7 +1298,9 @@ function startBattle(){
     pendingGxCheck: null, // {sourceUnitId, targetEnemyId, thenExtra}
     pendingExFire: null,  // {allyId}
     pendingPincerCheck: null, // {sourceUnitId, thenExtra, candidates:[{id,name,chancePct}]}
-    pendingPincerFire: null   // {allyId}
+    pendingPincerFire: null,  // {allyId}
+    pendingChosenOneAssign: null, // {ownerId, buffName, candidateIds:[id,...]}（オルベロス「選ばれし者」の付与先選択待ち）
+    pendingTauntConfirm: null // {sourceUnitId, targetUnitId, debuff:{name,turns,speedZeroLock}}（オルベロス「挑発」が実際についたかの確認待ち）
   };
 
   // 戦闘開始時、特定の味方スキルが持つ「最速の敵に自動でデバフ付与（免疫貫通）」処理
@@ -1912,6 +1919,15 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
           effText += `／対象の${s.consumeAllTargetDebuffName}を全消費(${before}→0)`;
         }
       }
+      // セレスの特殊等：対象の強化（解除不可でないもの）をこの数だけ解除する
+      if(!isEvaded && s.clearEnemyBuffCount > 0){
+        const removedBuffs = [];
+        for(let i=0;i<s.clearEnemyBuffCount;i++){
+          const idx = target.buffs.findIndex(b=>b.type==="buff" && !b.undispellable);
+          if(idx>=0){ removedBuffs.push(target.buffs[idx].name); target.buffs.splice(idx,1); }
+        }
+        if(removedBuffs.length>0){ effText += `／対象の強化を${removedBuffs.length}個解除(${removedBuffs.join("、")})`; }
+      }
       // クリステルの究極等：対象が指定名のデバフを持っていれば、その残ターンを延長する（燃焼延長等）
       if(s.targetExtendDebuffDurationByName && !isEvaded){
         const cfg = s.targetExtendDebuffDurationByName;
@@ -2174,20 +2190,91 @@ function spawnEscorts(u){
 }
 
 // オルベロス「選ばれし者」ギミック：全ての手先から選ばれし者を解除し、
-// 自身を除く生存中の手先1体に選ばれし者（解除不可）を付与する（誰に付与するかは本ツールではプレイヤーが選択する）
+// 自身を除く生存中の手先1体に選ばれし者を付与する（誰に付与するかは本ツールではプレイヤーが選択する。
+// ブラウザのポップアップ(prompt)は使わず、行動ログ下の専用パネルからボタンで選択する）
+// ※選ばれし者は解除不可ではない（セレスの特殊等の強化解除で剝がせる）ため、undispellableは付けない
 function assignChosenOne(u){
   const escorts = state.units.filter(x=>x.kind==="enemy" && x.isEscort && x.escortOwnerId===u.id && x.alive);
   escorts.forEach(e=>{ e.buffs = e.buffs.filter(b=>b.name!==u.chosenOneBuffName); });
-  if(escorts.length===0) return;
-  const names = escorts.map(e=>e.name).join(" / ");
-  const target = prompt(`${u.chosenOneBuffName}を付与する手先を選択してください（候補：${names}）`, escorts[0].name);
-  const chosen = escorts.find(e=>e.name===target);
-  if(chosen){
-    chosen.buffs.push({name:u.chosenOneBuffName, turns:9999, type:"buff", permanent:true, undispellable:true});
-    logAction(u, "被弾判定", `👑 ${chosen.name}に${u.chosenOneBuffName}を付与`, "-", false, "");
-  } else {
-    logAction(u, "被弾判定", `👑 ${u.chosenOneBuffName}の付与先が未選択のため今回は誰にも付与されなかった`, "-", false, "");
+  if(escorts.length===0){ state.pendingChosenOneAssign = null; return; }
+  state.pendingChosenOneAssign = { ownerId: u.id, buffName: u.chosenOneBuffName, candidateIds: escorts.map(e=>e.id) };
+}
+function confirmChosenOneAssign(escortId){
+  const pending = state.pendingChosenOneAssign;
+  if(!pending) return;
+  const owner = state.units.find(x=>x.id===pending.ownerId);
+  const chosen = state.units.find(x=>x.id===escortId && x.alive);
+  pushHistory();
+  if(owner && chosen){
+    chosen.buffs.push({name:pending.buffName, turns:9999, type:"buff", permanent:true});
+    logAction(owner, "被弾判定", `👑 ${chosen.name}に${pending.buffName}を付与`, "-", false, "");
   }
+  state.pendingChosenOneAssign = null;
+  renderBattle();
+}
+function skipChosenOneAssign(){
+  const pending = state.pendingChosenOneAssign;
+  if(!pending) return;
+  const owner = state.units.find(x=>x.id===pending.ownerId);
+  pushHistory();
+  if(owner){ logAction(owner, "被弾判定", `👑 ${pending.buffName}の付与先が未選択のため今回は誰にも付与されなかった`, "-", false, ""); }
+  state.pendingChosenOneAssign = null;
+  renderBattle();
+}
+function renderChosenOneAssignPanel(){
+  const wrap = document.getElementById("chosenOneAssignPanel");
+  if(!wrap) return;
+  const pending = state.pendingChosenOneAssign;
+  const candidates = pending ? pending.candidateIds.map(id=>state.units.find(x=>x.id===id && x.alive)).filter(Boolean) : [];
+  if(!pending || candidates.length===0){ wrap.innerHTML = ""; return; }
+  const buttons = candidates.map(e=>`<button class="btn-secondary btn-small" onclick="confirmChosenOneAssign('${e.id}')">${e.name}</button>`).join(" ");
+  wrap.innerHTML = `<div class="panel" style="border-color:var(--accent);">
+    <h2 style="margin-top:0;">👑 ${pending.buffName}を付与する手先を選択してください</h2>
+    <div class="btn-row" style="flex-wrap:wrap;">${buttons}
+      <button class="btn-secondary btn-small" onclick="skipChosenOneAssign()">誰にも付与しない</button>
+    </div>
+  </div>`;
+}
+
+// オルベロス「挑発」等：実際に付与されたかどうかは本ツールでは自動判定できないため、
+// 実際のゲーム画面を見てプレイヤーが確認するパネルを出す（ブラウザのポップアップ(prompt/confirm)は使わない）
+function confirmTauntApplied(){
+  const pending = state.pendingTauntConfirm;
+  if(!pending) return;
+  const source = state.units.find(x=>x.id===pending.sourceUnitId);
+  const target = state.units.find(x=>x.id===pending.targetUnitId && x.alive);
+  pushHistory();
+  if(source && target){
+    const d = pending.debuff;
+    const applied = applyBuffWithMaxDuration(target.buffs, {name:d.name, turns:d.turns, type:"debuff", speedZeroLock:!!d.speedZeroLock});
+    logAction(source, "被弾判定", `😤 ${target.name}に${applied.name}(${applied.turns}T)を付与`, "-", false, "");
+  }
+  state.pendingTauntConfirm = null;
+  renderBattle();
+}
+function dismissTauntConfirm(){
+  const pending = state.pendingTauntConfirm;
+  if(!pending) return;
+  const source = state.units.find(x=>x.id===pending.sourceUnitId);
+  pushHistory();
+  if(source){ logAction(source, "被弾判定", `😤 ${pending.debuff.name}は付与されなかった（実際の画面で確認）`, "-", false, ""); }
+  state.pendingTauntConfirm = null;
+  renderBattle();
+}
+function renderTauntConfirmPanel(){
+  const wrap = document.getElementById("tauntConfirmPanel");
+  if(!wrap) return;
+  const pending = state.pendingTauntConfirm;
+  const target = pending ? state.units.find(x=>x.id===pending.targetUnitId && x.alive) : null;
+  if(!pending || !target){ wrap.innerHTML = ""; return; }
+  wrap.innerHTML = `<div class="panel" style="border-color:var(--danger);">
+    <h2 style="margin-top:0;">😤 ${target.name}に${pending.debuff.name}は実際につきましたか？</h2>
+    <div class="smallnote" style="margin-bottom:8px;">実際のゲーム画面を見て確認してから選択してください（本ツールは付与成否を自動判定できません）</div>
+    <div class="btn-row">
+      <button class="btn-primary btn-small" onclick="confirmTauntApplied()">ついた（付与する）</button>
+      <button class="btn-secondary btn-small" onclick="dismissTauntConfirm()">つかなかった</button>
+    </div>
+  </div>`;
 }
 
 // オルベロスの手先「破壊されたときに倒された場合は発動しない」：撃破確認パネルで討伐されなかったと確定した時点で、
@@ -2288,13 +2375,13 @@ function useEnemySkill(unitId, skillKey){
       logAction(u, "被弾判定", `⏱ 行動ゲージ最高の${highestGaugeAlly.name}に${applied.name}(${applied.turns}T)を付与`, "-", false, "");
     }
   }
-  // オルベロス：特殊使用後、行動ゲージが最も低い味方（＝敵から見た「敵」）1体に挑発等のデバフを付与
+  // オルベロス：特殊使用後、行動ゲージが最も低い味方（＝敵から見た「敵」）1体に挑発等のデバフ付与を試みる
+  // （実際に付与されたかは本ツールでは自動判定できないため、プレイヤーが実際の画面を見て確認するパネルを出す）
   if(s.targetLowestGaugeAllyDebuff){
     const lowestGaugeAlly = state.units.filter(x=>x.kind==="ally" && x.alive).sort((a,b)=>a.gauge-b.gauge)[0];
     if(lowestGaugeAlly){
-      const d = s.targetLowestGaugeAllyDebuff;
-      const applied = applyBuffWithMaxDuration(lowestGaugeAlly.buffs, {name:d.name, turns:d.turns, type:"debuff", speedZeroLock:!!d.speedZeroLock});
-      logAction(u, "被弾判定", `😤 行動ゲージ最低の${lowestGaugeAlly.name}に${applied.name}(${applied.turns}T)を付与`, "-", false, "");
+      state.pendingTauntConfirm = { sourceUnitId: u.id, targetUnitId: lowestGaugeAlly.id, debuff: s.targetLowestGaugeAllyDebuff };
+      logAction(u, "被弾判定", `😤 行動ゲージ最低の${lowestGaugeAlly.name}に${s.targetLowestGaugeAllyDebuff.name}を付与しようとした（実際に付与されたか確認してください）`, "-", false, "");
     }
   }
   // オルベロス：特殊使用後、自身と自身の取り巻き全体の強靭度を回復（回復後に強靭度>0ならブレイクも解除）
@@ -3390,6 +3477,15 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
       target.buffs = target.buffs.filter(b=>b.type!=="debuff" || b.undispellable);
       if(removed.length>0){ effText += `／対象の弱体化を全解除(${removed.map(b=>b.name).join("、")})`; }
     }
+    // セレスの特殊等：対象の強化（解除不可でないもの）をこの数だけ解除する
+    if(!evaded && !s.targetsAlly && s.clearEnemyBuffCount > 0){
+      const removedBuffs = [];
+      for(let i=0;i<s.clearEnemyBuffCount;i++){
+        const idx = target.buffs.findIndex(b=>b.type==="buff" && !b.undispellable);
+        if(idx>=0){ removedBuffs.push(target.buffs[idx].name); target.buffs.splice(idx,1); }
+      }
+      if(removedBuffs.length>0){ effText += `／対象の強化を${removedBuffs.length}個解除(${removedBuffs.join("、")})`; }
+    }
     if(!evaded && s.targetsAlly && s.targetStackGainIfSameAttributeAsSelf > 0 && target.attribute===u.attribute){
       const targetStackName = stackNameForAttribute(target.attribute);
       target.elementStack = Math.min(ELEMENT_STACK_MAX, (target.elementStack||0) + s.targetStackGainIfSameAttributeAsSelf);
@@ -3869,6 +3965,8 @@ function renderBattle(){
   table.innerHTML = rows;
 
   renderEscortDefeatCheckPanel();
+  renderChosenOneAssignPanel();
+  renderTauntConfirmPanel();
 
   // アクションエリア
   const area = document.getElementById("actionArea");
