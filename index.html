@@ -260,7 +260,10 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
     ctReduceIfSelfBuffName: extraEffects.ctReduceIfSelfBuffName || null,
     // clearEnemyBuffCount: 対象の敵（1体、target:"all"なら敵全体それぞれ）が持つ強化（type:"buff"）を、
     // 解除不可(undispellable)でないものに限りこの数だけランダムではなく先頭から解除する（セレスの特殊「敵全体の強化1個解除」等）
-    clearEnemyBuffCount: extraEffects.clearEnemyBuffCount || 0};
+    clearEnemyBuffCount: extraEffects.clearEnemyBuffCount || 0,
+    // targetEffectBossBonusStacks: target:"all"のtargetEffect（dot:true限定）について、対象がボス（敵設定欄の先頭＝isBoss）
+    // の場合のみ追加でこの数だけスタックを上乗せする（ティリアの究極：ボスに惨劇の棘3・それ以外は1という仕様の実装）
+    targetEffectBossBonusStacks: extraEffects.targetEffectBossBonusStacks || 0};
 }
 
 function defaultEnemySkill(name, ct, note, target, selfGaugeGainPct, targetEffectIfNoBarrier, selfBuffIfTwistedWill, targetEffect, selfClearAllDebuffs, targetGaugeReductionPct, selfBuff, extra){
@@ -1191,12 +1194,13 @@ function startBattle(){
       }
     }
   });
-  enemies.forEach(e=>{
+  enemies.forEach((e, enemyIdx)=>{
     const envBonus = computeEnvSpeedBonus(e.attribute, e.role);
     // ★段階12以上：強靭度最大値+5（星の挑戦システム）
     const effectiveEnemyToughnessMax = e.toughnessMax + (e.starToughnessBonus||0);
     units.push({
       id: uid("enemy"), kind:"enemy", name:e.name, speed:e.speed, baseSpeed:e.speed, gauge:0, alive:true,
+      isBoss: enemyIdx===0, // 敵設定欄の先頭（ボス枠）のみtrue。取り巻き等の後発生成ユニットは対象外
       toughnessMax:effectiveEnemyToughnessMax, toughness:effectiveEnemyToughnessMax, broken:false, breakDmgPct:e.breakDmgPct,
       skills:{ basic:{...e.basic}, special:{...e.special}, ultimate:{...e.ultimate} },
       ct:{ special:0, ultimate: e.ultimate.ct },
@@ -1783,15 +1787,15 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       const hasAdvantage = !isEvaded && hasElementAdvantage(u.attribute, target.attribute);
       if(hasAdvantage) hasAdvantageAny = true;
       const advantageBonus = hasAdvantage ? 1 : 0;
-      // 不利属性（対象が自分に対して属性有利を持つ場合）：合計強靭ダメージが一律-2される（実測：基礎2→0、+1バースト時3→1、
-      // さらに+1ブレイクスキル時4→2。0未満にはならない）。太陽/星/月の三すくみでのみ発生し、秩序⇔混沌の相互有利ペアでは
-      // hasAdvantageが常に真になるため発生しない（!hasAdvantageで除外）
+      // 不利属性（対象が自分に対して属性有利を持つ場合）：スキル本来の強靭削り・属性有利・ブレイクスキル分の加算はすべて0になる。
+      // ただしバーストは「バースト中は必ず強靭が削れる」仕様のため不利属性でも常に加算される（burstAddのみ別枠で常時加算）。
+      // 太陽/星/月の三すくみでのみ発生し、秩序⇔混沌の相互有利ペアではhasAdvantageが常に真になるため発生しない（!hasAdvantageで除外）
       const hasDisadvantage = !isEvaded && !hasAdvantage && hasElementAdvantage(target.attribute, u.attribute);
       const breakSkillBonus = (!isEvaded && isBreakSkillToughnessBonusActive()) ? 1 : 0;
       // ギーレの究極「強靭度ダメージ無効」等、名前でマークされた無効化バフを持つ対象は強靭ダメージが常に0になる
       const hasToughnessImmuneBuff = target.buffs && target.buffs.some(b=>b.name.includes("強靭度ダメージ無効"));
-      const rawToughnessDmg = s.toughness + (burstOn?s.burstAdd:0) + advantageBonus + breakSkillBonus + (rinVariantActive ? (s.variantBonusToughness||0) : 0);
-      const toughnessDmg = (isEvaded || hasToughnessImmuneBuff) ? 0 : (hasDisadvantage ? Math.max(0, rawToughnessDmg - 2) : rawToughnessDmg);
+      const nonBurstToughnessDmg = hasDisadvantage ? 0 : (s.toughness + advantageBonus + breakSkillBonus + (rinVariantActive ? (s.variantBonusToughness||0) : 0));
+      const toughnessDmg = (isEvaded || hasToughnessImmuneBuff) ? 0 : nonBurstToughnessDmg + (burstOn?s.burstAdd:0);
       target.toughness = Math.max(0, target.toughness - toughnessDmg);
       if(!isEvaded){
         target.hitCounter = (target.hitCounter||0) + 1;
@@ -1911,6 +1915,19 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
           if(eff.dot){ target.buffs.push({name:eff.name, turns:eff.turns, type:"debuff", speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, dot:true, undispellable:!!eff.undispellable}); effText += `／${eff.name}を追加スタック付与`; }
           else { const applied = applyBuffWithMaxDuration(target.buffs, {name:eff.name, turns:eff.turns, type:"debuff", speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, undispellable:!!eff.undispellable}); effText += `／${eff.name}(残${applied.turns}T)付与`; }
         });
+        // ティリアの究極等：対象がボス（isBoss）の場合、dot型のtargetEffectをさらに追加スタック付与する
+        if(target.isBoss && s.targetEffectBossBonusStacks > 0){
+          targetEffectList.forEach(eff=>{
+            if(s.burstOnlyTargetEffect && !burstOn) return;
+            if(!eff.dot) return;
+            if(target.kind==="enemy" && isBossImmuneDebuffName(eff.name)) return;
+            if(target.immune && !eff.ignoresImmune) return;
+            for(let i=0;i<s.targetEffectBossBonusStacks;i++){
+              target.buffs.push({name:eff.name, turns:eff.turns, type:"debuff", speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, dot:true, undispellable:!!eff.undispellable});
+            }
+            effText += `／ボスのため${eff.name}をさらに${s.targetEffectBossBonusStacks}スタック追加付与`;
+          });
+        }
       }
       if(s.consumeAllTargetDebuffName){
         const before = target.buffs.filter(b=>b.name===s.consumeAllTargetDebuffName).length;
@@ -1947,10 +1964,10 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
     if(s.consumeSenkohanabiForExtraHits && (u.senkohanabiStacks||0) > 0 && targets.length>0){
       const extraCount = u.senkohanabiStacks;
       const extraTarget = targets[0];
-      // 不利属性ペナルティ（-2、0未満にはならない）はこの追加ヒットの1発ごとにも適用される
+      // 不利属性ペナルティ（強靭ダメージが常に0になる）はこの追加ヒットの1発ごとにも適用される
       const extraHasDisadvantage = !hasElementAdvantage(u.attribute, extraTarget.attribute) && hasElementAdvantage(extraTarget.attribute, u.attribute);
       const rawExtraToughnessPerHit = ((u.skills.special && u.skills.special.toughness) || 1) + (isBreakSkillToughnessBonusActive() ? 1 : 0);
-      const extraToughnessPerHit = extraHasDisadvantage ? Math.max(0, rawExtraToughnessPerHit - 2) : rawExtraToughnessPerHit;
+      const extraToughnessPerHit = extraHasDisadvantage ? 0 : rawExtraToughnessPerHit;
       const extraGimmickTexts = [];
       // ★段階6以上：ボス（対象）を攻撃した時、攻撃した味方自身の最大HP-5%スタック（追加ヒット1発ごとに加算）
       const extraTargetIsStar6Boss = (extraTarget.starStage||0) >= 6;
@@ -2409,6 +2426,14 @@ function useEnemySkill(unitId, skillKey){
     u.alive = false;
     logAction(u, "被弾判定", `💀 ${s.selfKoIfBrokenAndBuffName}状態でブレイク中に攻撃したため戦闘不能になった`, "-", false, "");
   }
+  // オルベロス「選ばれし者」ギミック：選ばれし者状態の手先が行動した後、選ばれし者を再抽選する
+  // （手先自身が上のチェックで戦闘不能になっていても、抽選対象からは生存中の手先のみ自動的に除外される）
+  if(u.isEscort && u.escortOwnerId){
+    const owner = state.units.find(x=>x.id===u.escortOwnerId && x.kind==="enemy" && x.alive && x.chosenOneBuffName);
+    if(owner && u.buffs.some(b=>b.name===owner.chosenOneBuffName)){
+      assignChosenOne(owner);
+    }
+  }
   // ギーレ「周期の循環」：スキル使用後、自身が昼の周期なら夜の周期へ、夜の周期なら昼の周期へ切り替わる（解除不可・自動トグル）
   if(u.togglesDayNightCycle){
     const idx = u.buffs.findIndex(b=>b.isCycleMarker);
@@ -2441,10 +2466,15 @@ function useEnemySkill(unitId, skillKey){
   decrementOwnTurnEndBuffs(u);
 
   // ティリア「ギミック」：自身の行動後、取り巻きが2体になるように召喚する（既に1体いれば1体のみ追加）
-  if(u.summonsEscortsAfterOwnAction){ spawnEscorts(u); }
-  // オルベロス「選ばれし者」ギミック：自身の行動後、全ての手先から選ばれし者を解除し、
-  // 自身を除く生存中の手先1体に選ばれし者を付与する（誰に付与するかはプレイヤーが選択）
-  if(u.chosenOneBuffName){ assignChosenOne(u); }
+  if(u.summonsEscortsAfterOwnAction){
+    spawnEscorts(u);
+    // オルベロス「選ばれし者」ギミック：初回召喚時など、まだ誰も選ばれし者を持っていない場合のみここで初期付与する
+    // （通常は下のuseEnemySkill内「選ばれし者状態の手先が行動した後」の再抽選で更新されるため、ここでは二重付与しない）
+    if(u.chosenOneBuffName){
+      const anyHasChosenOne = state.units.some(x=>x.kind==="enemy" && x.isEscort && x.escortOwnerId===u.id && x.alive && x.buffs.some(b=>b.name===u.chosenOneBuffName));
+      if(!anyHasChosenOne){ assignChosenOne(u); }
+    }
+  }
 
   if(s.target==="all"){
     state.pendingTriggerContext = { targetType:"selectHitAoe", evadeMap:{}, sourceUnitId: unitId, skillKey,
@@ -2994,18 +3024,21 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
   let hasAdvantageAny = false;
   let brokeAny = false;
   const perTargetMemo = [];
+  const hitEscortIds = [];
 
   targets.forEach(target=>{
     const hasAdvantage = hasElementAdvantage(u.attribute, target.attribute);
     if(hasAdvantage) hasAdvantageAny = true;
-    // 不利属性ペナルティ：合計強靭ダメージが一律-2（0未満にはならない）。詳細はuseAllySkill内の同様の計算のコメントを参照
+    // 不利属性ペナルティ：バースト加算(burstAdd)以外の分が0になる。詳細はuseAllySkill内の同様の計算のコメントを参照
     const hasDisadvantage = !hasAdvantage && hasElementAdvantage(target.attribute, u.attribute);
-    const rawToughnessDmg = s.toughness + (burstOn ? s.burstAdd : 0) + (hasAdvantage ? 1 : 0) + (isBreakSkillToughnessBonusActive() ? 1 : 0);
-    const toughnessDmg = hasDisadvantage ? Math.max(0, rawToughnessDmg - 2) : rawToughnessDmg;
+    const nonBurstToughnessDmg = hasDisadvantage ? 0 : (s.toughness + (hasAdvantage ? 1 : 0) + (isBreakSkillToughnessBonusActive() ? 1 : 0));
+    const toughnessDmg = nonBurstToughnessDmg + (burstOn ? s.burstAdd : 0);
     target.toughness = Math.max(0, target.toughness - toughnessDmg);
     target.hitCounter = (target.hitCounter||0) + 1;
     if(s.target!=="all") target.singleTargetHitCounter = (target.singleTargetHitCounter||0) + 1;
     toughnessDmgSum += toughnessDmg;
+    // ティリアの取り巻き等：撃破確認パネルに出す対象として記録（EX/挟撃誘発の攻撃もここで拾う必要がある）
+    if(target.isEscort) hitEscortIds.push(target.id);
 
     let brokeNow = false;
     if(target.toughness<=0 && !target.broken){
@@ -3014,6 +3047,16 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
       brokeNow = true;
       brokeAny = true;
       state.breakPoints = Math.min(3, state.breakPoints + (target.toughnessMax>=15 ? 3 : 1));
+    }
+    // オルベロスの手先等：ブレイクした瞬間を記録（討伐確認パネルで討伐されなかったと判明した場合のみ、後で英雄の魂を付与する）
+    if(brokeNow && target.isEscort && target.grantsOwnerHeroSoulOnBreak){
+      target._pendingHeroSoulOnBreak = true;
+    }
+    // オルベロス：英雄の魂が最大スタックの状態でEX/挟撃誘発の攻撃を受けた時、全消費して自身に魂の亀裂を発動
+    if(target.heroSoulStackName && (target.heroSoulStacks||0) >= (target.heroSoulStackMax||4)){
+      target.heroSoulStacks = 0;
+      const applied = applyBuffWithMaxDuration(target.buffs, {name:target.soulCrackDebuffName, turns:target.soulCrackTurns||4, type:"debuff", speedZeroLock:true, dmgTakenMultPct:100, decrementOnAnyTurn:true, undispellable:true, attackerGaugeGainPctOnHit:100});
+      perTargetMemo.push(`💔 ${target.heroSoulStackName}が最大のため全消費し、自身に${applied.name}(${applied.turns}T)を発動`);
     }
 
     const gimmickResult = checkGaugeOnHitGimmick(target);
@@ -3030,6 +3073,9 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
 
     perTargetMemo.push(`${target.name}:強靭削り${toughnessDmg}／残強靭${target.toughness}${brokeNow?"→ブレイク！":""}${hasAdvantage?"／属性有利+1":""}${gimmickMemo}${starHpText}`);
   });
+  if(hitEscortIds.length>0){
+    state.pendingEscortDefeatCheck = Array.from(new Set([...(state.pendingEscortDefeatCheck||[]), ...hitEscortIds]));
+  }
 
   state.teamBurst = Math.min(12, state.teamBurst + s.burstGain);
 
@@ -3353,14 +3399,14 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
     const hasAdvantage = !evaded && !s.targetsAlly && hasElementAdvantage(u.attribute, target.attribute);
     if(hasAdvantage) hasAdvantageAny = true;
     const advantageBonus = hasAdvantage ? 1 : 0;
-    // 不利属性ペナルティ：合計強靭ダメージが一律-2（0未満にはならない）。詳細はuseAllySkill内の同様の計算のコメントを参照
+    // 不利属性ペナルティ：バースト加算(burstAdd)以外の分が0になる。詳細はuseAllySkill内の同様の計算のコメントを参照
     const hasDisadvantage = !evaded && !s.targetsAlly && !hasAdvantage && hasElementAdvantage(target.attribute, u.attribute);
     const breakSkillBonus = (!evaded && !s.targetsAlly && isBreakSkillToughnessBonusActive()) ? 1 : 0;
     // targetsAlly（花嫁カルメンの守護の騎士等、味方対象のトリガー）は攻撃ではないため強靭ダメージ・被弾カウントの対象外
     // ギーレの究極「強靭度ダメージ無効」等、名前でマークされた無効化バフを持つ対象は強靭ダメージが常に0になる
     const hasToughnessImmuneBuff = target.buffs && target.buffs.some(b=>b.name.includes("強靭度ダメージ無効"));
-    const rawToughnessDmg = s.toughness + (burstOn ? s.burstAdd : 0) + advantageBonus + breakSkillBonus;
-    const toughnessDmg = (evaded || s.targetsAlly || hasToughnessImmuneBuff) ? 0 : (hasDisadvantage ? Math.max(0, rawToughnessDmg - 2) : rawToughnessDmg);
+    const nonBurstToughnessDmg = hasDisadvantage ? 0 : (s.toughness + advantageBonus + breakSkillBonus);
+    const toughnessDmg = (evaded || s.targetsAlly || hasToughnessImmuneBuff) ? 0 : nonBurstToughnessDmg + (burstOn ? s.burstAdd : 0);
     target.toughness = Math.max(0, target.toughness - toughnessDmg);
     if(!evaded && !s.targetsAlly){
       target.hitCounter = (target.hitCounter||0) + 1;
@@ -3708,7 +3754,11 @@ function renderEscortDefeatCheckPanel(){
   if(ids.length===0){ wrap.innerHTML = ""; return; }
   const items = ids.map(id=>{
     const u = state.units.find(x=>x.id===id);
-    return `<label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="escortDefeat_${id}"> ${u.name}を撃破した</label>`;
+    const owner = u.escortOwnerId ? state.units.find(x=>x.id===u.escortOwnerId) : null;
+    const heroSoulHint = (u.broken && owner && owner.heroSoulStackName)
+      ? `<span class="smallnote">（ブレイクしただけで倒しきれていない場合は<b>チェックしない</b>でください。撃破＝討伐した場合のみチェック。${owner.heroSoulStackName}の付与判定に影響します）</span>`
+      : "";
+    return `<label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="escortDefeat_${id}"> ${u.name}を撃破した ${heroSoulHint}</label>`;
   }).join("");
   wrap.innerHTML = `<div class="panel" style="border-color:var(--danger);">
     <h2 style="margin-top:0;">💀 取り巻きを撃破しましたか？</h2>
@@ -3921,6 +3971,7 @@ function renderBattle(){
     if(u.kind==="enemy" && u.echoStackName && (u.echoStacks||0)>0) statusTags.push(`<span class="tag permanent">💗${u.echoStackName}:${u.echoStacks}</span>`);
     if(u.kind==="enemy" && u.residueStackName && (u.residueStacks||0)>0) statusTags.push(`<span class="tag permanent">🌀${u.residueStackName}:${u.residueStacks}/${u.residueStackMax||3}</span>`);
     if(u.kind==="enemy" && u.wrongClockStackName && (u.wrongClockStacks||0)>0) statusTags.push(`<span class="tag permanent">⏱${u.wrongClockStackName}:${u.wrongClockStacks}/${u.wrongClockStackMax||3}</span>`);
+    if(u.kind==="enemy" && u.heroSoulStackName && (u.heroSoulStacks||0)>0) statusTags.push(`<span class="tag debuff">💠${u.heroSoulStackName}:${u.heroSoulStacks}/${u.heroSoulStackMax||4}</span>`);
     if(u.kind==="enemy" && u.isEscort) statusTags.push(`<span class="tag permanent">👥取り巻き</span>`);
     if(u.kind==="enemy" && (u.specialTriggerHitCount||0)>0) statusTags.push(`<span class="tag permanent">🎯特殊被弾:${u.hitCounter||0}/${u.specialTriggerHitCount}</span>`);
     if(u.kind==="enemy" && (u.basicTriggerHitCount||0)>0) statusTags.push(`<span class="tag permanent">🎯単体被弾:${u.singleTargetHitCounter||0}/${u.basicTriggerHitCount}</span>`);
