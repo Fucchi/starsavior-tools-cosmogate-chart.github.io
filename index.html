@@ -282,7 +282,15 @@ function defaultEnemySkill(name, ct, note, target, selfGaugeGainPct, targetEffec
     targetCtExtendAllTurns: extra.targetCtExtendAllTurns || 0,
     targetGaugeResetToZero: !!extra.targetGaugeResetToZero,
     escortGaugeGainPct: extra.escortGaugeGainPct || 0,
-    targetHighestGaugeAllyDebuff: extra.targetHighestGaugeAllyDebuff || null
+    targetHighestGaugeAllyDebuff: extra.targetHighestGaugeAllyDebuff || null,
+    //   targetLowestGaugeAllyDebuff: {name,turns} 行動ゲージが最も低い味方（＝敵から見た「敵」）1体に付与するデバフ（オルベロスの特殊「挑発」等）
+    //   teamToughnessHealAmount: 自身と自身の取り巻き（isEscort・escortOwnerId===自身）全体の強靭度をこの数だけ回復する（0未満にはならず、上限は各自のtoughnessMax。回復後に強靭度>0になればブレイクも解除、オルベロスの特殊等）
+    //   selfAndEscortTeamBuff: {name,turns} 自身と自身の取り巻き全体に付与するバフ（オルベロスの究極「強靭度ダメージ無効」等）
+    //   selfKoIfBrokenAndBuffName: 自身がブレイク状態、かつ指定名のバフを持っている場合、このスキル使用後に自身が戦闘不能になる（オルベロスの手先：選ばれし者状態でのブレイク中攻撃）
+    targetLowestGaugeAllyDebuff: extra.targetLowestGaugeAllyDebuff || null,
+    teamToughnessHealAmount: extra.teamToughnessHealAmount || 0,
+    selfAndEscortTeamBuff: extra.selfAndEscortTeamBuff || null,
+    selfKoIfBrokenAndBuffName: extra.selfKoIfBrokenAndBuffName || null
   }; // target: "single" | "all"
 }
 </script>
@@ -1234,7 +1242,19 @@ function startBattle(){
       wrongClockStackMax: e.wrongClockStackMax||0,
       wrongClockStacks: 0,
       timeParadoxName: e.timeParadoxName||null,
-      timeParadoxTurns: e.timeParadoxTurns||0
+      timeParadoxTurns: e.timeParadoxTurns||0,
+      battleStartSelfBuffs: e.battleStartSelfBuffs||null,
+      // オルベロス「英雄の魂／魂の亀裂」ギミック（歪んだ時計針／タイムパラドックスと同じ発想の別枠。
+      // 取り巻きが討伐されずにブレイクした場合のみ加算される点が異なるため、専用フィールドとして分離）
+      heroSoulStackName: e.heroSoulStackName||null,
+      heroSoulStackMax: e.heroSoulStackMax||0,
+      heroSoulStacks: 0,
+      soulCrackDebuffName: e.soulCrackDebuffName||null,
+      soulCrackTurns: e.soulCrackTurns||0,
+      escortAttributes: e.escortAttributes||null,
+      escortGrantsHeroSoulOnBreak: !!e.escortGrantsHeroSoulOnBreak,
+      escortBasicSkill: e.escortBasicSkill||null,
+      chosenOneBuffName: e.chosenOneBuffName||null
     });
     // ギーレ「周期の循環」：戦闘開始時、自身に昼の周期（解除不可）を発生させる
     if(e.togglesDayNightCycle){
@@ -1302,10 +1322,10 @@ function startBattle(){
     applyBuffWithMaxDuration(ally.buffs, {name:`バリア（HP${bs.hpPct}%）`, turns:bs.turns, type:"buff"});
   });
 
-  // 戦闘開始時、自身に複数のバフをまとめて発生させる味方（エデ等：守護+バリア等）
-  units.filter(x=>x.kind==="ally" && x.battleStartSelfBuffs).forEach(ally=>{
+  // 戦闘開始時、自身に複数のバフをまとめて発生させるユニット（エデ等：守護+バリア／オルベロス：守護（解除不可）等）
+  units.filter(x=>x.battleStartSelfBuffs).forEach(ally=>{
     ally.battleStartSelfBuffs.forEach(b=>{
-      applyBuffWithMaxDuration(ally.buffs, {name:b.name, turns:b.turns, type:"buff", speedModPct:b.speedModPct||0, atkModPct:b.atkModPct||0, critDmgModPct:b.critDmgModPct||0, decrementAtOwnTurnEnd:!!b.decrementAtOwnTurnEnd});
+      applyBuffWithMaxDuration(ally.buffs, {name:b.name, turns:b.turns, type:"buff", speedModPct:b.speedModPct||0, atkModPct:b.atkModPct||0, critDmgModPct:b.critDmgModPct||0, decrementAtOwnTurnEnd:!!b.decrementAtOwnTurnEnd, permanent:!!b.permanent, undispellable:!!b.undispellable});
     });
   });
 
@@ -1691,6 +1711,7 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
   let brokeAny = false;
   let toughnessDmgSum = 0;
   let hitEscortIds = [];
+  let attackerGaugeGainFromDebuff = 0; // オルベロス「魂の亀裂」等、対象の被弾デバフにより攻撃者(u)が得るゲージ加算分（末尾のu.gauge計算に合算する）
 
   if(s.targetsAlly){
     // ---- 味方対象（バフ・回復系）：強靭計算なし ----
@@ -1785,6 +1806,10 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
         state.breakPoints = Math.min(3, state.breakPoints + (target.toughnessMax>=15?3:1));
         brokeAny = true;
       }
+      // オルベロスの手先等：ブレイクした瞬間を記録（討伐確認パネルで討伐されなかったと判明した場合のみ、後で英雄の魂を付与する）
+      if(brokeNow && target.isEscort && target.grantsOwnerHeroSoulOnBreak){
+        target._pendingHeroSoulOnBreak = true;
+      }
       // ギーレ「厳重な戒律」：究極スキルを受けた時、自身が夜の周期状態なら自身の究極CTを1短縮しゲージ+30%
       if(!isEvaded && skillKey==="ultimate" && target.reactsToUltimateHitIfNightCycle){
         const isNight = target.buffs.some(b=>b.isCycleMarker && b.name.includes("夜"));
@@ -1828,6 +1853,22 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       else if(!isEvaded && effectiveTarget==="all" && target.wrongClockStackName && target.buffs.some(b=>b.name===target.timeParadoxName)){
         target.wrongClockStacks = Math.min(target.wrongClockStackMax||3, (target.wrongClockStacks||0) + 1);
         logAction(target, "被弾判定", `⏱ ${target.timeParadoxName}中に全体攻撃を受けたため${target.wrongClockStackName}+1(${target.wrongClockStacks}/${target.wrongClockStackMax||3})`, "-", false, "");
+      }
+      // オルベロス：既に魂の亀裂状態（攻撃を受けると攻撃者ゲージ増加）の相手を攻撃した場合、攻撃者(u)自身のゲージが増える
+      // （この攻撃自身が新たに魂の亀裂を発生させたケースは対象外＝発生前の状態を見るため、下の英雄の魂消費判定より先に置く。
+      //   末尾でu.gaugeが0リセット＋再計算されるため、ここでは直接加算せずattackerGaugeGainFromDebuffに積み立てる）
+      if(!isEvaded){
+        const soulCrackBuff = target.buffs.find(b=>b.attackerGaugeGainPctOnHit>0);
+        if(soulCrackBuff){
+          attackerGaugeGainFromDebuff += soulCrackBuff.attackerGaugeGainPctOnHit;
+          logAction(u, "被弾判定", `⏱ ${target.name}の${soulCrackBuff.name}により自身の行動ゲージ+${soulCrackBuff.attackerGaugeGainPctOnHit}%`, "-", false, "");
+        }
+      }
+      // オルベロス：英雄の魂が最大スタックの状態で攻撃を受けた時、全消費して自身に魂の亀裂を発動
+      if(!isEvaded && target.heroSoulStackName && (target.heroSoulStacks||0) >= (target.heroSoulStackMax||4)){
+        target.heroSoulStacks = 0;
+        const applied = applyBuffWithMaxDuration(target.buffs, {name:target.soulCrackDebuffName, turns:target.soulCrackTurns||4, type:"debuff", speedZeroLock:true, dmgTakenMultPct:100, decrementOnAnyTurn:true, undispellable:true, attackerGaugeGainPctOnHit:100});
+        logAction(target, "被弾判定", `💔 ${target.heroSoulStackName}が最大のため全消費し、自身に${applied.name}(${applied.turns}T)を発動`, "-", false, "");
       }
 
       // 敵の行動ゲージ減少（★開幕免疫中は無効。潜伏中限定等の条件付き効果はapplyGaugeReductionチェックボックスで手動制御）
@@ -1994,7 +2035,7 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       `${perTargetMemo.join(" ｜ ")}${isEvaded?"／EVADE成立のため強靭ダメージ0・会心扱いなし":""}${hasAdvantageAny?"／属性有利+1":""}${(!isEvaded && (s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0))>0) ? `／自身ゲージ+${s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0)}%`:""}${perHitGaugeGain>0?`／命中${targets.length}体分で自身ゲージ+${perHitGaugeGain}%`:""}${burstOn?"／BP-4":""}${s.burstGain>0?`／BP+${s.burstGain}`:""}${carmenArcanaBurstBonus>0?`／愛の行進でBP+${carmenArcanaBurstBonus}`:""}（BP残${state.teamBurst}）${buffMemo}${stackMemo}${tenthLaborMemo}`);
 
     u.gauge = 0;
-    const gaugeGain = (isEvaded ? 0 : (s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0))) + perHitGaugeGain;
+    const gaugeGain = (isEvaded ? 0 : (s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0))) + perHitGaugeGain + attackerGaugeGainFromDebuff;
     if(gaugeGain > 0){
       const primaryTarget = targets[0];
       if(s.gaugeToTarget && primaryTarget && primaryTarget.kind==="ally"){ primaryTarget.gauge = Math.min(100, primaryTarget.gauge+gaugeGain); }
@@ -2099,26 +2140,65 @@ function spawnEscorts(u){
   for(let slot=1; slot<=max; slot++){
     const existing = state.units.find(x=>x.kind==="enemy" && x.isEscort && x.escortOwnerId===u.id && x.escortSlot===slot);
     if(existing && existing.alive) continue; // 既に生存中の枠はそのまま
-    const name = `${u.escortName||"取り巻き"}${slot}`;
+    // escortAttributesが指定されている場合（オルベロス等）は枠ごとに固有の属性・名前を割り当てる
+    const attrForSlot = u.escortAttributes ? u.escortAttributes[slot-1] : null;
+    const name = attrForSlot ? `${u.escortName||"取り巻き"}（${attrForSlot}）` : `${u.escortName||"取り巻き"}${slot}`;
     if(existing){
       // 撃破済みの枠を復活させる（同じユニットを再利用。ログ等の過去参照はそのまま残る）
       existing.alive = true;
       existing.toughness = existing.toughnessMax;
       existing.gauge = 0;
       existing.buffs = [];
+      existing.broken = false;
+      existing._pendingHeroSoulOnBreak = false;
     } else {
       state.units.push({
         id: uid("enemy"), kind:"enemy", name, speed:u.escortSpeed||0, baseSpeed:u.escortSpeed||0, gauge:0, alive:true,
         toughnessMax:u.escortToughnessMax||3, toughness:u.escortToughnessMax||3, broken:false, breakDmgPct:0,
-        skills:{ basic: defaultEnemySkill("（取り巻き・行動なし）", 0, ""), special: defaultEnemySkill("（取り巻き・行動なし）", 99, ""), ultimate: defaultEnemySkill("（取り巻き・行動なし）", 99, "") },
-        ct:{ special:0, ultimate:0 }, buffs:[], attribute:u.attribute, role:"ディフェンダー",
-        isEscort:true, escortOwnerId:u.id, escortSlot:slot
+        skills:{
+          // escortBasicSkillが指定されている場合（オルベロス等）は取り巻き自身が実際に行動できる基本スキルを持つ
+          // （速度0固定のため通常のATB進行では手番が来ないが、「追加ターン」機能等で手動発動できる）
+          basic: u.escortBasicSkill ? {...u.escortBasicSkill} : defaultEnemySkill("（取り巻き・行動なし）", 0, ""),
+          special: defaultEnemySkill("（取り巻き・行動なし）", 99, ""), ultimate: defaultEnemySkill("（取り巻き・行動なし）", 99, "")
+        },
+        ct:{ special:0, ultimate:0 }, buffs:[], attribute:attrForSlot||u.attribute, role:"ディフェンダー",
+        isEscort:true, escortOwnerId:u.id, escortSlot:slot,
+        grantsOwnerHeroSoulOnBreak: !!u.escortGrantsHeroSoulOnBreak
       });
     }
     revivedNames.push(name);
   }
   if(revivedNames.length>0){
     logAction(u, "被弾判定", `👥 取り巻きが復活：${revivedNames.join("、")}`, "-", false, `生存中の取り巻き:${max}/${max}`);
+  }
+}
+
+// オルベロス「選ばれし者」ギミック：全ての手先から選ばれし者を解除し、
+// 自身を除く生存中の手先1体に選ばれし者（解除不可）を付与する（誰に付与するかは本ツールではプレイヤーが選択する）
+function assignChosenOne(u){
+  const escorts = state.units.filter(x=>x.kind==="enemy" && x.isEscort && x.escortOwnerId===u.id && x.alive);
+  escorts.forEach(e=>{ e.buffs = e.buffs.filter(b=>b.name!==u.chosenOneBuffName); });
+  if(escorts.length===0) return;
+  const names = escorts.map(e=>e.name).join(" / ");
+  const target = prompt(`${u.chosenOneBuffName}を付与する手先を選択してください（候補：${names}）`, escorts[0].name);
+  const chosen = escorts.find(e=>e.name===target);
+  if(chosen){
+    chosen.buffs.push({name:u.chosenOneBuffName, turns:9999, type:"buff", permanent:true, undispellable:true});
+    logAction(u, "被弾判定", `👑 ${chosen.name}に${u.chosenOneBuffName}を付与`, "-", false, "");
+  } else {
+    logAction(u, "被弾判定", `👑 ${u.chosenOneBuffName}の付与先が未選択のため今回は誰にも付与されなかった`, "-", false, "");
+  }
+}
+
+// オルベロスの手先「破壊されたときに倒された場合は発動しない」：撃破確認パネルで討伐されなかったと確定した時点で、
+// ブレイクによる英雄の魂付与を実行する（討伐された場合はdefeatEscort側でこの関数を呼ばず、フラグも使わないまま破棄される）
+function grantHeroSoulIfPendingSurvived(u){
+  if(!u._pendingHeroSoulOnBreak) return;
+  u._pendingHeroSoulOnBreak = false;
+  const owner = state.units.find(x=>x.id===u.escortOwnerId && x.kind==="enemy" && x.alive && x.heroSoulStackName);
+  if(owner){
+    owner.heroSoulStacks = Math.min(owner.heroSoulStackMax||4, (owner.heroSoulStacks||0) + 1);
+    logAction(owner, "被弾判定", `💠 ${u.name}のブレイク（討伐されず）により自身に${owner.heroSoulStackName}+1(${owner.heroSoulStacks}/${owner.heroSoulStackMax||4})`, "-", false, "");
   }
 }
 
@@ -2208,6 +2288,40 @@ function useEnemySkill(unitId, skillKey){
       logAction(u, "被弾判定", `⏱ 行動ゲージ最高の${highestGaugeAlly.name}に${applied.name}(${applied.turns}T)を付与`, "-", false, "");
     }
   }
+  // オルベロス：特殊使用後、行動ゲージが最も低い味方（＝敵から見た「敵」）1体に挑発等のデバフを付与
+  if(s.targetLowestGaugeAllyDebuff){
+    const lowestGaugeAlly = state.units.filter(x=>x.kind==="ally" && x.alive).sort((a,b)=>a.gauge-b.gauge)[0];
+    if(lowestGaugeAlly){
+      const d = s.targetLowestGaugeAllyDebuff;
+      const applied = applyBuffWithMaxDuration(lowestGaugeAlly.buffs, {name:d.name, turns:d.turns, type:"debuff", speedZeroLock:!!d.speedZeroLock});
+      logAction(u, "被弾判定", `😤 行動ゲージ最低の${lowestGaugeAlly.name}に${applied.name}(${applied.turns}T)を付与`, "-", false, "");
+    }
+  }
+  // オルベロス：特殊使用後、自身と自身の取り巻き全体の強靭度を回復（回復後に強靭度>0ならブレイクも解除）
+  if(s.teamToughnessHealAmount > 0){
+    const mine = state.units.filter(x=>x.kind==="enemy" && x.alive && (x.id===u.id || x.escortOwnerId===u.id));
+    mine.forEach(x=>{
+      x.toughness = Math.min(x.toughnessMax, x.toughness + s.teamToughnessHealAmount);
+      if(x.broken && x.toughness>0){ x.broken = false; }
+    });
+    if(mine.length>0){
+      logAction(u, "被弾判定", `💚 自身と取り巻き全体の強靭度+${s.teamToughnessHealAmount}`, "-", false, mine.map(x=>`${x.name}:${x.toughness}/${x.toughnessMax}`).join("、"));
+    }
+  }
+  // オルベロス：究極使用後、自身と自身の取り巻き全体にバフを付与（強靭度ダメージ無効等）
+  if(s.selfAndEscortTeamBuff){
+    const mine = state.units.filter(x=>x.kind==="enemy" && x.alive && (x.id===u.id || x.escortOwnerId===u.id));
+    const b = s.selfAndEscortTeamBuff;
+    mine.forEach(x=>{ applyBuffWithMaxDuration(x.buffs, {name:b.name, turns:b.turns, type:"buff"}); });
+    if(mine.length>0){
+      logAction(u, "被弾判定", `🛡 自身と取り巻き全体に${b.name}(${b.turns}T)を付与`, "-", false, mine.map(x=>x.name).join("、"));
+    }
+  }
+  // オルベロスの手先：選ばれし者状態でブレイク中に攻撃した場合、攻撃後に自身が戦闘不能になる
+  if(s.selfKoIfBrokenAndBuffName && u.broken && u.buffs.some(b=>b.name===s.selfKoIfBrokenAndBuffName)){
+    u.alive = false;
+    logAction(u, "被弾判定", `💀 ${s.selfKoIfBrokenAndBuffName}状態でブレイク中に攻撃したため戦闘不能になった`, "-", false, "");
+  }
   // ギーレ「周期の循環」：スキル使用後、自身が昼の周期なら夜の周期へ、夜の周期なら昼の周期へ切り替わる（解除不可・自動トグル）
   if(u.togglesDayNightCycle){
     const idx = u.buffs.findIndex(b=>b.isCycleMarker);
@@ -2241,6 +2355,9 @@ function useEnemySkill(unitId, skillKey){
 
   // ティリア「ギミック」：自身の行動後、取り巻きが2体になるように召喚する（既に1体いれば1体のみ追加）
   if(u.summonsEscortsAfterOwnAction){ spawnEscorts(u); }
+  // オルベロス「選ばれし者」ギミック：自身の行動後、全ての手先から選ばれし者を解除し、
+  // 自身を除く生存中の手先1体に選ばれし者を付与する（誰に付与するかはプレイヤーが選択）
+  if(u.chosenOneBuffName){ assignChosenOne(u); }
 
   if(s.target==="all"){
     state.pendingTriggerContext = { targetType:"selectHitAoe", evadeMap:{}, sourceUnitId: unitId, skillKey,
@@ -2274,6 +2391,7 @@ function applyBuffWithMaxDuration(buffsArray, newBuff){
     existing.decrementOnAnyTurn = !!newBuff.decrementOnAnyTurn || !!existing.decrementOnAnyTurn;
     existing.decrementAtOwnTurnEnd = !!newBuff.decrementAtOwnTurnEnd || !!existing.decrementAtOwnTurnEnd;
     existing.dmgTakenMultPct = newBuff.dmgTakenMultPct||0;
+    existing.attackerGaugeGainPctOnHit = newBuff.attackerGaugeGainPctOnHit||0;
     return existing;
   } else {
     buffsArray.push(newBuff);
@@ -3142,6 +3260,7 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
   let brokeAny = false;
   let toughnessDmgSum = 0;
   let hitEscortIds = [];
+  let attackerGaugeGainFromDebuff = 0; // オルベロス「魂の亀裂」等、対象の被弾デバフにより攻撃者(u)が得るゲージ加算分（末尾のu.gauge計算に合算する）
 
   targets.forEach(target=>{
     const hasAdvantage = !evaded && !s.targetsAlly && hasElementAdvantage(u.attribute, target.attribute);
@@ -3175,6 +3294,10 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
       target.broken = true; target.gauge = 0; brokeNow = true;
       state.breakPoints = Math.min(3, state.breakPoints + (target.toughnessMax>=15?3:1));
       brokeAny = true;
+    }
+    // オルベロスの手先等：ブレイクした瞬間を記録（討伐確認パネルで討伐されなかったと判明した場合のみ、後で英雄の魂を付与する）
+    if(brokeNow && target.isEscort && target.grantsOwnerHeroSoulOnBreak){
+      target._pendingHeroSoulOnBreak = true;
     }
     // ギーレ「厳重な戒律」：究極スキルを受けた時、自身が夜の周期状態なら自身の究極CTを1短縮しゲージ+30%
     if(!evaded && !s.targetsAlly && skillKey==="ultimate" && target.reactsToUltimateHitIfNightCycle){
@@ -3217,6 +3340,21 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
     else if(!evaded && !s.targetsAlly && s.target==="all" && target.wrongClockStackName && target.buffs.some(b=>b.name===target.timeParadoxName)){
       target.wrongClockStacks = Math.min(target.wrongClockStackMax||3, (target.wrongClockStacks||0) + 1);
       logAction(target, "被弾判定", `⏱ ${target.timeParadoxName}中に全体攻撃を受けたため${target.wrongClockStackName}+1(${target.wrongClockStacks}/${target.wrongClockStackMax||3})`, "-", false, "");
+    }
+    // オルベロス：既に魂の亀裂状態の相手を攻撃した場合、攻撃者(u)自身のゲージが増える（発生前の状態を見るため英雄の魂消費判定より先。
+    // 末尾でu.gaugeが0リセット＋再計算されるため、ここでは直接加算せずattackerGaugeGainFromDebuffに積み立てる）
+    if(!evaded && !s.targetsAlly){
+      const soulCrackBuff = target.buffs.find(b=>b.attackerGaugeGainPctOnHit>0);
+      if(soulCrackBuff){
+        attackerGaugeGainFromDebuff += soulCrackBuff.attackerGaugeGainPctOnHit;
+        logAction(u, "被弾判定", `⏱ ${target.name}の${soulCrackBuff.name}により自身の行動ゲージ+${soulCrackBuff.attackerGaugeGainPctOnHit}%`, "-", false, "");
+      }
+    }
+    // オルベロス：英雄の魂が最大スタックの状態で攻撃を受けた時、全消費して自身に魂の亀裂を発動
+    if(!evaded && !s.targetsAlly && target.heroSoulStackName && (target.heroSoulStacks||0) >= (target.heroSoulStackMax||4)){
+      target.heroSoulStacks = 0;
+      const applied = applyBuffWithMaxDuration(target.buffs, {name:target.soulCrackDebuffName, turns:target.soulCrackTurns||4, type:"debuff", speedZeroLock:true, dmgTakenMultPct:100, decrementOnAnyTurn:true, undispellable:true, attackerGaugeGainPctOnHit:100});
+      logAction(target, "被弾判定", `💔 ${target.heroSoulStackName}が最大のため全消費し、自身に${applied.name}(${applied.turns}T)を発動`, "-", false, "");
     }
 
     let reductionText = "";
@@ -3292,7 +3430,7 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
   // セレスの特殊等：命中した敵の数に応じて自身ゲージ+X%ずつ（EVADE時は0体扱い、selfGaugeGainPerHitMaxPctで上限）
   const perHitGaugeGainRaw = (!evaded && !s.targetsAlly && s.selfGaugeGainPerHitPct) ? targets.length * s.selfGaugeGainPerHitPct : 0;
   const perHitGaugeGain = s.selfGaugeGainPerHitMaxPct ? Math.min(perHitGaugeGainRaw, s.selfGaugeGainPerHitMaxPct) : perHitGaugeGainRaw;
-  const gaugeGain = (evaded ? 0 : ((s.selfGaugeGain||0) + (burstOn ? (s.burstGaugeGainAdd||0) : 0))) + perHitGaugeGain;
+  const gaugeGain = (evaded ? 0 : ((s.selfGaugeGain||0) + (burstOn ? (s.burstGaugeGainAdd||0) : 0))) + perHitGaugeGain + attackerGaugeGainFromDebuff;
   if(gaugeGain > 0){ u.gauge = Math.min(100, u.gauge + gaugeGain); }
 
   let stackMemo = "";
@@ -3492,12 +3630,24 @@ function confirmEscortDefeatCheck(){
   ids.forEach(id=>{
     const cb = document.getElementById("escortDefeat_" + id);
     const u = state.units.find(x=>x.id===id && x.alive);
-    if(cb && cb.checked && u){ defeatEscort(u); }
+    if(!u) return;
+    if(cb && cb.checked){
+      // オルベロスの手先「破壊されたときに倒された場合は発動しない」：討伐が確定した場合は英雄の魂を付与しない
+      u._pendingHeroSoulOnBreak = false;
+      defeatEscort(u);
+    } else {
+      grantHeroSoulIfPendingSurvived(u);
+    }
   });
   state.pendingEscortDefeatCheck = [];
   renderBattle();
 }
 function dismissEscortDefeatCheck(){
+  pushHistory();
+  (state.pendingEscortDefeatCheck||[]).forEach(id=>{
+    const u = state.units.find(x=>x.id===id && x.alive);
+    if(u) grantHeroSoulIfPendingSurvived(u);
+  });
   state.pendingEscortDefeatCheck = [];
   renderBattle();
 }

@@ -71,6 +71,24 @@ const BOSS_PRESETS = {
       special: defaultEnemySkill("惨劇のレクイエム", 3, "強靭削り2／自身の取り巻き全体の行動ゲージ+25%(実装済み)／行動ゲージ最高の味方に100%で3Tタイム・パラドックス付与(速度0固定は実装済み。被ダメ+100%は本ツールの被ダメ計算非対応方針のため注記のみ)", "single", 0, null, null, null, false, 0, null,
         { escortGaugeGainPct:25, targetHighestGaugeAllyDebuff:{name:"タイムパラドックス（速度0固定・被ダメ+100%は本ツール非対応のため注記のみ）", turns:3, speedZeroLock:true} }),
       ultimate: defaultEnemySkill("悲嘆のクレッシェンド", 4, "強靭削り1／自身に2T速度アップ(+20%)・行動ゲージ+30%／自身の弱体化を全解除", "all", 0, null, null, null, true) },
+    "orberos": { name:"オルベロス", speed:180, toughnessMax:15, breakDmgPct:15, attribute:"月", role:"ディフェンダー",
+      starImmunityTurns:0, starSpeedBonusPct:0, starDamageReductionPct:0,
+      battleStartSelfBuffs:[{name:"守護（解除不可・味方被ダメ30%肩代わり）", turns:9999, permanent:true, undispellable:true}],
+      summonsEscortsAfterOwnAction:true, escortMax:4, escortName:"オルベロスの手先", escortSpeed:0, escortToughnessMax:3,
+      escortAttributes:["太陽","星","秩序","混沌"], escortGrantsHeroSoulOnBreak:true,
+      escortBasicSkill: defaultEnemySkill("突撃", 0, "強靭削り不明(未確認・要調整)／単体攻撃／選ばれし者状態でブレイク中に攻撃した場合、攻撃後に自身が戦闘不能になる", "single", 0, null, null, null, false, 0, null,
+        { selfKoIfBrokenAndBuffName:"選ばれし者（解除不可・防御貫通+50%・ダメージ+300%）" }),
+      heroSoulStackName:"英雄の魂（解除不可）", heroSoulStackMax:4,
+      soulCrackDebuffName:"魂の亀裂（解除不可・速度0固定・被ダメ+100%・攻撃者ゲージ+100%）", soulCrackTurns:4,
+      chosenOneBuffName:"選ばれし者（解除不可・防御貫通+50%・ダメージ+300%）",
+      passiveNote:"守護：戦闘開始時、自身に守護（解除不可）を付与する（実装済み：battleStartSelfBuffs。守護＝味方の被ダメ30%を代わりに受ける仕様だが、本ツールはダメージ計算非対応のため参考情報）。／英雄の魂：攻撃を受けた時、英雄の魂（解除不可）が最大(4)スタックの場合、全消費して自身に4T魂の亀裂（解除不可）を発動する（実装済み：heroSoulStackName・soulCrackDebuffName。魂の亀裂＝速度0固定・被ダメ+100%・攻撃を受けるたび攻撃者の行動ゲージ+100%・いずれかのターン終了時にターン数が減少、すべて実装済み）。／取り巻き召喚：スキル使用後、オルベロスの手先（太陽・星・秩序・混沌の各属性1体ずつ、最大4体）を召喚する（実装済み：spawnEscorts・escortAttributes）。手先は自身の強靭度が破壊された時、その場で討伐されなければオルベロスに英雄の魂+1（実装済み：撃破確認パネルで討伐有無を確認した結果に応じて自動判定。討伐された場合は発動しない）。手先が選ばれし者状態の時「ランダムな対象に基本スキルを発動する」処理は、手先自身の行動として本ツールの「追加ターン」機能等でプレイヤーが手動発動してください（対象はランダムなため実際の画面を見て選択・本ツールは自動選択非対応）。／選ばれし者：自身の行動後（ターン終了時）、全ての手先から選ばれし者（解除不可）を解除し、自身を除く生存中の手先1体に付与する（実装済み：assignChosenOne。誰に付与するかは本ツールではプレイヤーが選択する）",
+      basic: defaultEnemySkill("進軍の剣", 0, "強靭削り不明(未確認・要調整)／単体攻撃／攻撃後、自身の行動ゲージ+20%", "single", 20),
+      special: defaultEnemySkill("英雄の断末魔", 3, "強靭削り不明(未確認・要調整)／全体攻撃／自身に1T防御力アップ／自身と取り巻き全体の強靭度+1回復／行動ゲージ最低の敵単体に100%で1T挑発(基本スキルしか発動できない)付与", "all", 0, null, null, null, false, 0,
+        {name:"防御力アップ", turns:1},
+        { teamToughnessHealAmount:1, targetLowestGaugeAllyDebuff:{name:"挑発（基本スキルしか発動できない）", turns:1} }),
+      ultimate: defaultEnemySkill("刀塚", 4, "強靭削り不明(未確認・要調整)／全体攻撃／自身と取り巻き全体に5T強靭度ダメージ無効／敵全体に100%で2T攻撃力ダウン", "all", 0, null, null,
+        {name:"攻撃力ダウン", turns:2}, false, 0, null,
+        { selfAndEscortTeamBuff:{name:"強靭度ダメージ無効", turns:5} }) },
     "custom": { name:"新規敵", speed:100, toughnessMax:15, breakDmgPct:15, attribute:"太陽", role:"ディフェンダー",
       starImmunityTurns:0, starSpeedBonusPct:0, starDamageReductionPct:0,
       basic: defaultEnemySkill("基本スキル",0,"","single"),
@@ -86,5 +104,7 @@ const BOSS_PRESET_LIST = [
   // 秩序
   ["kairi","乖離"],
   // 太陽
-  ["tyria_boss","ティリア（ボス）"]
+  ["tyria_boss","ティリア（ボス）"],
+  // 月
+  ["orberos","オルベロス"]
 ];
