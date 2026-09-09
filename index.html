@@ -331,13 +331,16 @@ function stackNameForAttribute(attr){
 }
 const ELEMENT_STACK_MAX = 5;
 
-// 花嫁エピンデル「祝福の花冠」：自身が存命なら、太陽属性の味方のターン開始時に点火+2、
-// 太陽属性の味方の行動時（本ツールは会心発生前提のため常時）に点火+1を付与する（自分自身も対象に含む）
-// prop: "grantsSolarStackOnAllyTurnStart" | "grantsSolarStackOnAllyAction"
-function epindelSolarAuraAmount(prop){
-  if(!state) return 0;
+// 花嫁エピンデル「祝福の花冠」：太陽属性の味方（自身を含む）のターン開始時に自身の点火+2、
+// 太陽属性の味方（自身を含む）の行動時（本ツールは会心発生前提のため常時）に自身の点火+1
+// ※スタックが増えるのは常にエピンデル自身。行動した味方（トリガー元）ではない
+// prop: "gainsSolarStackOnAllyTurnStart" | "gainsSolarStackOnAllyAction"
+function epindelGainSolarStack(prop){
+  if(!state) return;
   const owner = state.units.find(x=>x.kind==="ally" && x.alive && x[prop]);
-  return owner ? owner[prop] : 0;
+  if(!owner) return;
+  owner.elementStack = Math.min(ELEMENT_STACK_MAX, (owner.elementStack||0) + owner[prop]);
+  return owner;
 }
 
 // コスモゲートのボスは以下のデバフに常時免疫（★開幕免疫とは別枠。現状すべてのボスで共通）
@@ -1290,8 +1293,8 @@ function startBattle(){
       gainsBrokenNutOnAnyAllyBreak: a.gainsBrokenNutOnAnyAllyBreak || 0,
       battleStartElementStackGain: a.battleStartElementStackGain || 0,
       gainsStackOnAllySpecialOrUltimate: a.gainsStackOnAllySpecialOrUltimate || null,
-      grantsSolarStackOnAllyTurnStart: a.grantsSolarStackOnAllyTurnStart || 0,
-      grantsSolarStackOnAllyAction: a.grantsSolarStackOnAllyAction || 0,
+      gainsSolarStackOnAllyTurnStart: a.gainsSolarStackOnAllyTurnStart || 0,
+      gainsSolarStackOnAllyAction: a.gainsSolarStackOnAllyAction || 0,
       skills:{ basic: {...a.basic}, special:{...a.special}, ultimate:{...a.ultimate} },
       ct:{ special:0, ultimate: 0 },
       onceUsed:{ basic:false, special:false, ultimate:false },
@@ -1747,10 +1750,9 @@ function openActionFor(unitId, arrivalType){
     u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0) + 1);
   }
 
-  // 花嫁エピンデル「祝福の花冠」：太陽属性の味方のターン開始時、点火+2（自身が味方にいる場合のみ）
+  // 花嫁エピンデル「祝福の花冠」：太陽属性の味方のターン開始時、エピンデル自身の点火+2
   if(u.kind==="ally" && u.attribute==="太陽"){
-    const epindelTurnStartAmt = epindelSolarAuraAmount("grantsSolarStackOnAllyTurnStart");
-    if(epindelTurnStartAmt > 0){ u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0) + epindelTurnStartAmt); }
+    epindelGainSolarStack("gainsSolarStackOnAllyTurnStart");
   }
 
   state.pendingActor = unitId;
@@ -2142,10 +2144,10 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
         u.brokenNutStacks = Math.min(u.brokenNutMax||99, (u.brokenNutStacks||0) + s.brokenNutGainOnUse);
         stackMemo += `／自身${u.brokenNutStackName}+${s.brokenNutGainOnUse}(${u.brokenNutStacks}/${u.brokenNutMax||"-"})`;
       }
-      // 花嫁エピンデル「祝福の花冠」：太陽属性の味方の行動時、点火+1（本ツールは会心発生前提のため常時適用）
+      // 花嫁エピンデル「祝福の花冠」：太陽属性の味方の行動時、エピンデル自身の点火+1（本ツールは会心発生前提のため常時適用）
       if(u.attribute==="太陽"){
-        const epindelActionAmt = epindelSolarAuraAmount("grantsSolarStackOnAllyAction");
-        if(epindelActionAmt > 0){ u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0)+epindelActionAmt); stackMemo += `／花嫁エピンデルの加護で${stackName}+${epindelActionAmt}(${u.elementStack}/${ELEMENT_STACK_MAX})`; }
+        const epindelOwner = epindelGainSolarStack("gainsSolarStackOnAllyAction");
+        if(epindelOwner){ stackMemo += `／花嫁エピンデルの点火+${epindelOwner.gainsSolarStackOnAllyAction}(${epindelOwner.elementStack}/${ELEMENT_STACK_MAX})`; }
       }
       // キラ「基本スキル使用後、点火スタックが最大なら全消費して自身に1ターン潜伏付与」
       // ※このスキル自身によるスタック増加が反映された『後』の値で判定する（スマイル・バニークレアと同じ考え方）
@@ -3727,10 +3729,10 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
       u.brokenNutStacks = Math.min(u.brokenNutMax||99, (u.brokenNutStacks||0) + s.brokenNutGainOnUse);
       stackMemo += `／自身${u.brokenNutStackName}+${s.brokenNutGainOnUse}(${u.brokenNutStacks}/${u.brokenNutMax||"-"})`;
     }
-    // 花嫁エピンデル「祝福の花冠」：太陽属性の味方の行動時、点火+1（本ツールは会心発生前提のため常時適用）
+    // 花嫁エピンデル「祝福の花冠」：太陽属性の味方の行動時、エピンデル自身の点火+1（本ツールは会心発生前提のため常時適用）
     if(u.attribute==="太陽"){
-      const epindelActionAmt = epindelSolarAuraAmount("grantsSolarStackOnAllyAction");
-      if(epindelActionAmt > 0){ u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0)+epindelActionAmt); stackMemo += `／花嫁エピンデルの加護で${stackName}+${epindelActionAmt}(${u.elementStack}/${ELEMENT_STACK_MAX})`; }
+      const epindelOwner = epindelGainSolarStack("gainsSolarStackOnAllyAction");
+      if(epindelOwner){ stackMemo += `／花嫁エピンデルの点火+${epindelOwner.gainsSolarStackOnAllyAction}(${epindelOwner.elementStack}/${ELEMENT_STACK_MAX})`; }
     }
     // キラ「基本スキル使用後、点火スタックが最大なら全消費して自身に1ターン潜伏付与」（攻撃後の値で判定）
     if(s.selfBuffIfStackMaxAfterAction && (u.elementStack||0) >= ELEMENT_STACK_MAX){

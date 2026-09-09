@@ -67,7 +67,7 @@ amoramama,passive,,ストラニスの主：攻撃時、自身が弱体化状態�
 amoramama,basic,酔わない槍,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1}"
 amoramama,special,貫く星,,3,1,1,1,FALSE,none,hasCT,30,20,FALSE,FALSE,FALSE,,"{""targetEffect"": {""name"": ""命中率ダウン"", ""turns"": 1}, ""selfStackGain"": 1, ""ctReduceIfSelfBuffName"": {""buffName"": ""夜に咲く花"", ""turns"": 1}}"
 amoramama,ultimate,光を磨き上げた執行,,6,1,1,1,TRUE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""target"": ""all"", ""selfBuff"": {""name"": ""夜に咲く花（速度+10%/防御貫通20%・解除不可）"", ""turns"": 3, ""speedModPct"": 10, ""undispellable"": true}, ""targetEffect"": {""name"": ""命中率ダウン"", ""turns"": 2}}"
-bride_epindel,passive,,攻撃力+15%(3凸)。太陽属性の味方のターン開始時、点火+2。太陽属性の味方が会心ヒットした時、点火+1(実装済み：grantsSolarStackOnAllyTurnStart/grantsSolarStackOnAllyAction。本ツールは会心発生前提のため後者は味方行動時に常時適用。自身もターン開始時+2・行動時+1の対象に含む),,,,,,,,,,,,,,"{""grantsSolarStackOnAllyTurnStart"": 2, ""grantsSolarStackOnAllyAction"": 1}"
+bride_epindel,passive,,攻撃力+15%(3凸)。太陽属性の味方のターン開始時、自身の点火+2。太陽属性の味方が会心ヒットした時、自身の点火+1(実装済み：gainsSolarStackOnAllyTurnStart/gainsSolarStackOnAllyAction。本ツールは会心発生前提のため後者は太陽属性の味方の行動時に常時適用。トリガー元・蓄積先ともに自身を含む＝自分の行動でも自分の点火が増える),,,,,,,,,,,,,,"{""gainsSolarStackOnAllyTurnStart"": 2, ""gainsSolarStackOnAllyAction"": 1}"
 bride_epindel,basic,鷹の強襲,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1}"
 bride_epindel,special,ブーケトス,,3,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfBuffIfStackMaxAfterAction"": {""name"": ""攻撃力アップ（+30%）"", ""turns"": 2}, ""extraTurnIfStackMaxConsumeAll"": true, ""enemyGaugeReductionPct"": 20}"
 bride_epindel,ultimate,花嫁、入場,,4,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfBuff"": {""name"": ""速度アップ"", ""turns"": 2}, ""target"": ""all""}"
