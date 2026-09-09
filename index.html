@@ -1092,6 +1092,29 @@ let setupAutosaveTimer = null;
 function currentSetupSnapshot(){
   return { allies, enemies, envBuffs, savedAt: new Date().toISOString() };
 }
+
+// localStorageの自動保存／プリセットは「その場面を保存した時点」のキャラクターデータをJSONとして
+// 丸ごと保持している。その後characters.js側でパッシブ実装が追加・修正されても、古いスナップショットには
+// 反映されない（例：花嫁エピンデルのパッシブ実装を追加した後も、それ以前に保存された編成を読み込むと
+// 新しいフラグが存在せず、パッシブが発動しないまま気づきにくい）。
+// この関数は、読み込んだ味方データを名前で現在のALLY_CHARACTER_PRESETSと照合し、
+// 速度・潜在（遺物）・実効ATK・会心ダメ・各スキルの手動編集値など「プレイヤーが上書きしうる値」以外の
+// キャラクター定義（パッシブ実装フラグ等）を常に最新の状態へ同期し直す
+const ALLY_PRESET_STRUCTURAL_FIELDS = new Set(["name","speed","toughnessMax","evasionRatePct","attribute","role","relics","effectiveAtk","critDmgPct","basic","special","ultimate","guardTargetIdx"]);
+function refreshAlliesFromLatestPresets(alliesArr){
+  if(!Array.isArray(alliesArr) || typeof ALLY_PRESET_LIST==="undefined") return;
+  const nameToId = {};
+  ALLY_PRESET_LIST.forEach(([id,name])=>{ nameToId[name] = id; });
+  alliesArr.forEach(a=>{
+    if(!a || !a.name) return;
+    const id = nameToId[a.name];
+    if(!id) return; // カスタムキャラ等、対応するプリセットが無い場合はそのまま
+    const fresh = allyPreset(id);
+    if(!fresh) return;
+    Object.keys(fresh).forEach(k=>{ if(!ALLY_PRESET_STRUCTURAL_FIELDS.has(k)){ a[k] = fresh[k]; } });
+    Object.keys(a).forEach(k=>{ if(!ALLY_PRESET_STRUCTURAL_FIELDS.has(k) && !(k in fresh)){ delete a[k]; } });
+  });
+}
 function scheduleSetupAutosave(){
   if(state) return; // 戦闘開始後（本番の進行状態）は自動保存の対象外
   clearTimeout(setupAutosaveTimer);
@@ -1109,6 +1132,7 @@ function loadSetupAutosave(){
     if(data.allies) allies = data.allies;
     if(data.enemies) enemies = data.enemies;
     if(data.envBuffs) envBuffs = data.envBuffs;
+    refreshAlliesFromLatestPresets(allies);
   }catch(e){ /* 壊れたデータは無視し、デフォルト構成のまま起動する */ }
 }
 document.addEventListener("input", (e)=>{ if(e.target.closest("#allySetup,#enemySetup,#envBuffSetup")) scheduleSetupAutosave(); });
@@ -1158,6 +1182,7 @@ function loadSetupPreset(){
   if(data.allies) allies = data.allies;
   if(data.enemies) enemies = data.enemies;
   if(data.envBuffs) envBuffs = data.envBuffs;
+  refreshAlliesFromLatestPresets(allies);
   renderAllySetup();
   renderEnemySetup();
   renderEnvBuffSetup();
