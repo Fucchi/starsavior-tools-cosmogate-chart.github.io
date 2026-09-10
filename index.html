@@ -274,7 +274,13 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
     clearEnemyBuffCount: extraEffects.clearEnemyBuffCount || 0,
     // targetEffectBossBonusStacks: target:"all"のtargetEffect（dot:true限定）について、対象がボス（敵設定欄の先頭＝isBoss）
     // の場合のみ追加でこの数だけスタックを上乗せする（ティリアの究極：ボスに惨劇の棘3・それ以外は1という仕様の実装）
-    targetEffectBossBonusStacks: extraEffects.targetEffectBossBonusStacks || 0};
+    targetEffectBossBonusStacks: extraEffects.targetEffectBossBonusStacks || 0,
+    // targetExtendAllDebuffsDuration: 対象が現在持っている弱体化（type:"debuff"）すべての残ターンをこの数だけ延長する
+    // （ミュリエルの特殊「敵の弱体効果を1ターン延長」等。特定の名前1つだけを延長するtargetExtendDebuffDurationByNameとは別枠）
+    targetExtendAllDebuffsDuration: extraEffects.targetExtendAllDebuffsDuration || 0,
+    // targetEffectIfSelfStackMax: 自身の属性スタックが最大（ELEMENT_STACK_MAX）の場合のみ、対象（target:"all"なら敵全体）に
+    // 追加で付与するデバフ（ミュリエルの究極：自身点火が最大なら敵全体に燃焼付与、等）
+    targetEffectIfSelfStackMax: extraEffects.targetEffectIfSelfStackMax || null};
 }
 
 function defaultEnemySkill(name, ct, note, target, selfGaugeGainPct, targetEffectIfNoBarrier, selfBuffIfTwistedWill, targetEffect, selfClearAllDebuffs, targetGaugeReductionPct, selfBuff, extra){
@@ -1318,6 +1324,7 @@ function startBattle(){
       gainsBrokenNutOnAnyAllyBreak: a.gainsBrokenNutOnAnyAllyBreak || 0,
       battleStartElementStackGain: a.battleStartElementStackGain || 0,
       gainsStackOnAllySpecialOrUltimate: a.gainsStackOnAllySpecialOrUltimate || null,
+      gainsStackOnAllyAttackIfAttribute: a.gainsStackOnAllyAttackIfAttribute || null,
       gainsSolarStackOnAllyTurnStart: a.gainsSolarStackOnAllyTurnStart || 0,
       gainsSolarStackOnAllyAction: a.gainsSolarStackOnAllyAction || 0,
       skills:{ basic: {...a.basic}, special:{...a.special}, ultimate:{...a.ultimate} },
@@ -2105,6 +2112,23 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
           effText += `／対象の${cfg.name}を${cfg.turns}ターン延長(残${matches[0].turns}T)`;
         }
       }
+      // ミュリエルの特殊等：対象が持つ弱体化（type:"debuff"）すべての残ターンを延長する
+      if(s.targetExtendAllDebuffsDuration > 0 && !isEvaded){
+        const debuffs = target.buffs.filter(b=>b.type==="debuff");
+        if(debuffs.length>0){
+          debuffs.forEach(b=>{ b.turns += s.targetExtendAllDebuffsDuration; });
+          effText += `／対象の弱体化すべてを${s.targetExtendAllDebuffsDuration}ターン延長(${debuffs.map(b=>b.name).join("、")})`;
+        }
+      }
+      // ミュリエルの究極等：自身の属性スタックが最大の場合、対象に追加デバフを付与する
+      if(s.targetEffectIfSelfStackMax && !isEvaded && (u.elementStack||0) >= ELEMENT_STACK_MAX){
+        const eff = s.targetEffectIfSelfStackMax;
+        if(!(target.kind==="enemy" && isBossImmuneDebuffName(eff.name)) && !(target.immune && !eff.ignoresImmune)){
+          if(eff.dot){ target.buffs.push({name:eff.name, turns:eff.turns, type:"debuff", dot:true}); }
+          else { applyBuffWithMaxDuration(target.buffs, {name:eff.name, turns:eff.turns, type:"debuff"}); }
+          effText += `／自身${stackNameForAttribute(u.attribute)}最大のため対象に${eff.name}(${eff.turns}T)付与`;
+        }
+      }
 
       perTargetMemo.push(`${target.name}:強靭削り${toughnessDmg}／残強靭${target.toughness}${brokeNow?"→ブレイク！":""}${reductionText}${effText}${gimmickText}${starHpText}`);
     });
@@ -2214,6 +2238,12 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
         const cfg = al.gainsStackOnAllySpecialOrUltimate;
         const gain = (cfg.baseAmount||0) + ((u.attribute===cfg.bonusIfAttackerAttribute) ? (cfg.bonusAmount||0) : 0);
         al.elementStack = Math.min(ELEMENT_STACK_MAX, (al.elementStack||0) + gain);
+      });
+    }
+    // ミュリエル：自身以外の指定属性の味方が攻撃（基本・特殊・究極いずれも）した後、自身にスタック付与
+    if(!isEvaded){
+      state.units.filter(x=>x.kind==="ally" && x.alive && x.id!==u.id && x.gainsStackOnAllyAttackIfAttribute && x.gainsStackOnAllyAttackIfAttribute.attribute===u.attribute).forEach(al=>{
+        al.elementStack = Math.min(ELEMENT_STACK_MAX, (al.elementStack||0) + (al.gainsStackOnAllyAttackIfAttribute.amount||1));
       });
     }
 
@@ -3246,6 +3276,10 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
     u.senkohanabiStacks = Math.min(3, (u.senkohanabiStacks||0) + s.selfSenkohanabiGain);
     stackMemo += `／自身線香花火+${s.selfSenkohanabiGain}(${u.senkohanabiStacks})`;
   }
+  // ミュリエル：自身以外の指定属性の味方がEX/挟撃誘発で攻撃した後、自身にスタック付与
+  state.units.filter(x=>x.kind==="ally" && x.alive && x.id!==u.id && x.gainsStackOnAllyAttackIfAttribute && x.gainsStackOnAllyAttackIfAttribute.attribute===u.attribute).forEach(al=>{
+    al.elementStack = Math.min(ELEMENT_STACK_MAX, (al.elementStack||0) + (al.gainsStackOnAllyAttackIfAttribute.amount||1));
+  });
 
   logAction(u, arrivalLabel, "通常：" + s.name + skillLabelSuffix, String(toughnessDmgSum), brokeAny,
     `${perTargetMemo.join(" ｜ ")}／BP+${s.burstGain}（BP残${state.teamBurst}）${stackMemo}`);
@@ -3797,6 +3831,12 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
       const cfg = al.gainsStackOnAllySpecialOrUltimate;
       const gain = (cfg.baseAmount||0) + ((u.attribute===cfg.bonusIfAttackerAttribute) ? (cfg.bonusAmount||0) : 0);
       al.elementStack = Math.min(ELEMENT_STACK_MAX, (al.elementStack||0) + gain);
+    });
+  }
+  // ミュリエル：自身以外の指定属性の味方が攻撃（基本・特殊・究極いずれも）した後、自身にスタック付与
+  if(!evaded && !s.targetsAlly){
+    state.units.filter(x=>x.kind==="ally" && x.alive && x.id!==u.id && x.gainsStackOnAllyAttackIfAttribute && x.gainsStackOnAllyAttackIfAttribute.attribute===u.attribute).forEach(al=>{
+      al.elementStack = Math.min(ELEMENT_STACK_MAX, (al.elementStack||0) + (al.gainsStackOnAllyAttackIfAttribute.amount||1));
     });
   }
 

@@ -147,6 +147,10 @@ rin,passive,,攻撃力+15%(3凸)。攻撃時跳躍スタック比例で攻撃力
 rin,basic,五連斬り,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,65,"{""selfStackGain"": 1, ""selfBuff"": {""name"": ""速度アップ（バースト時のみ）"", ""turns"": 1, ""speedModPct"": 20}, ""burstOnlySelfBuff"": true}"
 rin,special,幻影剣舞,,5,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,40,"{""target"": ""all"", ""selfBuff"": {""name"": ""攻撃力アップ（+30%）"", ""turns"": 3, ""atkModPct"": 30}, ""variantIfBuffName"": ""清風"", ""variantConsumeSelfBuffName"": ""清風"", ""variantGrantAllyStackToAttribute"": {""attribute"": ""星"", ""stackAmount"": 3}, ""alwaysSelfBuffAfterResolve"": {""name"": ""明月"", ""turns"": 9999, ""permanent"": true}, ""extraTurnIfBothSkillsReady"": true}"
 rin,ultimate,清風明月,,5,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,52.5,"{""target"": ""all"", ""teamBuff"": {""name"": ""会心ダメージ増加（星属性限定・本ツールは全体扱い）"", ""turns"": 2, ""critDmgModPct"": 30}, ""variantIfBuffName"": ""明月"", ""variantConsumeSelfBuffName"": ""明月"", ""variantOverrideTargetToSingle"": true, ""variantBonusToughness"": 1, ""alwaysSelfBuffAfterResolve"": {""name"": ""清風（速度+10%）"", ""turns"": 3, ""speedModPct"": 10}, ""extraTurnIfBothSkillsReady"": true}"
+muriel,passive,,意気揚々：会心ダメージ+25%(3凸、本ツールはダメージ計算非対応のため未実装)。自身以外の太陽属性の味方が攻撃した後、自身に100%で点火スタック+1(実装済み：gainsStackOnAllyAttackIfAttribute),,,,,,,,,,,,,,"{""gainsStackOnAllyAttackIfAttribute"": {""attribute"": ""太陽"", ""amount"": 1}}"
+muriel,basic,神罰の炎,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,65,"{""selfStackGain"": 1}"
+muriel,special,ホーリーボム,敵の弱体化数に応じてダメージ+3%ずつ(本ツールはダメージ計算非対応のため未実装),3,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,90,"{""targetExtendAllDebuffsDuration"": 1}"
+muriel,ultimate,もう悪いことはしません,敵全体に攻撃力ダウン(75%・バースト時100%、本ツールは常時適用として扱う),5,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,66.25,"{""target"": ""all"", ""targetEffect"": {""name"": ""攻撃力ダウン"", ""turns"": 2}, ""targetEffectIfSelfStackMax"": {""name"": ""燃焼"", ""turns"": 2, ""dot"": true}}"
 custom,passive,,,,,,,,,,,,,,,,"{""effectiveAtk"": null, ""critDmgPct"": 50}"
 custom,basic,基本スキル,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,
 custom,special,特殊スキル,,3,0,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,
