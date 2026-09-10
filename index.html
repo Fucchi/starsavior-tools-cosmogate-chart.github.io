@@ -2115,9 +2115,10 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
     if(s.consumeSenkohanabiForExtraHits && (u.senkohanabiStacks||0) > 0 && targets.length>0){
       const extraCount = u.senkohanabiStacks;
       const extraTarget = targets[0];
-      // 不利属性ペナルティ（強靭ダメージが常に0になる）はこの追加ヒットの1発ごとにも適用される
-      const extraHasDisadvantage = !hasElementAdvantage(u.attribute, extraTarget.attribute) && hasElementAdvantage(extraTarget.attribute, u.attribute);
-      const rawExtraToughnessPerHit = ((u.skills.special && u.skills.special.toughness) || 1) + (isBreakSkillToughnessBonusActive() ? 1 : 0);
+      // 有利属性+1／不利属性ペナルティ（強靭ダメージが常に0になる）はこの追加ヒットの1発ごとにも適用される
+      const extraHasAdvantage = hasElementAdvantage(u.attribute, extraTarget.attribute);
+      const extraHasDisadvantage = !extraHasAdvantage && hasElementAdvantage(extraTarget.attribute, u.attribute);
+      const rawExtraToughnessPerHit = ((u.skills.special && u.skills.special.toughness) || 1) + (extraHasAdvantage ? 1 : 0) + (isBreakSkillToughnessBonusActive() ? 1 : 0);
       const extraToughnessPerHit = extraHasDisadvantage ? 0 : rawExtraToughnessPerHit;
       const extraGimmickTexts = [];
       // ★段階6以上：ボス（対象）を攻撃した時、攻撃した味方自身の最大HP-5%スタック（追加ヒット1発ごとに加算）
