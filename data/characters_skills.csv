@@ -45,7 +45,7 @@ seira,special,星蝶の群れ,,4,0,0,1,TRUE,none,hasCT,25,25,FALSE,TRUE,TRUE,,"{
 seira,ultimate,幻夢への招待,,5,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfBuff"": {""name"": ""霊夢の光（ATK+15%/速度+15%）"", ""turns"": 2, ""speedModPct"": 15}, ""targetEffect"": {""name"": ""速度ダウン（-20%）"", ""turns"": 2, ""speedModPct"": -20}, ""selfStackConsumeAll"": true}"
 ceres,passive,,攻撃力+15%(3凸)。戦闘開始時、自身に冷却スタックを2個付与(本ツール未実装)。特殊使用後、命中数に応じ自ゲージ+35%ずつ(最大175%、実装済み：selfGaugeGainPerHitPct/selfGaugeGainPerHitMaxPct)。敵が凍結状態でダメ+30%(本ツールはダメージ計算非対応のため未実装)。特殊は100%で敵全体の強化効果を1個解除(実装済み：clearEnemyBuffCount。解除不可(undispellable)の強化は対象外),,,,,,,,,,,,,,
 ceres,basic,第1型三日月,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1, ""burstEnemyGaugeReductionAdd"": 15}"
-ceres,special,第7型大地震,,4,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""targetEffect"": [{""name"": ""凍結"", ""turns"": 2, ""dot"": true}, {""name"": ""孤立"", ""turns"": 2}], ""target"": ""all"", ""selfGaugeGainPerHitPct"": 35, ""selfGaugeGainPerHitMaxPct"": 175, ""clearEnemyBuffCount"": 1}"
+ceres,special,第7型大地震,,4,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""targetEffect"": [{""name"": ""凍結（速度-3%）"", ""turns"": 2, ""dot"": true, ""speedModPct"": -3}, {""name"": ""凍結（速度-3%）"", ""turns"": 2, ""dot"": true, ""speedModPct"": -3}, {""name"": ""孤立"", ""turns"": 2}], ""target"": ""all"", ""selfGaugeGainPerHitPct"": 35, ""selfGaugeGainPerHitMaxPct"": 175, ""clearEnemyBuffCount"": 1}"
 ceres,ultimate,第21型刀風,,4,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfBuff"": {""name"": ""西部の風（速度+25%）"", ""turns"": 3, ""speedModPct"": 25}, ""targetEffect"": {""name"": ""気絶"", ""turns"": 1}, ""selfStackConsumeAll"": true, ""enemyGaugeReductionPct"": 20, ""enemyGaugeReductionPerStack"": 10}"
 tyria,passive,,攻撃力+15%(3凸)。基本スキル後100%で敵に惨劇の棘を1スタック付与（本ツールでは敵デバフとして蓄積・表示）。惨劇の棘は最大3スタック。敵の棘が3スタック(最大)の状態で基本スキルを使用すると特殊(惨劇のレクイエム)が自動トリガー候補として提示される（基本スキル使用後のみ判定。特殊・究極使用後は対象外）。トリガー発動時は速度アップが付かず、CTにも入らない(通常発動時のみ速度+20%・CT4)。究極はボスに惨劇の棘3スタック・それ以外の敵には1スタック付与（実装済み：targetEffectBossBonusStacks。ボス＝敵設定欄の先頭枠）,,,,,,,,,,,,,,
 tyria,basic,終焉のプレリュード,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1, ""targetEffect"": {""name"": ""惨劇の棘"", ""turns"": 99, ""dot"": true, ""ignoresImmune"": true, ""undispellable"": true}}"
@@ -57,7 +57,7 @@ bunny_clare,special,どこを見ているのですか？,,3,1,1,0,FALSE,afterOwn
 bunny_clare,ultimate,バニージャックポット,,4,2,1,1,FALSE,none,hasCT,0,20,FALSE,FALSE,FALSE,,"{""selfBuff"": {""name"": ""ジャックポット・ブルーム（会心率/会心ダメ+20%）"", ""turns"": 3}}"
 bunny_charle,passive,,攻撃力+15%(3凸)。他の太陽味方のターン開始時、自身に点火+1。特殊(祝杯の歌)のラッキートークンが自身にある間のみ、通常攻撃(バニーステップ)使用後にもう一度通常攻撃が自動トリガー候補として提示される(1ターン1回。特殊・究極使用後は対象外)。基本スキル(バニーステップ)使用後、自身の行動ゲージ+10%(2回使用で+20%)。究極は点火スタックが最大(5)の時、全消費してCTに入らない(実装済み：skipCtIfStackMaxConsumeAll)。究極はバースト時、ダメージの30%分のHPを回復(本ツール未対応),,,,,,,,,,,,,,
 bunny_charle,basic,バニーステップ,,0,0,1,0,FALSE,afterOwn,oncePerTurn,10,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1, ""triggerRequiresSelfBuffName"": ""ラッキートークン""}"
-bunny_charle,special,祝杯の歌,,4,0,0,1,TRUE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""target"": ""all"", ""selfBuff"": {""name"": ""ラッキートークン（解除不可＝防御力20%貫通）"", ""turns"": 3}, ""selfStackGain"": 3, ""teamBuff"": {""name"": ""攻撃力アップ（+30%）"", ""turns"": 2}}"
+bunny_charle,special,祝杯の歌,,4,0,0,1,TRUE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""target"": ""all"", ""selfBuff"": {""name"": ""ラッキートークン（解除不可＝防御力20%貫通）"", ""turns"": 3}, ""selfStackGain"": 3, ""teamBuff"": {""name"": ""攻撃力アップ（+30%）"", ""turns"": 2}, ""nonAttackSkill"": true}"
 bunny_charle,ultimate,窮地に追い込まれたウサギ,,5,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackConsumeAll"": true, ""skipCtIfStackMaxConsumeAll"": true}"
 luna,passive,,攻撃力+15%(3凸)。究極使用時、自身が強化状態なら会心ダメ+20%。全スキルが全体攻撃。究極の束縛発生率はバースト時のみ100%(非バースト時は75%、本ツールは常時適用として扱う),,,,,,,,,,,,,,
 luna,basic,護身用魔力弾,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1, ""target"": ""all""}"
@@ -109,7 +109,7 @@ trish,special,加速強襲,,2,1,1,1,FALSE,none,hasCT,50,0,FALSE,FALSE,FALSE,55,"
 trish,ultimate,連続斬り,,4,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,90,"{""selfBuff"": {""name"": ""攻撃力アップ（+30%）"", ""turns"": 2, ""atkModPct"": 30}, ""selfStackConsumeAll"": true, ""burstDamagePct"": 20}"
 ru,passive,,攻撃力+15%(3凸)。基本スキル(制圧符)使用後、敵に100%(3凸時。凸数が低いほど確率減、無凸データなし)で1ターン凍結を発生させる。究極は敵の究極スキルCTを+1ターンする効果あり(本ツール未実装)。特殊はバースト強化時、自身の速度アップ持続が1→2ターンに延長される(本ツール未実装、固定1ターンとして実装),,,,,,,,,,,,,,
 ru,basic,制圧符,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,65,"{""selfStackGain"": 1}"
-ru,special,雪中四友,,3,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,90,"{""targetEffect"": {""name"": ""凍結（速度-3%）"", ""turns"": 2, ""dot"": true}, ""selfBuff"": {""name"": ""速度アップ（+20%）"", ""turns"": 1, ""speedModPct"": 20}}"
+ru,special,雪中四友,,3,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,90,"{""targetEffect"": {""name"": ""凍結（速度-3%）"", ""turns"": 2, ""dot"": true, ""speedModPct"": -3}, ""selfBuff"": {""name"": ""速度アップ（+20%）"", ""turns"": 1, ""speedModPct"": 20}}"
 ru,ultimate,天道不容、悪即斬,,5,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,115,"{""targetEffect"": {""name"": ""防御力ダウン（-30%）"", ""turns"": 2}}"
 petra,passive,,攻撃力+15%(3凸)。自身を除く味方が敵の強靭度をブレイクした後、自身に点火スタック+1・自身ゲージ+20%(3凸時、1ターン1回)。究極は点火スタック数×4%ダメージ増加(最大5、攻撃後全消費。本ツール未実装),,,,,,,,,,,,,,
 petra,basic,即興設計,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,65,"{""selfStackGain"": 1}"
@@ -133,7 +133,7 @@ belriese,special,弔問,,3,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,60,"{""t
 belriese,ultimate,納棺,,4,2,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,115,"{""targetEffect"": {""name"": ""沈黙"", ""turns"": 2}}"
 bunny_frey,passive,,攻撃力+15%(3凸)。冷却スタックとハイローラー(解除不可)は別カウンター(ハイローラーはselfBuffのdot積み上げで表現、究極で実装済み)。ターン開始時、冷却が最大スタックならハイローラーを1回発生させ冷却を全消費(本ツール未実装)。ターン開始時、ハイローラーが最大スタックなら冷却は消費しない(本ツール未実装)。ハイローラー最大時、基本スキルが「強制交渉」に変化しダメ+100%・攻撃後に自ゲージ+30%・冷却+1・ハイローラー解除(いずれも本ツール未実装)。自身以外の月属性味方攻撃後、自ゲージ+8%・100%でハイローラー+1(未実装),,,,,,,,,,,,,,
 bunny_frey,basic,ベッティング拒否,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,65,"{""selfStackGain"": 1, ""burstDamagePct"": 20}"
-bunny_frey,special,オールイン,,4,0,0,1,TRUE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""target"": ""all"", ""teamBuff"": {""name"": ""会心率アップ（+30%）"", ""turns"": 3}, ""selfStackGain"": 3}"
+bunny_frey,special,オールイン,,4,0,0,1,TRUE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""target"": ""all"", ""teamBuff"": {""name"": ""会心率アップ（+30%）"", ""turns"": 3}, ""selfStackGain"": 3, ""nonAttackSkill"": true}"
 bunny_frey,ultimate,ブルズアイ,,5,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,40,"{""target"": ""all"", ""selfBuff"": [{""name"": ""攻撃力アップ（+30%）"", ""turns"": 2, ""atkModPct"": 30}, {""name"": ""ハイローラー（解除不可）"", ""turns"": 99, ""dot"": true}, {""name"": ""ハイローラー（解除不可）"", ""turns"": 99, ""dot"": true}, {""name"": ""ハイローラー（解除不可）"", ""turns"": 99, ""dot"": true}]}"
 yanagi_mina,passive,,攻撃力+15%(3凸)。攻撃後、自身攻撃力+4%スタック(最大5、3凸、本ツール未実装)。会心発生時、自ゲージ+15%(3凸、本ツールは会心発生前提のため各スキルのself_gauge_gainとして常時適用で実装)。特殊は跳躍最大なら出血を追加付与(未実装),,,,,,,,,,,,,,
 yanagi_mina,basic,パルスリボルバー,,0,0,1,0,FALSE,none,hasCT,15,0,FALSE,FALSE,FALSE,50,"{""selfStackGain"": 1, ""burstDamagePct"": 20}"

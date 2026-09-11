@@ -280,7 +280,12 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
     targetExtendAllDebuffsDuration: extraEffects.targetExtendAllDebuffsDuration || 0,
     // targetEffectIfSelfStackMax: 自身の属性スタックが最大（ELEMENT_STACK_MAX）の場合のみ、対象（target:"all"なら敵全体）に
     // 追加で付与するデバフ（ミュリエルの究極：自身点火が最大なら敵全体に燃焼付与、等）
-    targetEffectIfSelfStackMax: extraEffects.targetEffectIfSelfStackMax || null};
+    targetEffectIfSelfStackMax: extraEffects.targetEffectIfSelfStackMax || null,
+    // nonAttackSkill: targetsAlly:falseだが実質的に攻撃ではない（teamBuff等で味方全体を強化するだけの）スキルであることを示すフラグ。
+    // オルトロスの「味方が攻撃ではないスキルを使った時に自身へ竜の逆鱗」等、s.targetsAllyを「非攻撃判定」に使っている
+    // 既存ギミックが、targetsAlly:falseかつtarget:"all"で組んだ団体バフスキル（バニーシャルルの特殊等）でも
+    // 正しく反応できるようにするための専用フラグ
+    nonAttackSkill: !!extraEffects.nonAttackSkill};
 }
 
 function defaultEnemySkill(name, ct, note, target, selfGaugeGainPct, targetEffectIfNoBarrier, selfBuffIfTwistedWill, targetEffect, selfClearAllDebuffs, targetGaugeReductionPct, selfBuff, extra){
@@ -1940,6 +1945,14 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
     });
   } else {
     // ---- 敵対象（単体 or 全体） ----
+    // nonAttackSkill（targetsAlly:falseだがteamBuff等で組んだ実質非攻撃の団体バフスキル。バニーシャルルの特殊等）も、
+    // オルトロス等の「味方が攻撃ではないスキルを使った時」ギミックに反応させる
+    if(s.nonAttackSkill){
+      state.units.filter(x=>x.kind==="enemy" && x.alive && x.gainsBuffWhenAllyUsesNonAttackSkill).forEach(en=>{
+        const b = en.gainsBuffWhenAllyUsesNonAttackSkill;
+        en.buffs.push({name:b.name, turns:b.turns, type:"debuff"});
+      });
+    }
     if(skillKey==="basic"){ u.lastBasicTargetId = targets[0] ? targets[0].id : null; }
     targets.forEach(target=>{
       const hasAdvantage = !isEvaded && hasElementAdvantage(u.attribute, target.attribute);
@@ -3553,6 +3566,14 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
     return;
   }
   if(burstOn){ state.teamBurst -= 4; }
+
+  // 味方が攻撃ではないスキル（バフ・回復・nonAttackSkill）をトリガー発動で使った際も、オルトロス等の反応ギミックを発動させる
+  if(s.targetsAlly || s.nonAttackSkill){
+    state.units.filter(x=>x.kind==="enemy" && x.alive && x.gainsBuffWhenAllyUsesNonAttackSkill).forEach(en=>{
+      const b = en.gainsBuffWhenAllyUsesNonAttackSkill;
+      en.buffs.push({name:b.name, turns:b.turns, type:"debuff"});
+    });
+  }
 
   // 愛の行進（花嫁カルメン専用潜在）：特殊または究極スキル使用後、ノヴァフォース+2（basic以外）
   const carmenArcanaBurstBonus = (u.relics && u.relics.CARMEN_ARCANA && (skillKey==="special"||skillKey==="ultimate")) ? 2 : 0;
