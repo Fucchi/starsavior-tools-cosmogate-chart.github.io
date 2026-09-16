@@ -151,6 +151,10 @@ muriel,passive,,意気揚々：会心ダメージ+25%(3凸、本ツールはダ�
 muriel,basic,神罰の炎,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,65,"{""selfStackGain"": 1}"
 muriel,special,ホーリーボム,敵の弱体化数に応じてダメージ+3%ずつ(本ツールはダメージ計算非対応のため未実装),3,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,90,"{""targetExtendAllDebuffsDuration"": 1}"
 muriel,ultimate,もう悪いことはしません,敵全体に攻撃力ダウン(75%・バースト時100%、本ツールは常時適用として扱う),5,1,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,66.25,"{""target"": ""all"", ""targetEffect"": {""name"": ""攻撃力ダウン"", ""turns"": 2}, ""targetEffectIfSelfStackMax"": {""name"": ""燃焼"", ""turns"": 2, ""dot"": true}}"
+professor_m,passive,,探究対象：白黒論理(基本)使用後、挟撃可能な味方のうち攻撃力最高の1体に見本行動分析(1T)を付与し挟撃を発生させる仕様だが、本ツールは実効ATKを正確に把握できないため付与先は専用パネルでプレイヤーが選択する(実装済み：analysisAssignOnBasic。実際の挟撃発動は既存のEX/挟撃誘発フローを手動で使用してください)。自身を除く味方の攻撃時、自身の行動ゲージ+4%・冷却スタック+1(実装済み：gainsGaugeAndStackOnAllyAttack。確率50%(100%)は常時発生として実装)。対象が見本行動分析状態ならさらに行動ゲージ+4%・冷却スタック+1。見本行動分析＝与ダメージ+10%(本ツールはダメージ計算非対応のため未実装)。Lv.2以上で攻撃力+5%(15%)(未実装、ダメージ計算非対応方針),,,,,,,,,,,,,,"{""gainsGaugeAndStackOnAllyAttack"": {""gaugePct"": 4, ""stackAmount"": 1, ""bonusBuffName"": ""見本行動分析（与ダメージ+10%）"", ""bonusGaugePct"": 4, ""bonusStackAmount"": 1}, ""analysisAssignOnBasic"": {""buffName"": ""見本行動分析（与ダメージ+10%）"", ""turns"": 1}}"
+professor_m,basic,白黒論理,,0,0,1,0,FALSE,none,hasCT,0,20,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1}"
+professor_m,special,悪から悪へ,攻撃時、敵が強靭度ブレイク状態の場合、自身のダメージ+30%(本ツールはダメージ計算非対応のため未実装)。自身を最後に攻撃した敵を優先攻撃する(本ツールでは対象選択は手動),0,1,0,0,FALSE,afterAnyAlly,hasCT,15,0,FALSE,FALSE,FALSE,,"{""triggerRequiresSelfStackMaxAfterAction"": true, ""selfStackConsumeAll"": true}"
+professor_m,ultimate,魔弾の射手,,4,2,1,1,FALSE,none,hasCT,50,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 3, ""targetEffect"": {""name"": ""標的刻印（特殊から受けるダメージ+20%）"", ""turns"": 2}}"
 custom,passive,,,,,,,,,,,,,,,,"{""effectiveAtk"": null, ""critDmgPct"": 50}"
 custom,basic,基本スキル,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,
 custom,special,特殊スキル,,3,0,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,

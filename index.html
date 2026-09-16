@@ -130,6 +130,7 @@
     <div id="escortDefeatCheckPanel"></div>
     <div id="chosenOneAssignPanel"></div>
     <div id="tauntConfirmPanel"></div>
+    <div id="analysisAssignPanel"></div>
 
     <div id="actionArea"></div>
 
@@ -816,8 +817,8 @@ function renderAllySetup(){
   allies.forEach((a, idx)=>{
     const card = document.createElement("div");
     card.className = "unit-card";
-    const relicChecks = ["EX","AX","DANRYOKU","GX","SMILE_ARCANA","LUNA_ARCANA","CAUTIOUS_TACTICS","CARMEN_ARCANA","XX1GOU"].map(key=>{
-      const labelText = key==="DANRYOKU" ? "弾力・加速" : key==="SMILE_ARCANA" ? "スマイル専用" : key==="LUNA_ARCANA" ? "水着ルナ専用" : key==="CAUTIOUS_TACTICS" ? "慎重な戦術" : key==="CARMEN_ARCANA" ? "愛の行進（カルメン専用）" : key==="XX1GOU" ? "XX1号（確率反撃）" : key;
+    const relicChecks = ["EX","AX","DANRYOKU","GX","SMILE_ARCANA","LUNA_ARCANA","CAUTIOUS_TACTICS","CARMEN_ARCANA","XX1GOU","M_ARCANA"].map(key=>{
+      const labelText = key==="DANRYOKU" ? "弾力・加速" : key==="SMILE_ARCANA" ? "スマイル専用" : key==="LUNA_ARCANA" ? "水着ルナ専用" : key==="CAUTIOUS_TACTICS" ? "慎重な戦術" : key==="CARMEN_ARCANA" ? "愛の行進（カルメン専用）" : key==="XX1GOU" ? "XX1号（確率反撃）" : key==="M_ARCANA" ? "M潜在（プロフェッサーM専用）" : key;
       return `<label style="display:flex; align-items:center; gap:3px; font-size:12px;">
         <input type="checkbox" ${a.relics&&a.relics[key]?"checked":""} onchange="allies[${idx}].relics=allies[${idx}].relics||{}; allies[${idx}].relics.${key}=this.checked; renderAllySetup();"> ${labelText}
       </label>`;
@@ -846,6 +847,7 @@ function renderAllySetup(){
       ${(a.relics && a.relics.CAUTIOUS_TACTICS && a.role!=="ディフェンダー") ? `<div class="smallnote" style="color:var(--warn); margin-bottom:8px;">⚠ 慎重な戦術はディフェンダー専用潜在です。このキャラのロールは「${a.role||"未設定"}」になっています</div>` : ""}
       ${(a.relics && a.relics.LUNA_ARCANA && a.role!=="ディフェンダー") ? `<div class="smallnote" style="color:var(--warn); margin-bottom:8px;">⚠ 水着ルナ専用アルカナはディフェンダー専用潜在です。このキャラのロールは「${a.role||"未設定"}」になっています</div>` : ""}
       ${(a.relics && a.relics.CARMEN_ARCANA && a.name!=="花嫁カルメン") ? `<div class="smallnote" style="color:var(--warn); margin-bottom:8px;">⚠ 愛の行進は花嫁カルメン専用潜在です。このキャラは「${a.name||"未設定"}」になっています</div>` : ""}
+      ${(a.relics && a.relics.M_ARCANA && a.role!=="レンジャー") ? `<div class="smallnote" style="color:var(--warn); margin-bottom:8px;">⚠ M潜在はレンジャー専用潜在です。このキャラのロールは「${a.role||"未設定"}」になっています</div>` : ""}
       ${allyDetailOpen[idx] ? `
       <div class="row">
         <div class="field grow"><label>名前</label><input type="text" value="${a.name}" oninput="allies[${idx}].name=this.value"></div>
@@ -1330,6 +1332,8 @@ function startBattle(){
       battleStartElementStackGain: a.battleStartElementStackGain || 0,
       gainsStackOnAllySpecialOrUltimate: a.gainsStackOnAllySpecialOrUltimate || null,
       gainsStackOnAllyAttackIfAttribute: a.gainsStackOnAllyAttackIfAttribute || null,
+      gainsGaugeAndStackOnAllyAttack: a.gainsGaugeAndStackOnAllyAttack || null,
+      analysisAssignOnBasic: a.analysisAssignOnBasic || null,
       gainsSolarStackOnAllyTurnStart: a.gainsSolarStackOnAllyTurnStart || 0,
       gainsSolarStackOnAllyAction: a.gainsSolarStackOnAllyAction || 0,
       skills:{ basic: {...a.basic}, special:{...a.special}, ultimate:{...a.ultimate} },
@@ -1462,7 +1466,8 @@ function startBattle(){
     pendingPincerCheck: null, // {sourceUnitId, thenExtra, candidates:[{id,name,chancePct}]}
     pendingPincerFire: null,  // {allyId}
     pendingChosenOneAssign: null, // {ownerId, buffName, candidateIds:[id,...]}（オルベロス「選ばれし者」の付与先選択待ち）
-    pendingTauntConfirm: null // {sourceUnitId, targetUnitId, debuff:{name,turns,speedZeroLock}}（オルベロス「挑発」が実際についたかの確認待ち）
+    pendingTauntConfirm: null, // {sourceUnitId, targetUnitId, debuff:{name,turns,speedZeroLock}}（オルベロス「挑発」が実際についたかの確認待ち）
+    pendingAnalysisAssign: null // {ownerId, buffName, turns, candidateIds:[id,...]}（プロフェッサーM「見本行動分析」の付与先選択待ち）
   };
 
   // 戦闘開始時、特定の味方スキルが持つ「最速の敵に自動でデバフ付与（免疫貫通）」処理
@@ -1841,6 +1846,9 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
   // afterOwnトリガーの「自身の属性スタックが最大か」の判定は、この行動自体によるスタック増加が
   // 反映される前の値（＝攻撃時点で既に最大だったか）を見る必要があるため、ここでスナップショットを保存する
   u._preActionElementStackSnapshot = u.elementStack||0;
+  // M潜在：「特殊スキルの攻撃後、自身の行動ゲージ+20%（単体攻撃時のみ・1ターンに1回）」の1ターン1回制限を、
+  // 自身の新しい行動（自分の実際のターン）が始まるたびにリセットする（トリガー発動では reset しない）
+  u._mArcanaUsedThisTurn = false;
 
   const isEvaded = s.targetsAlly ? false : evaded; // 味方対象バフはEVADE無関係
 
@@ -2259,6 +2267,18 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
         al.elementStack = Math.min(ELEMENT_STACK_MAX, (al.elementStack||0) + (al.gainsStackOnAllyAttackIfAttribute.amount||1));
       });
     }
+    // プロフェッサーM「探究対象」：自身を除く味方の攻撃時、自身の行動ゲージ+X%・冷却スタック+Y（対象が見本行動分析状態ならさらに+X%・+Y）
+    if(!isEvaded){
+      state.units.filter(x=>x.kind==="ally" && x.alive && x.id!==u.id && x.gainsGaugeAndStackOnAllyAttack).forEach(al=>{
+        const cfg = al.gainsGaugeAndStackOnAllyAttack;
+        al.gauge = Math.min(100, al.gauge + (cfg.gaugePct||0));
+        al.elementStack = Math.min(ELEMENT_STACK_MAX, (al.elementStack||0) + (cfg.stackAmount||0));
+        if(cfg.bonusBuffName && u.buffs.some(b=>b.name===cfg.bonusBuffName)){
+          al.gauge = Math.min(100, al.gauge + (cfg.bonusGaugePct||0));
+          al.elementStack = Math.min(ELEMENT_STACK_MAX, (al.elementStack||0) + (cfg.bonusStackAmount||0));
+        }
+      });
+    }
 
     // セレスの特殊等：命中した敵の数に応じて自身ゲージ+X%ずつ（EVADE時は0体扱い、selfGaugeGainPerHitMaxPctで上限）
     const perHitGaugeGainRaw = (!isEvaded && s.selfGaugeGainPerHitPct) ? targets.length * s.selfGaugeGainPerHitPct : 0;
@@ -2267,8 +2287,14 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
     logAction(u, state.pendingArrivalType, skillCategoryLabel(skillKey) + "：" + s.name + (burstOn&&!isEvaded?"（バースト）":"") + (isEvaded?"（EVADE）":""), String(toughnessDmgSum), brokeAny,
       `${perTargetMemo.join(" ｜ ")}${isEvaded?"／EVADE成立のため強靭ダメージ0・会心扱いなし":""}${hasAdvantageAny?"／属性有利+1":""}${(!isEvaded && (s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0))>0) ? `／自身ゲージ+${s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0)}%`:""}${perHitGaugeGain>0?`／命中${targets.length}体分で自身ゲージ+${perHitGaugeGain}%`:""}${burstOn?"／BP-4":""}${s.burstGain>0?`／BP+${s.burstGain}`:""}${carmenArcanaBurstBonus>0?`／愛の行進でBP+${carmenArcanaBurstBonus}`:""}（BP残${state.teamBurst}）${buffMemo}${stackMemo}${tenthLaborMemo}`);
 
+    // M潜在（プロフェッサーM専用アルカナ）：特殊スキル・単体攻撃・1ターンに1回のみ、攻撃後に自身の行動ゲージ+20%
+    let mArcanaGaugeBonus = 0;
+    if(!isEvaded && skillKey==="special" && s.target!=="all" && u.relics && u.relics.M_ARCANA && !u._mArcanaUsedThisTurn){
+      mArcanaGaugeBonus = 20;
+      u._mArcanaUsedThisTurn = true;
+    }
     u.gauge = 0;
-    const gaugeGain = (isEvaded ? 0 : (s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0))) + perHitGaugeGain + attackerGaugeGainFromDebuff;
+    const gaugeGain = (isEvaded ? 0 : (s.selfGaugeGain + (burstOn?s.burstGaugeGainAdd:0))) + perHitGaugeGain + attackerGaugeGainFromDebuff + mArcanaGaugeBonus;
     if(gaugeGain > 0){
       const primaryTarget = targets[0];
       if(s.gaugeToTarget && primaryTarget && primaryTarget.kind==="ally"){ primaryTarget.gauge = Math.min(100, primaryTarget.gauge+gaugeGain); }
@@ -2345,6 +2371,11 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
   u._afterOwnHandledForThisAction = false;
   // finalizeActionChainの重複実行防止フラグも新しい行動の開始時にリセットする
   u._finalizedForThisAction = false;
+
+  // プロフェッサーM「探究対象」：基本スキル使用後、見本行動分析の付与先を選択するパネルを開く
+  if(skillKey==="basic" && !isEvaded && u.analysisAssignOnBasic){
+    assignAnalysisTarget(u);
+  }
 
   if(skillKey==="basic" && !isEvaded){
     if(u.relics && u.relics.GX && targetEnemyId){
@@ -2490,6 +2521,56 @@ function renderTauntConfirmPanel(){
     <div class="btn-row">
       <button class="btn-primary btn-small" onclick="confirmTauntApplied()">ついた（付与する）</button>
       <button class="btn-secondary btn-small" onclick="dismissTauntConfirm()">つかなかった</button>
+    </div>
+  </div>`;
+}
+
+// プロフェッサーM「探究対象」：基本スキル使用後、見本行動分析（他の1体だけが持てる単独バフ）の付与先を選択する
+// （実際の仕様は「挟撃可能な味方のうち攻撃力最高の1体」に自動付与されるが、本ツールは全キャラの実効ATKを
+// 正確に把握できないため、対象は専用パネルからプレイヤーが選択する。挟撃の実際の発動は既存のEX/挟撃誘発
+// パネルから手動で行ってください）
+function assignAnalysisTarget(u){
+  const cfg = u.analysisAssignOnBasic;
+  if(!cfg) return;
+  const candidates = state.units.filter(x=>x.kind==="ally" && x.alive && x.id!==u.id);
+  candidates.forEach(al=>{ al.buffs = al.buffs.filter(b=>b.name!==cfg.buffName); });
+  if(candidates.length===0) return;
+  state.pendingAnalysisAssign = { ownerId: u.id, buffName: cfg.buffName, turns: cfg.turns, candidateIds: candidates.map(x=>x.id) };
+}
+function confirmAnalysisAssign(targetId){
+  const pending = state.pendingAnalysisAssign;
+  if(!pending) return;
+  const owner = state.units.find(x=>x.id===pending.ownerId);
+  const chosen = state.units.find(x=>x.id===targetId && x.alive);
+  pushHistory();
+  if(owner && chosen){
+    applyBuffWithMaxDuration(chosen.buffs, {name:pending.buffName, turns:pending.turns, type:"buff"});
+    logAction(owner, "被弾判定", `🔍 ${chosen.name}に${pending.buffName}を付与`, "-", false, "");
+  }
+  state.pendingAnalysisAssign = null;
+  renderBattle();
+}
+function skipAnalysisAssign(){
+  const pending = state.pendingAnalysisAssign;
+  if(!pending) return;
+  const owner = state.units.find(x=>x.id===pending.ownerId);
+  pushHistory();
+  if(owner){ logAction(owner, "被弾判定", `🔍 ${pending.buffName}の付与先が未選択のため今回は誰にも付与されなかった`, "-", false, ""); }
+  state.pendingAnalysisAssign = null;
+  renderBattle();
+}
+function renderAnalysisAssignPanel(){
+  const wrap = document.getElementById("analysisAssignPanel");
+  if(!wrap) return;
+  const pending = state.pendingAnalysisAssign;
+  const candidates = pending ? pending.candidateIds.map(id=>state.units.find(x=>x.id===id && x.alive)).filter(Boolean) : [];
+  if(!pending || candidates.length===0){ wrap.innerHTML = ""; return; }
+  const buttons = candidates.map(al=>`<button class="btn-secondary btn-small" onclick="confirmAnalysisAssign('${al.id}')">${al.name}</button>`).join(" ");
+  wrap.innerHTML = `<div class="panel" style="border-color:var(--accent);">
+    <h2 style="margin-top:0;">🔍 ${pending.buffName}を付与する味方を選択してください</h2>
+    <div class="smallnote" style="margin-bottom:8px;">実際の仕様は「挟撃可能な味方のうち攻撃力最高の1体」に自動付与されます。実際の画面を見て対象を選んでください</div>
+    <div class="btn-row" style="flex-wrap:wrap;">${buttons}
+      <button class="btn-secondary btn-small" onclick="skipAnalysisAssign()">誰にも付与しない</button>
     </div>
   </div>`;
 }
@@ -3293,6 +3374,16 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
   state.units.filter(x=>x.kind==="ally" && x.alive && x.id!==u.id && x.gainsStackOnAllyAttackIfAttribute && x.gainsStackOnAllyAttackIfAttribute.attribute===u.attribute).forEach(al=>{
     al.elementStack = Math.min(ELEMENT_STACK_MAX, (al.elementStack||0) + (al.gainsStackOnAllyAttackIfAttribute.amount||1));
   });
+  // プロフェッサーM「探究対象」：自身を除く味方がEX/挟撃誘発で攻撃した後、自身の行動ゲージ+X%・冷却スタック+Y
+  state.units.filter(x=>x.kind==="ally" && x.alive && x.id!==u.id && x.gainsGaugeAndStackOnAllyAttack).forEach(al=>{
+    const cfg = al.gainsGaugeAndStackOnAllyAttack;
+    al.gauge = Math.min(100, al.gauge + (cfg.gaugePct||0));
+    al.elementStack = Math.min(ELEMENT_STACK_MAX, (al.elementStack||0) + (cfg.stackAmount||0));
+    if(cfg.bonusBuffName && u.buffs.some(b=>b.name===cfg.bonusBuffName)){
+      al.gauge = Math.min(100, al.gauge + (cfg.bonusGaugePct||0));
+      al.elementStack = Math.min(ELEMENT_STACK_MAX, (al.elementStack||0) + (cfg.bonusStackAmount||0));
+    }
+  });
 
   logAction(u, arrivalLabel, "通常：" + s.name + skillLabelSuffix, String(toughnessDmgSum), brokeAny,
     `${perTargetMemo.join(" ｜ ")}／BP+${s.burstGain}（BP残${state.teamBurst}）${stackMemo}`);
@@ -3784,7 +3875,14 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
   // セレスの特殊等：命中した敵の数に応じて自身ゲージ+X%ずつ（EVADE時は0体扱い、selfGaugeGainPerHitMaxPctで上限）
   const perHitGaugeGainRaw = (!evaded && !s.targetsAlly && s.selfGaugeGainPerHitPct) ? targets.length * s.selfGaugeGainPerHitPct : 0;
   const perHitGaugeGain = s.selfGaugeGainPerHitMaxPct ? Math.min(perHitGaugeGainRaw, s.selfGaugeGainPerHitMaxPct) : perHitGaugeGainRaw;
-  const gaugeGain = (evaded ? 0 : ((s.selfGaugeGain||0) + (burstOn ? (s.burstGaugeGainAdd||0) : 0))) + perHitGaugeGain + attackerGaugeGainFromDebuff;
+  // M潜在（プロフェッサーM専用アルカナ）：特殊スキル・単体攻撃・1ターンに1回のみ、攻撃後に自身の行動ゲージ+20%
+  // （「悪から悪へ」はCT0の常時トリガー発動スキルのため、こちら＝fireTrigger経由での発動が主な発生源になる）
+  let mArcanaGaugeBonus = 0;
+  if(!evaded && skillKey==="special" && s.target!=="all" && u.relics && u.relics.M_ARCANA && !u._mArcanaUsedThisTurn){
+    mArcanaGaugeBonus = 20;
+    u._mArcanaUsedThisTurn = true;
+  }
+  const gaugeGain = (evaded ? 0 : ((s.selfGaugeGain||0) + (burstOn ? (s.burstGaugeGainAdd||0) : 0))) + perHitGaugeGain + attackerGaugeGainFromDebuff + mArcanaGaugeBonus;
   if(gaugeGain > 0){ u.gauge = Math.min(100, u.gauge + gaugeGain); }
 
   let stackMemo = "";
@@ -3858,6 +3956,18 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
   if(!evaded && !s.targetsAlly){
     state.units.filter(x=>x.kind==="ally" && x.alive && x.id!==u.id && x.gainsStackOnAllyAttackIfAttribute && x.gainsStackOnAllyAttackIfAttribute.attribute===u.attribute).forEach(al=>{
       al.elementStack = Math.min(ELEMENT_STACK_MAX, (al.elementStack||0) + (al.gainsStackOnAllyAttackIfAttribute.amount||1));
+    });
+  }
+  // プロフェッサーM「探究対象」：自身を除く味方の攻撃時、自身の行動ゲージ+X%・冷却スタック+Y（対象が見本行動分析状態ならさらに+X%・+Y）
+  if(!evaded && !s.targetsAlly){
+    state.units.filter(x=>x.kind==="ally" && x.alive && x.id!==u.id && x.gainsGaugeAndStackOnAllyAttack).forEach(al=>{
+      const cfg = al.gainsGaugeAndStackOnAllyAttack;
+      al.gauge = Math.min(100, al.gauge + (cfg.gaugePct||0));
+      al.elementStack = Math.min(ELEMENT_STACK_MAX, (al.elementStack||0) + (cfg.stackAmount||0));
+      if(cfg.bonusBuffName && u.buffs.some(b=>b.name===cfg.bonusBuffName)){
+        al.gauge = Math.min(100, al.gauge + (cfg.bonusGaugePct||0));
+        al.elementStack = Math.min(ELEMENT_STACK_MAX, (al.elementStack||0) + (cfg.bonusStackAmount||0));
+      }
     });
   }
 
@@ -4241,6 +4351,7 @@ function renderBattle(){
   renderEscortDefeatCheckPanel();
   renderChosenOneAssignPanel();
   renderTauntConfirmPanel();
+  renderAnalysisAssignPanel();
 
   // アクションエリア
   const area = document.getElementById("actionArea");
