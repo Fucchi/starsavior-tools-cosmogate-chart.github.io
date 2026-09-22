@@ -728,37 +728,68 @@ function isBreakSkillToughnessBonusActive(){
 // ===================== 星の挑戦：段階テーブル =====================
 // 段階を選ぶと、その段階以下で解放された効果がすべて累積で有効になる。
 // 追加スコア／攻撃力・HP・防御力上昇は本ツールの計算対象外（被ダメ計算・スコア計算は非対応）のため表示のみ。
-// 実際にシミュレーターへ反映されるのは speedBonusAt(9)・toughnessBonusAt(12)・immunityAt(15) の3つ。
+// 「新規効果」の内容は実際にはボスごとに異なることが判明したため、ボスプリセット側の starStageEffects で個別に定義する
+// （未定義のボスは DEFAULT_STAR_STAGE_EFFECTS を仮の値として使う。判明次第、該当ボスに starStageEffects を追加すること）。
 const STAR_STAGE_TABLE = [
-  { stage:1,  scorePct:40,  atkPct:20,  hpPct:10, defPct:10, newEffect:null },
-  { stage:2,  scorePct:80,  atkPct:30,  hpPct:15, defPct:15, newEffect:null },
-  { stage:3,  scorePct:120, atkPct:40,  hpPct:20, defPct:20, newEffect:"敵ボスがスキル使用後、与ダメージが5%ずつ上がる（最大10回スタック）" },
-  { stage:4,  scorePct:150, atkPct:50,  hpPct:25, defPct:25, newEffect:null },
-  { stage:5,  scorePct:180, atkPct:60,  hpPct:30, defPct:30, newEffect:null },
-  { stage:6,  scorePct:210, atkPct:70,  hpPct:35, defPct:35, newEffect:"敵ボスが攻撃を受けた後、攻撃者の最大HPを5%ずつ下げる（最大10回スタック）" },
-  { stage:7,  scorePct:230, atkPct:80,  hpPct:40, defPct:40, newEffect:null },
-  { stage:8,  scorePct:250, atkPct:90,  hpPct:45, defPct:45, newEffect:null },
-  { stage:9,  scorePct:270, atkPct:100, hpPct:50, defPct:50, newEffect:"ボスの速度が30%上がる" },
-  { stage:10, scorePct:285, atkPct:110, hpPct:55, defPct:55, newEffect:null },
-  { stage:11, scorePct:300, atkPct:120, hpPct:60, defPct:60, newEffect:null },
-  { stage:12, scorePct:315, atkPct:130, hpPct:65, defPct:65, newEffect:"敵ボスの強靭度最大値が5上がる" },
-  { stage:13, scorePct:325, atkPct:140, hpPct:70, defPct:70, newEffect:null },
-  { stage:14, scorePct:335, atkPct:150, hpPct:75, defPct:75, newEffect:null },
-  { stage:15, scorePct:345, atkPct:160, hpPct:80, defPct:80, newEffect:"戦闘開始時に、ボスが自身に3ターン、免疫（解除不可）を発生させる" }
+  { stage:1,  scorePct:40,  atkPct:20,  hpPct:10, defPct:10 },
+  { stage:2,  scorePct:80,  atkPct:30,  hpPct:15, defPct:15 },
+  { stage:3,  scorePct:120, atkPct:40,  hpPct:20, defPct:20 },
+  { stage:4,  scorePct:150, atkPct:50,  hpPct:25, defPct:25 },
+  { stage:5,  scorePct:180, atkPct:60,  hpPct:30, defPct:30 },
+  { stage:6,  scorePct:210, atkPct:70,  hpPct:35, defPct:35 },
+  { stage:7,  scorePct:230, atkPct:80,  hpPct:40, defPct:40 },
+  { stage:8,  scorePct:250, atkPct:90,  hpPct:45, defPct:45 },
+  { stage:9,  scorePct:270, atkPct:100, hpPct:50, defPct:50 },
+  { stage:10, scorePct:285, atkPct:110, hpPct:55, defPct:55 },
+  { stage:11, scorePct:300, atkPct:120, hpPct:60, defPct:60 },
+  { stage:12, scorePct:315, atkPct:130, hpPct:65, defPct:65 },
+  { stage:13, scorePct:325, atkPct:140, hpPct:70, defPct:70 },
+  { stage:14, scorePct:335, atkPct:150, hpPct:75, defPct:75 },
+  { stage:15, scorePct:345, atkPct:160, hpPct:80, defPct:80 }
 ];
+// starStageEffectsが未設定のボス用の仮テーブル（旧仕様＝全ボス共通だった頃の内容をそのまま流用）
+const DEFAULT_STAR_STAGE_EFFECTS = [
+  { stage:3,  type:"dmgUpStack",  label:"敵ボスがスキル使用後、与ダメージが5%ずつ上がる（最大10回スタック）" },
+  { stage:6,  type:"hpDownStack", label:"敵ボスが攻撃を受けた後、攻撃者の最大HPを5%ずつ下げる（最大10回スタック）" },
+  { stage:9,  type:"speedBonus", pct:30, label:"ボスの速度が30%上がる" },
+  { stage:12, type:"toughnessMaxUp", amount:5, label:"敵ボスの強靭度最大値が5上がる" },
+  { stage:15, type:"immuneOnBattleStart", turns:3, label:"戦闘開始時に、ボスが自身に3ターン、免疫（解除不可）を発生させる" }
+];
+// 指定ボスの★段階新規効果テーブル（ボス固有のものが無ければ仮テーブル）を返す
+function getStarStageEffectsTable(bossUnit){
+  return (bossUnit && bossUnit.starStageEffects) || DEFAULT_STAR_STAGE_EFFECTS;
+}
+// 現在の段階で解放済み（stage<=現在値）の効果一覧を返す
+function getActiveStarStageEffects(bossUnit){
+  const stage = (bossUnit && bossUnit.starStage) || 0;
+  return getStarStageEffectsTable(bossUnit).filter(e=>e.stage<=stage);
+}
+function hasStarStageEffect(bossUnit, type){
+  return getActiveStarStageEffects(bossUnit).some(e=>e.type===type);
+}
+function getStarStageEffect(bossUnit, type){
+  return getActiveStarStageEffects(bossUnit).find(e=>e.type===type) || null;
+}
 // 段階から、シミュレーターが実際に使う派生値（速度・強靭度上限ボーナス・開幕免疫）を計算してenemyオブジェクトに反映する
+// ※ボスごとにstarStageEffectsのstageが異なるため、旧来の「9/12/15固定」ではなくテーブルを見て判定する
 function applyStarStage(enemy, stage){
   enemy.starStage = stage;
-  enemy.starImmunityTurns = stage>=15 ? 3 : 0;
-  enemy.starSpeedBonusPct = stage>=9 ? 30 : 0;
-  enemy.starToughnessBonus = stage>=12 ? 5 : 0;
+  const active = getActiveStarStageEffects(enemy);
+  const speedEff = active.find(e=>e.type==="speedBonus");
+  const toughEff = active.find(e=>e.type==="toughnessMaxUp");
+  const immuneEff = active.find(e=>e.type==="immuneOnBattleStart");
+  enemy.starSpeedBonusPct = speedEff ? (speedEff.pct||0) : 0;
+  enemy.starToughnessBonus = toughEff ? (toughEff.amount||0) : 0;
+  enemy.starImmunityTurns = immuneEff ? (immuneEff.turns||0) : 0;
 }
-function renderStarStageInfo(stage){
+function renderStarStageInfo(stage, bossUnit){
   const row = STAR_STAGE_TABLE.find(r=>r.stage===stage);
   if(!row) return "";
-  const unlocked = STAR_STAGE_TABLE.filter(r=>r.stage<=stage && r.newEffect);
-  const effectsHtml = unlocked.length ? `　解放中：${unlocked.map(r=>r.newEffect).join("／")}` : "";
-  return `追加スコア+${row.scorePct}%／攻撃力+${row.atkPct}%／HP+${row.hpPct}%／防御力+${row.defPct}%（参考表示のみ・計算には未使用）${effectsHtml}`;
+  const table = getStarStageEffectsTable(bossUnit);
+  const unlocked = table.filter(r=>r.stage<=stage && r.label);
+  const effectsHtml = unlocked.length ? `　解放中：${unlocked.map(r=>r.label).join("／")}` : "";
+  const isDefault = !(bossUnit && bossUnit.starStageEffects);
+  return `追加スコア+${row.scorePct}%／攻撃力+${row.atkPct}%／HP+${row.hpPct}%／防御力+${row.defPct}%（参考表示のみ・計算には未使用）${effectsHtml}${isDefault?"（※このボスの新規効果は未判明のため仮の値です）":""}`;
 }
 
 let enemies = [
@@ -971,7 +1002,7 @@ function renderEnemySetup(){
     const infoEl = document.getElementById("starStageInfo");
     const stage = boss0.starStage||1;
     if(stageEl) stageEl.value = stage;
-    if(infoEl) infoEl.innerHTML = renderStarStageInfo(stage);
+    if(infoEl) infoEl.innerHTML = renderStarStageInfo(stage, boss0);
   }
   enemies.forEach((e, idx)=>{
     const card = document.createElement("div");
@@ -1368,6 +1399,7 @@ function startBattle(){
       ct:{ special:0, ultimate: e.ultimate.ct },
       buffs: [],
       starStage: e.starStage||0,
+      starStageEffects: e.starStageEffects || null,
       starSpeedBonusPct: e.starSpeedBonusPct||0,
       starDamageReductionPct: e.starDamageReductionPct||0,
       starDmgUpStacks: 0,
@@ -1983,9 +2015,9 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       toughnessDmgSum += toughnessDmg;
       // ティリアの取り巻き等：撃破確認パネルに出す対象として記録（攻撃後にプレイヤーが撃破有無をチェックする）
       if(!isEvaded && target.isEscort) hitEscortIds.push(target.id);
-      // ★段階6以上：ボス（対象）を攻撃した時、攻撃した味方自身の最大HP-5%スタック（被弾側ではなく行動した側、参考表示のみ）
+      // ★挑戦：ボス（対象）を攻撃した時、攻撃した味方自身の最大HP-5%スタック（被弾側ではなく行動した側、参考表示のみ）
       let starHpText = "";
-      if(!isEvaded && (target.starStage||0) >= 6){
+      if(!isEvaded && hasStarStageEffect(target, "hpDownStack")){
         u.starHpDownStacks = Math.min(10, (u.starHpDownStacks||0) + 1);
         starHpText = `／💢★挑戦(段階${target.starStage})：攻撃により自身の最大HP-5%スタック(${u.starHpDownStacks}/10)`;
       }
@@ -2166,8 +2198,8 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       const rawExtraToughnessPerHit = ((u.skills.special && u.skills.special.toughness) || 1) + (extraHasAdvantage ? 1 : 0) + (isBreakSkillToughnessBonusActive() ? 1 : 0);
       const extraToughnessPerHit = extraHasDisadvantage ? 0 : rawExtraToughnessPerHit;
       const extraGimmickTexts = [];
-      // ★段階6以上：ボス（対象）を攻撃した時、攻撃した味方自身の最大HP-5%スタック（追加ヒット1発ごとに加算）
-      const extraTargetIsStar6Boss = (extraTarget.starStage||0) >= 6;
+      // ★挑戦：ボス（対象）を攻撃した時、攻撃した味方自身の最大HP-5%スタック（追加ヒット1発ごとに加算）
+      const extraTargetIsStar6Boss = hasStarStageEffect(extraTarget, "hpDownStack");
       for(let i=0; i<extraCount; i++){
         if(extraTarget.toughness<=0) break;
         // ギミック判定は各追加ヒット自身のデバフ付与より前＝被弾した瞬間の状態で判定（通常のヒットと同じ扱い）
@@ -2605,10 +2637,32 @@ function useEnemySkill(unitId, skillKey){
 
   logAction(u, state.pendingArrivalType, skillCategoryLabel(skillKey) + "：" + s.name, "-", false, s.note || "");
 
-  // ★段階3以上：スキル使用後、自身の与ダメージ+5%スタック（最大10、参考表示のみ・ダメージ計算には未反映）
-  if((u.starStage||0) >= 3){
+  // ★挑戦：スキル使用後、自身の与ダメージ+5%スタック（最大10、参考表示のみ・ダメージ計算には未反映）
+  if(hasStarStageEffect(u, "dmgUpStack")){
     u.starDmgUpStacks = Math.min(10, (u.starDmgUpStacks||0) + 1);
     logAction(u, "被弾判定", `💢 ★挑戦(段階${u.starStage})：スキル使用により与ダメ+5%スタック(${u.starDmgUpStacks}/10)`, "-", false, "");
+  }
+  // ★挑戦：スキル使用後、味方のノヴァフォースを指定数除去
+  const removeNovaEff = getStarStageEffect(u, "removeNovaForce");
+  if(removeNovaEff && removeNovaEff.amount>0 && state.teamBurst>0){
+    const before = state.teamBurst;
+    state.teamBurst = Math.max(0, state.teamBurst - removeNovaEff.amount);
+    logAction(u, "被弾判定", `💢 ★挑戦(段階${u.starStage})：スキル使用により味方のノヴァフォース-${before-state.teamBurst}`, "-", false, `残ノヴァフォース:${state.teamBurst}`);
+  }
+  // ★挑戦：スキル使用後、自身の弱体化を指定数除去（解除不可は対象外）
+  const removeDebuffsEff = getStarStageEffect(u, "removeSelfDebuffs");
+  if(removeDebuffsEff && removeDebuffsEff.amount>0){
+    const removable = u.buffs.filter(b=>b.type==="debuff" && !b.undispellable);
+    const toRemove = removable.slice(0, removeDebuffsEff.amount);
+    if(toRemove.length>0){
+      u.buffs = u.buffs.filter(b=>!toRemove.includes(b));
+      logAction(u, "被弾判定", `💢 ★挑戦(段階${u.starStage})：スキル使用により自身の弱体化を${toRemove.length}個除去`, "-", false, `解除:${toRemove.map(b=>b.name).join("、")}`);
+    }
+  }
+  // ★挑戦：攻撃時、与える強靭度ダメージ+X（本ツールはボス→味方の被ダメ計算非対応のため参考表示のみ）
+  const toughDmgUpEff = getStarStageEffect(u, "toughnessDmgUp");
+  if(toughDmgUpEff && toughDmgUpEff.amount>0){
+    logAction(u, "被弾判定", `💢 ★挑戦(段階${u.starStage})：攻撃時の強靭度ダメージ+${toughDmgUpEff.amount}（参考表示のみ・強靭記録時に手動加算してください）`, "-", false, "");
   }
 
   if(s.selfBuffIfTwistedWill && (u.twistedWillStacks||0) > 0){
@@ -3345,9 +3399,9 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
     const gimmickMemo = (gimmickResult ? `／${target.name}のギミック発動:デバフ${gimmickResult.debuffCount}個以下のため自ゲージ+${gimmickResult.gainPct}%` : "")
       + (gimmickResult2 ? `／${target.name}のギミック発動:味方が${gimmickResult2.debuffName}状態のため自ゲージ+${gimmickResult2.gainPct}%` : "");
 
-    // ★段階6以上：ボス（対象）を攻撃した時、攻撃した味方自身の最大HP-5%スタック（被弾側ではなく行動した側、参考表示のみ）
+    // ★挑戦：ボス（対象）を攻撃した時、攻撃した味方自身の最大HP-5%スタック（被弾側ではなく行動した側、参考表示のみ）
     let starHpText = "";
-    if((target.starStage||0) >= 6){
+    if(hasStarStageEffect(target, "hpDownStack")){
       u.starHpDownStacks = Math.min(10, (u.starHpDownStacks||0) + 1);
       starHpText = `／💢★挑戦(段階${target.starStage})：攻撃により自身の最大HP-5%スタック(${u.starHpDownStacks}/10)`;
     }
@@ -3524,6 +3578,15 @@ function confirmHitAlly(allyId){
       hitUnit.elementStack = Math.min(ELEMENT_STACK_MAX, (hitUnit.elementStack||0) + amt);
       logAction(hitUnit, "被弾判定", `✨ 弱体化状態での被弾により自身${stackName}+${amt}(${hitUnit.elementStack}/${ELEMENT_STACK_MAX})`, "-", false, "");
     }
+    // ★挑戦：攻撃したボスが該当段階なら、被弾した味方にデバフを自動付与（確率100%のもののみ自動適用）
+    if(hitUnit && ctx.sourceUnitId){
+      const attackerForStar = state.units.find(x=>x.id===ctx.sourceUnitId);
+      const bleedEff = getStarStageEffect(attackerForStar, "bleedOnAttack");
+      if(bleedEff && (bleedEff.chance==null || bleedEff.chance>=100)){
+        hitUnit.buffs.push({name:bleedEff.name||"出血", turns:bleedEff.turns||2, type:"debuff", dot:true});
+        logAction(hitUnit, "被弾判定", `🩸 ★挑戦(段階${attackerForStar.starStage})：被弾により${bleedEff.name||"出血"}(${bleedEff.turns||2}T)付与`, "-", false, "");
+      }
+    }
   }
   if(barrierBreakCheck && barrierBreakCheck.checked){
     const target = state.units.find(x=>x.id===allyId);
@@ -3543,6 +3606,8 @@ function confirmAoeEvade(){
   if(!state.pendingTriggerContext) return;
   const ctx = state.pendingTriggerContext;
   const evadeMap = {};
+  const attackerForStar = ctx.sourceUnitId ? state.units.find(x=>x.id===ctx.sourceUnitId) : null;
+  const bleedEff = getStarStageEffect(attackerForStar, "bleedOnAttack");
   state.units.filter(x=>x.kind==="ally" && x.alive).forEach(u=>{
     const cb = document.getElementById("aoeEvade_" + u.id);
     const evaded = cb ? cb.checked : false;
@@ -3566,6 +3631,11 @@ function confirmAoeEvade(){
       const amt = u.gainStackOnHitIfDebuffed.amount || 1;
       u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0) + amt);
       logAction(u, "被弾判定", `✨ 弱体化状態での被弾により自身${stackName}+${amt}(${u.elementStack}/${ELEMENT_STACK_MAX})`, "-", false, "");
+    }
+    // ★挑戦：攻撃したボスが該当段階なら、被弾した味方にデバフを自動付与（確率100%のもののみ自動適用）
+    if(!evaded && bleedEff && (bleedEff.chance==null || bleedEff.chance>=100)){
+      u.buffs.push({name:bleedEff.name||"出血", turns:bleedEff.turns||2, type:"debuff", dot:true});
+      logAction(u, "被弾判定", `🩸 ★挑戦(段階${attackerForStar.starStage})：被弾により${bleedEff.name||"出血"}(${bleedEff.turns||2}T)付与`, "-", false, "");
     }
     const barrierCb = document.getElementById("aoeBarrierBreak_" + u.id);
     if(barrierCb && barrierCb.checked){
@@ -3718,9 +3788,9 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
     toughnessDmgSum += toughnessDmg;
     // ティリアの取り巻き等：撃破確認パネルに出す対象として記録（攻撃後にプレイヤーが撃破有無をチェックする）
     if(!evaded && !s.targetsAlly && target.isEscort) hitEscortIds.push(target.id);
-    // ★段階6以上：ボス（対象）を攻撃した時、攻撃した味方自身の最大HP-5%スタック（被弾側ではなく行動した側、参考表示のみ）
+    // ★挑戦：ボス（対象）を攻撃した時、攻撃した味方自身の最大HP-5%スタック（被弾側ではなく行動した側、参考表示のみ）
     let starHpText = "";
-    if(!evaded && !s.targetsAlly && (target.starStage||0) >= 6){
+    if(!evaded && !s.targetsAlly && hasStarStageEffect(target, "hpDownStack")){
       u.starHpDownStacks = Math.min(10, (u.starHpDownStacks||0) + 1);
       starHpText = `／💢★挑戦(段階${target.starStage})：攻撃により自身の最大HP-5%スタック(${u.starHpDownStacks}/10)`;
     }

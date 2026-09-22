@@ -4,6 +4,13 @@
 const BOSS_PRESETS = {
     "demoraigis_alpha": { name:"デモライギス：アルファ", speed:150, toughnessMax:15, breakDmgPct:15, attribute:"混沌", role:"ディフェンダー",
       starImmunityTurns:0, starSpeedBonusPct:0, starDamageReductionPct:0, gaugeOnHitDebuffThreshold:1, gaugeOnHitGainPct:20,
+      starStageEffects: [
+        { stage:3,  type:"dmgUpStack",  label:"敵ボスがスキル使用後、与ダメージが5%ずつ上がる（最大10回スタック）" },
+        { stage:6,  type:"hpDownStack", label:"敵ボスが攻撃を受けた後、攻撃者の最大HPを5%ずつ下げる（最大10回スタック）" },
+        { stage:9,  type:"speedBonus", pct:30, label:"ボスの速度が30%上がる" },
+        { stage:12, type:"removeNovaForce", amount:2, label:"敵ボスがスキル使用後、味方のノヴァフォースを2除去する" },
+        { stage:15, type:"removeSelfDebuffs", amount:2, label:"敵ボスがスキル使用後、自身の弱体化を2つ除去する" }
+      ],
       basic: defaultEnemySkill("燃え盛る災厄", 0, "強靭削り1／自身に果てしない幕", "single"),
       special: defaultEnemySkill("崩壊の波動", 4, "強靭削り1／敵全体に防御DOWN2T／幕4+で強化解除", "all"),
       ultimate: defaultEnemySkill("審判の黄昏", 4, "強靭削り2／幕3で+20%,5で+40%", "all") },
@@ -33,6 +40,13 @@ const BOSS_PRESETS = {
       ultimate: defaultEnemySkill("天体を焼き尽くす災厄", 4, "強靭削り2(未確認・要調整)／自身に2T防御力アップ・強靭度ダメージ無効／自身が夜の周期なら敵全体に自身の攻撃力に比例した連鎖ダメージ(ダメージ計算非対応のため注記のみ)", "all", 0, null, null, null, false, 0,
         [{name:"防御力アップ", turns:2}, {name:"強靭度ダメージ無効", turns:2}]) },
     "kairi": { name:"乖離", speed:180, toughnessMax:15, breakDmgPct:15, attribute:"秩序", role:"キャスター",
+      starStageEffects: [
+        { stage:3,  type:"hpDownStack", label:"敵ボスが攻撃を受けた後、攻撃者の最大HPを5%ずつ下げる（最大10回スタック）" },
+        { stage:6,  type:"toughnessDmgUp", amount:1, label:"敵ボスが攻撃時、与える強靭度ダメージが1上がる" },
+        { stage:9,  type:"speedBonus", pct:30, label:"ボスの速度が30%上がる" },
+        { stage:12, type:"toughnessMaxUp", amount:5, label:"敵ボスの強靭度最大値が5上がる" },
+        { stage:15, type:"immuneOnBattleStart", turns:3, label:"戦闘開始時に、ボスが自身に3ターン、免疫（解除不可）を発生させる" }
+      ],
       battleStartGaugeGainPct:100, battleStartUltimateReady:true, gaugeGainOnHitIfSelfDebuffed:20,
       reactsToSpecialOrUltimateHit:{ctReduceAllAlliesSkills:1},
       echoStackName:"偏愛の残響（解除不可）", crackDebuffName:"心象亀裂（解除不可）",
