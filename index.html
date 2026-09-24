@@ -318,10 +318,17 @@ function defaultEnemySkill(name, ct, note, target, selfGaugeGainPct, targetEffec
     //   teamToughnessHealAmount: 自身と自身の取り巻き（isEscort・escortOwnerId===自身）全体の強靭度をこの数だけ回復する（0未満にはならず、上限は各自のtoughnessMax。回復後に強靭度>0になればブレイクも解除、オルベロスの特殊等）
     //   selfAndEscortTeamBuff: {name,turns} 自身と自身の取り巻き全体に付与するバフ（オルベロスの究極「強靭度ダメージ無効」等）
     //   selfKoIfBrokenAndBuffName: 自身がブレイク状態、かつ指定名のバフを持っている場合、このスキル使用後に自身が戦闘不能になる（オルベロスの手先：選ばれし者状態でのブレイク中攻撃）
+    //   selfBuffStacks: {name,count,atkModPct,speedModPct} 自身に同名の独立スタック（解除不可・永続）をcount個付与する（カネリア（ボス）の安息の為の祈り等）
+    //   extraActivationIfTargetDebuffed: true の場合、攻撃時に被弾した味方が弱体化状態なら、自身のターンに1回のみ同スキルを追加発動する
+    selfBuffStacks: extra.selfBuffStacks || null,
+    extraActivationIfTargetDebuffed: !!extra.extraActivationIfTargetDebuffed,
     targetLowestGaugeAllyDebuff: extra.targetLowestGaugeAllyDebuff || null,
     teamToughnessHealAmount: extra.teamToughnessHealAmount || 0,
     selfAndEscortTeamBuff: extra.selfAndEscortTeamBuff || null,
-    selfKoIfBrokenAndBuffName: extra.selfKoIfBrokenAndBuffName || null
+    selfKoIfBrokenAndBuffName: extra.selfKoIfBrokenAndBuffName || null,
+    // toughnessDmg: このスキルが味方に与える強靭度ダメージの基礎値。extra.toughnessで明示、未指定ならnote内の「強靭削りN」から取得。
+    // 「強靭削り不明」など数値が取れない場合はnull（味方の強靭度は自動反映せず、強靭記録ボタンで手動記録する）
+    toughnessDmg: extra.toughness!=null ? extra.toughness : ((/強靭削り(\d+)/.exec(note||"")||[])[1]!=null ? Number(/強靭削り(\d+)/.exec(note)[1]) : null)
   }; // target: "single" | "all"
 }
 </script>
@@ -1457,7 +1464,8 @@ function startBattle(){
       escortAttributes: e.escortAttributes||null,
       escortGrantsHeroSoulOnBreak: !!e.escortGrantsHeroSoulOnBreak,
       escortBasicSkill: e.escortBasicSkill||null,
-      chosenOneBuffName: e.chosenOneBuffName||null
+      chosenOneBuffName: e.chosenOneBuffName||null,
+      prayerGimmick: e.prayerGimmick||null
     });
     // ギーレ「周期の循環」：戦闘開始時、自身に昼の周期（解除不可）を発生させる
     if(e.togglesDayNightCycle){
@@ -1903,6 +1911,13 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
   if(burstOn){ state.teamBurst -= 4; }
   // stackMaxConsumedSkipCt: 点火等が最大スタックで全消費した場合はCTに入らない（バニーシャルルの究極等）
   if(skillKey!=="basic" && !stackMaxConsumedSkipCt){ u.ct[skillKey] = s.ct; }
+  // リン：特殊・究極の両方が使用可能な状態で片方を使い、追加ターンでもう片方を使った場合（究極→特殊／特殊→究極）、
+  // 後から使ったスキルのCTは先に使ったスキルの現在のCTと同じになる（行動チェーン完了後のCT減算を経て、両方が同じ値になる）
+  if(u._ctEqualizePending && skillKey!=="basic" && !stackMaxConsumedSkipCt){
+    const otherKey = skillKey==="special" ? "ultimate" : "special";
+    if((u.ct[otherKey]||0) > 0){ u.ct[skillKey] = u.ct[otherKey]; }
+  }
+  u._ctEqualizePending = !!rinBothReadyExtraTurn;
   // マルシルの特殊等、バースト強化時に自身のCTがそのぶん短縮される（次回使用時に早く使えるようになる）スキル
   if(burstOn && s.burstSelfCtReduceTurns > 0 && skillKey!=="basic"){
     u.ct[skillKey] = Math.max(0, u.ct[skillKey] - s.burstSelfCtReduceTurns);
@@ -2075,6 +2090,10 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       else if(!isEvaded && effectiveTarget==="all" && target.wrongClockStackName && target.buffs.some(b=>b.name===target.timeParadoxName)){
         target.wrongClockStacks = Math.min(target.wrongClockStackMax||3, (target.wrongClockStacks||0) + 1);
         logAction(target, "被弾判定", `⏱ ${target.timeParadoxName}中に全体攻撃を受けたため${target.wrongClockStackName}+1(${target.wrongClockStacks}/${target.wrongClockStackMax||3})`, "-", false, "");
+      }
+      // カネリア（ボス）：安息の為の祈り関連の被弾時反応（祈り・念願・仮面・運命否定）
+      if(!isEvaded && target.prayerGimmick){
+        attackerGaugeGainFromDebuff += applyPrayerHitReactions(target, u, effectiveTarget==="all");
       }
       // オルベロス：既に魂の亀裂状態（攻撃を受けると攻撃者ゲージ増加）の相手を攻撃した場合、攻撃者(u)自身のゲージが増える
       // （この攻撃自身が新たに魂の亀裂を発生させたケースは対象外＝発生前の状態を見るため、下の英雄の魂消費判定より先に置く。
@@ -2607,6 +2626,50 @@ function renderAnalysisAssignPanel(){
   </div>`;
 }
 
+// カネリア（ボス）「安息の為の祈り」ギミック：味方（＝ボスから見た敵）の攻撃を受けた時の反応をまとめて処理する。
+// 祈り・捻じれた念願・偽善の仮面は、同名の独立スタック（永続バフ・解除不可）として持たせる（速度・攻撃の数値はbuffのspeedModPct/atkModPctで自動反映）。
+// 戻り値：攻撃者(attacker)自身に加算すべき行動ゲージ%（全体攻撃で祈りが尽きた場合の「敵全体のゲージ+100%」。
+// 攻撃者は行動直後にゲージが0リセットされるため、呼び出し側が末尾のゲージ再計算に合算する）。
+function applyPrayerHitReactions(target, attacker, isAoe){
+  const g = target && target.prayerGimmick;
+  if(!g) return 0;
+  const count = name => target.buffs.filter(b=>b.name===name).length;
+  const removeOne = name => { const i = target.buffs.findIndex(b=>b.name===name); if(i>=0) target.buffs.splice(i,1); };
+  let attackerGaugeBonus = 0;
+  // 弱体化状態の敵の攻撃を受けた時、祈り状態なら自身の行動ゲージ+X%・捻じれた念願+1
+  if(count(g.prayerName)>0 && attacker.buffs.some(b=>b.type==="debuff")){
+    target.gauge = Math.min(100, target.gauge + (g.gaugeGainPct||0));
+    if(count(g.wishName) < (g.wishMax||5)){
+      target.buffs.push({name:g.wishName, turns:9999, type:"buff", permanent:true, undispellable:true, atkModPct:g.wishAtkPct||0});
+    }
+    logAction(target, "被弾判定", `🙏 弱体化状態の${attacker.name}の攻撃を受けたため自身のゲージ+${g.gaugeGainPct||0}%・${g.wishName}+1(${count(g.wishName)}/${g.wishMax||5})`, "-", false, "");
+  }
+  if(!isAoe){
+    // 単体攻撃を受けた時、祈り状態なら偽善の仮面+1
+    if(count(g.prayerName)>0){
+      target.buffs.push({name:g.maskName, turns:9999, type:"buff", permanent:true, undispellable:true, speedModPct:g.maskSpeedPct||0});
+      logAction(target, "被弾判定", `🎭 単体攻撃を受けたため${g.maskName}+1(${count(g.maskName)})`, "-", false, "");
+    }
+  } else {
+    // 全体攻撃を受けた時、祈りを1つ消去。その後、祈り状態でなければ念願・仮面を全解除し、敵全体のゲージ+100%、自身に運命否定
+    // ※実際の仕様は「その全体攻撃で最後の祈りを消した時」のみ発動（すでに祈りが0の状態で全体攻撃を受けても何も起きない）
+    let consumedLastPrayer = false;
+    if(count(g.prayerName)>0){
+      removeOne(g.prayerName);
+      consumedLastPrayer = count(g.prayerName)===0;
+      logAction(target, "被弾判定", `🙏 全体攻撃を受けたため${g.prayerName}を1つ消去(残${count(g.prayerName)})`, "-", false, "");
+    }
+    if(consumedLastPrayer){
+      target.buffs = target.buffs.filter(b=>b.name!==g.wishName && b.name!==g.maskName);
+      state.units.filter(x=>x.kind==="ally" && x.alive && x.id!==attacker.id).forEach(al=>{ al.gauge = Math.min(100, al.gauge + 100); });
+      attackerGaugeBonus = 100;
+      applyBuffWithMaxDuration(target.buffs, {name:g.fateName, turns:g.fateTurns||3, type:"debuff"});
+      logAction(target, "被弾判定", `💥 祈り無しで全体攻撃を受けたため${g.wishName}・${g.maskName}を全解除し、敵全体の行動ゲージ+100%・自身に${g.fateName}(${g.fateTurns||3}T)`, "-", false, "");
+    }
+  }
+  return attackerGaugeBonus;
+}
+
 // オルベロスの手先「破壊されたときに倒された場合は発動しない」：撃破確認パネルで討伐されなかったと確定した時点で、
 // ブレイクによる英雄の魂付与を実行する（討伐された場合はdefeatEscort側でこの関数を呼ばず、フラグも使わないまま破棄される）
 function grantHeroSoulIfPendingSurvived(u){
@@ -2619,17 +2682,19 @@ function grantHeroSoulIfPendingSurvived(u){
   }
 }
 
-function useEnemySkill(unitId, skillKey){
+// isExtra: 追加発動（カネリア（ボス）の特殊等）。CT・行動ゲージ・ターン終了処理には一切触れず、スキル効果と被弾判定のみを発生させる
+function useEnemySkill(unitId, skillKey, isExtra){
   const u = state.units.find(x=>x.id===unitId);
   const s = u.skills[skillKey];
-  if(skillKey!=="basic" && u.ct[skillKey] > 0){ alert("クールタイム中です"); return; }
-  if(skillKey!=="basic"){ u.ct[skillKey] = s.ct; }
+  if(!isExtra && skillKey!=="basic" && u.ct[skillKey] > 0){ alert("クールタイム中です"); return; }
+  if(!isExtra && skillKey!=="basic"){ u.ct[skillKey] = s.ct; }
+  if(!isExtra){ u._extraActivationUsedThisTurn = false; }
   // ギーレ「周期の循環」：スキル自身の条件付き効果（液化のゲージ増加等）は、このスキル使用「前」の周期状態を見て判定する
   const cycleBeforeAction = u.togglesDayNightCycle ? (u.buffs.some(b=>b.isCycleMarker && b.name.includes("昼")) ? "day" : "night") : null;
   // 乖離「消去」：攻撃時、自身の残滓の乖離が最大スタックであれば発動するトリガー条件は、この行動「前」の値で判定する必要がある
   const residueStacksBeforeAction = u.residueStackName ? (u.residueStacks||0) : 0;
 
-  u.gauge = 0;
+  if(!isExtra) u.gauge = 0;
   if(s.selfGaugeGainPct){ u.gauge = Math.min(100, u.gauge + s.selfGaugeGainPct); }
   if(s.selfGaugeGainIfCycleState && cycleBeforeAction===s.selfGaugeGainIfCycleState.state){
     u.gauge = Math.min(100, u.gauge + s.selfGaugeGainIfCycleState.pct);
@@ -2736,6 +2801,14 @@ function useEnemySkill(unitId, skillKey){
       logAction(u, "被弾判定", `😤 行動ゲージ最低の${lowestGaugeAlly.name}に${s.targetLowestGaugeAllyDebuff.name}を付与しようとした（実際に付与されたか確認してください）`, "-", false, "");
     }
   }
+  // カネリア（ボス）：自身に同名の独立スタック（解除不可・永続）を指定数付与する
+  if(s.selfBuffStacks){
+    const sb = s.selfBuffStacks;
+    for(let i=0;i<(sb.count||1);i++){
+      u.buffs.push({name:sb.name, turns:9999, type:"buff", permanent:true, undispellable:true, atkModPct:sb.atkModPct||0, speedModPct:sb.speedModPct||0});
+    }
+    logAction(u, "被弾判定", `🙏 自身に${sb.name}を${sb.count||1}つ付与`, "-", false, `現在${u.buffs.filter(b=>b.name===sb.name).length}スタック`);
+  }
   // オルベロス：特殊使用後、自身と自身の取り巻き全体の強靭度を回復（回復後に強靭度>0ならブレイクも解除）
   if(s.teamToughnessHealAmount > 0){
     const mine = state.units.filter(x=>x.kind==="enemy" && x.alive && (x.id===u.id || x.escortOwnerId===u.id));
@@ -2788,6 +2861,7 @@ function useEnemySkill(unitId, skillKey){
       logAction(u, "被弾判定", `📜 厳重な戒律：自身の弱体化${debuffCount}個に応じて周期戒律+${gain}(${currentPreceptCount+gain}/${u.cyclePreceptMax||4})`, "-", false, "");
     }
   }
+  if(!isExtra){
   state.pendingActor = null;
   if(u.immuneRemaining > 0){
     u.immuneRemaining--;
@@ -2799,6 +2873,7 @@ function useEnemySkill(unitId, skillKey){
   // 敵自身の弱体化（type==="debuff"）も、本人のターン終了時にここで-1する
   // （味方側のfinalizeActionChainに相当する処理。useEnemySkillはfinalizeActionChainを経由しないため個別に必要）
   decrementOwnTurnEndBuffs(u);
+  }
 
   // ティリア「ギミック」：自身の行動後、取り巻きが2体になるように召喚する（既に1体いれば1体のみ追加）
   if(u.summonsEscortsAfterOwnAction){
@@ -2812,11 +2887,11 @@ function useEnemySkill(unitId, skillKey){
   }
 
   if(s.target==="all"){
-    state.pendingTriggerContext = { targetType:"selectHitAoe", evadeMap:{}, sourceUnitId: unitId, skillKey,
-      sourceLabel: u.name + "の「" + s.name + "」（全体攻撃）", thenExtraTurn:false };
+    state.pendingTriggerContext = { targetType:"selectHitAoe", evadeMap:{}, sourceUnitId: unitId, skillKey, isExtraActivation: !!isExtra,
+      sourceLabel: u.name + "の「" + s.name + "」" + (isExtra?"追加発動":"") + "（全体攻撃）", thenExtraTurn:false };
   } else {
-    state.pendingTriggerContext = { targetType:"selectHit", hitAllyId:null, hitEvaded:false, sourceUnitId: unitId, skillKey,
-      sourceLabel: u.name + "の「" + s.name + "」（単体攻撃）", thenExtraTurn:false };
+    state.pendingTriggerContext = { targetType:"selectHit", hitAllyId:null, hitEvaded:false, sourceUnitId: unitId, skillKey, isExtraActivation: !!isExtra,
+      sourceLabel: u.name + "の「" + s.name + "」" + (isExtra?"追加発動":"") + "（単体攻撃）", thenExtraTurn:false };
   }
   // 乖離「消去」：攻撃時、自身の残滓の乖離が最大スタックであれば（攻撃『前』の値で判定）、
   // 通常攻撃の被弾判定が終わった後に特殊「消去」の発動候補として提示する
@@ -3235,7 +3310,7 @@ function confirmEnemySelfTrigger(){
   const ctx = state.pendingEnemySelfTrigger;
   state.pendingEnemySelfTrigger = null;
   if(!ctx) { renderBattle(); return; }
-  useEnemySkill(ctx.sourceUnitId, ctx.skillKey);
+  useEnemySkill(ctx.sourceUnitId, ctx.skillKey, !!ctx.isExtra);
 }
 function dismissEnemySelfTrigger(){
   state.pendingEnemySelfTrigger = null;
@@ -3387,6 +3462,11 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
     if(brokeNow && target.isEscort && target.grantsOwnerHeroSoulOnBreak){
       target._pendingHeroSoulOnBreak = true;
     }
+    // カネリア（ボス）：安息の為の祈り関連の被弾時反応。EX/挟撃誘発の攻撃者は行動ゲージを消費しないため、ゲージ加算は直接反映する
+    if(target.prayerGimmick){
+      const prayerBonus = applyPrayerHitReactions(target, u, s.target==="all");
+      if(prayerBonus>0){ u.gauge = Math.min(100, u.gauge + prayerBonus); }
+    }
     // オルベロス：英雄の魂が最大スタックの状態でEX/挟撃誘発の攻撃を受けた時、全消費して自身に魂の亀裂を発動
     if(target.heroSoulStackName && (target.heroSoulStacks||0) >= (target.heroSoulStackMax||4)){
       target.heroSoulStacks = 0;
@@ -3510,19 +3590,80 @@ function applyEnemyNoBarrierDebuff(sourceUnitId, skillKey, targetAllyId){
   else { applyBuffWithMaxDuration(target.buffs, {name:eff.name, turns:eff.turns, type:"debuff", speedZeroLock:!!eff.speedZeroLock, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, undispellable:!!eff.undispellable}); }
   logAction(u, "被弾判定", "☠ " + target.name + "はバリアなしのため" + eff.name + "(" + eff.turns + "T)を付与", "-", false, "");
 }
+// 敵の攻撃で被弾した味方に付与されるデバフの一覧（付与の成否を被弾判定パネルでプレイヤーが個別に選べるようにするため）。
+// id："0","1"…はスキルのtargetEffect配列の添字、"bleed"は★挑戦の「攻撃後に出血付与」（確率100%のもののみ）
+function getEnemyHitDebuffOptions(attacker, skillKey){
+  const s = attacker && attacker.skills && attacker.skills[skillKey];
+  const list = [];
+  if(s && s.targetEffect){
+    const effs = Array.isArray(s.targetEffect) ? s.targetEffect : [s.targetEffect];
+    effs.forEach((e,i)=>list.push({id:String(i), label:`${e.name}(${e.turns}T)`}));
+  }
+  const bleed = getStarStageEffect(attacker, "bleedOnAttack");
+  if(bleed && (bleed.chance==null || bleed.chance>=100)){
+    list.push({id:"bleed", label:`${bleed.name||"出血"}(${bleed.turns||2}T)・★挑戦`});
+  }
+  return list;
+}
+// チェックボックス（idPrefix + option.id）を読み取り、付与するデバフのid集合を返す（チェックボックスが存在しない場合は付与扱い）
+function readEnemyHitDebuffChecks(idPrefix, options){
+  const allowed = new Set();
+  options.forEach(o=>{
+    const cb = document.getElementById(idPrefix + o.id);
+    if(!cb || cb.checked) allowed.add(o.id);
+  });
+  return allowed;
+}
+// 味方の強靭度：敵の攻撃が命中（EVADEされなかった）した味方の強靭度を減らす。
+// 有利属性で+1、不利属性の場合は0（味方→敵の計算と同じルール）、★挑戦の「攻撃時の強靭度ダメージ+X」も加算する。
+// ブレイクしても味方の行動ゲージは減らない。ブレイク中はトリガースキル・挟撃が発動できなくなる（EX誘発は可能）。
+// ブレイクは、その味方の次の自ターン開始時に強靭度全回復・解除される（openActionFor側の既存処理）。
+function applyEnemyToughnessDamageToAlly(sourceUnitId, skillKey, allyId){
+  const attacker = state.units.find(x=>x.id===sourceUnitId);
+  const ally = state.units.find(x=>x.id===allyId);
+  const s = attacker && attacker.skills && attacker.skills[skillKey];
+  if(!attacker || !ally || !s || ally.kind!=="ally") return;
+  if(s.toughnessDmg==null){
+    logAction(ally, "被弾判定", `⚠ ${s.name}の強靭削りが不明のため${ally.name}の強靭度は自動反映されません（必要なら「強靭記録」で手動記録）`, "-", false, "");
+    return;
+  }
+  if(ally.buffs.some(b=>b.name.includes("強靭度ダメージ無効"))){
+    logAction(ally, "被弾判定", `🛡 ${ally.name}は強靭度ダメージ無効のため強靭度は減らない`, "-", false, "");
+    return;
+  }
+  const hasAdv = hasElementAdvantage(attacker.attribute, ally.attribute);
+  const hasDisadv = !hasAdv && hasElementAdvantage(ally.attribute, attacker.attribute);
+  const starUp = getStarStageEffect(attacker, "toughnessDmgUp");
+  const dmg = hasDisadv ? 0 : (s.toughnessDmg + (starUp ? (starUp.amount||0) : 0) + (hasAdv ? 1 : 0));
+  const before = ally.toughness;
+  ally.toughness = Math.max(0, ally.toughness - dmg);
+  let text = `💔 ${ally.name}の強靭度-${before-ally.toughness}(${before}→${ally.toughness}/${ally.toughnessMax})${hasAdv?"／属性有利+1":""}${hasDisadv?"／属性不利のため0":""}`;
+  if(ally.toughness<=0 && !ally.broken){
+    ally.broken = true;
+    text += `／ブレイク！（行動ゲージは減らないが、トリガースキル・挟撃が発動不可。EX誘発は可能。次の自ターン開始で回復）`;
+  }
+  logAction(ally, "被弾判定", text, "-", false, "");
+}
+
 // 敵スキルの「対象に無条件でデバフを付与」を実際に適用する（オルトロスの第十の課業等、バリア判定を伴わないもの）
-function applyEnemyUnconditionalDebuff(sourceUnitId, skillKey, targetAllyId){
+// allowedIds：付与するtargetEffectの添字（文字列）の集合。nullなら全て付与
+function applyEnemyUnconditionalDebuff(sourceUnitId, skillKey, targetAllyId, allowedIds){
   const u = state.units.find(x=>x.id===sourceUnitId);
   const target = state.units.find(x=>x.id===targetAllyId);
   if(!u || !target) return;
   const s = u.skills[skillKey];
   if(!s) return;
-  const eff = s.targetEffect;
-  if(eff){
+  // targetEffectは単体オブジェクトのほか配列（カネリア（ボス）の攻撃力ダウン＋効果耐性ダウン等）も可
+  const effList = s.targetEffect ? (Array.isArray(s.targetEffect) ? s.targetEffect : [s.targetEffect]) : [];
+  effList.forEach((eff,idx)=>{
+    if(allowedIds && !allowedIds.has(String(idx))){
+      logAction(u, "被弾判定", "🚫 " + target.name + "に" + eff.name + "は付与されなかった（プレイヤー判断）", "-", false, "");
+      return;
+    }
     if(eff.dot){ target.buffs.push({name:eff.name, turns:eff.turns, type:"debuff", dot:true, speedZeroLock:!!eff.speedZeroLock, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, undispellable:!!eff.undispellable}); }
     else { applyBuffWithMaxDuration(target.buffs, {name:eff.name, turns:eff.turns, type:"debuff", speedZeroLock:!!eff.speedZeroLock, speedModPct:eff.speedModPct||0, atkModPct:eff.atkModPct||0, critDmgModPct:eff.critDmgModPct||0, undispellable:!!eff.undispellable}); }
     logAction(u, "被弾判定", "☠ " + target.name + "に" + eff.name + "(" + eff.turns + "T)を付与", "-", false, "");
-  }
+  });
   // 乖離の消去：対象の特殊・究極CTを延長する
   if(s.targetCtExtendAllTurns > 0){
     ["special","ultimate"].forEach(k=>{
@@ -3544,9 +3685,29 @@ function confirmHitAlly(allyId){
   if(!allyId || !state.pendingTriggerContext) return;
   const ctx = state.pendingTriggerContext;
   const evaded = evadeCheck ? evadeCheck.checked : false;
+  // カネリア（ボス）の特殊：攻撃時（このスキル自身のデバフ付与より前）に被弾した味方が弱体化状態なら、自身のターンに1回のみ追加発動する
+  let triggerExtraActivation = false;
+  if(!evaded && ctx.sourceUnitId && ctx.skillKey && !ctx.isExtraActivation){
+    const atk0 = state.units.find(x=>x.id===ctx.sourceUnitId);
+    const sk0 = atk0 && atk0.skills[ctx.skillKey];
+    const hit0 = state.units.find(x=>x.id===allyId);
+    if(sk0 && sk0.extraActivationIfTargetDebuffed && hit0 && !atk0._extraActivationUsedThisTurn && hit0.buffs.some(b=>b.type==="debuff")){
+      triggerExtraActivation = true;
+    }
+  }
+  // 付与されるデバフ（攻撃力ダウン・効果耐性ダウン・★挑戦の出血等）は、被弾判定パネルのチェックボックスで個別に成否を選べる
+  const hitDebuffOptions = getEnemyHitDebuffOptions(ctx.sourceUnitId ? state.units.find(x=>x.id===ctx.sourceUnitId) : null, ctx.skillKey);
+  const allowedDebuffIds = readEnemyHitDebuffChecks("hitDebuff_", hitDebuffOptions);
   if(!evaded && ctx.sourceUnitId && ctx.skillKey){
     applyEnemyNoBarrierDebuff(ctx.sourceUnitId, ctx.skillKey, allyId);
-    applyEnemyUnconditionalDebuff(ctx.sourceUnitId, ctx.skillKey, allyId);
+    applyEnemyUnconditionalDebuff(ctx.sourceUnitId, ctx.skillKey, allyId, allowedDebuffIds);
+    applyEnemyToughnessDamageToAlly(ctx.sourceUnitId, ctx.skillKey, allyId);
+  }
+  if(triggerExtraActivation){
+    const atk1 = state.units.find(x=>x.id===ctx.sourceUnitId);
+    atk1._extraActivationUsedThisTurn = true;
+    state.pendingEnemySelfTrigger = { sourceUnitId: ctx.sourceUnitId, skillKey: ctx.skillKey, isExtra:true,
+      note: `${atk1.name}の「${atk1.skills[ctx.skillKey].name}」：攻撃時に敵が弱体化状態だったため、追加発動の条件を満たしています（自身のターンに1回のみ。対象は現在HP割合が最も高い敵＝実際の画面を見て、追加発動の被弾判定で選択してください）` };
   }
   // 敵の基本スキル等が持つ「対象の行動ゲージを減らす」効果（オルトロスの苦痛を授けし凶頭等）。
   // EVADE時は自動的に不適用。通常発動・被弾トリガーでの割り込み発動のどちらもこの関数を経由するため、両方に対応する
@@ -3583,8 +3744,12 @@ function confirmHitAlly(allyId){
       const attackerForStar = state.units.find(x=>x.id===ctx.sourceUnitId);
       const bleedEff = getStarStageEffect(attackerForStar, "bleedOnAttack");
       if(bleedEff && (bleedEff.chance==null || bleedEff.chance>=100)){
-        hitUnit.buffs.push({name:bleedEff.name||"出血", turns:bleedEff.turns||2, type:"debuff", dot:true});
-        logAction(hitUnit, "被弾判定", `🩸 ★挑戦(段階${attackerForStar.starStage})：被弾により${bleedEff.name||"出血"}(${bleedEff.turns||2}T)付与`, "-", false, "");
+        if(allowedDebuffIds.has("bleed")){
+          hitUnit.buffs.push({name:bleedEff.name||"出血", turns:bleedEff.turns||2, type:"debuff", dot:true});
+          logAction(hitUnit, "被弾判定", `🩸 ★挑戦(段階${attackerForStar.starStage})：被弾により${bleedEff.name||"出血"}(${bleedEff.turns||2}T)付与`, "-", false, "");
+        } else {
+          logAction(hitUnit, "被弾判定", `🚫 ★挑戦の${bleedEff.name||"出血"}は付与されなかった（プレイヤー判断）`, "-", false, "");
+        }
       }
     }
   }
@@ -3608,13 +3773,17 @@ function confirmAoeEvade(){
   const evadeMap = {};
   const attackerForStar = ctx.sourceUnitId ? state.units.find(x=>x.id===ctx.sourceUnitId) : null;
   const bleedEff = getStarStageEffect(attackerForStar, "bleedOnAttack");
+  const hitDebuffOptions = getEnemyHitDebuffOptions(attackerForStar, ctx.skillKey);
   state.units.filter(x=>x.kind==="ally" && x.alive).forEach(u=>{
     const cb = document.getElementById("aoeEvade_" + u.id);
     const evaded = cb ? cb.checked : false;
     evadeMap[u.id] = evaded;
+    // 付与されるデバフは味方ごとに、チェックボックスで個別に成否を選べる
+    const allowedDebuffIds = readEnemyHitDebuffChecks(`aoeDebuff_${u.id}_`, hitDebuffOptions);
     if(!evaded && ctx.sourceUnitId && ctx.skillKey){
       applyEnemyNoBarrierDebuff(ctx.sourceUnitId, ctx.skillKey, u.id);
-      applyEnemyUnconditionalDebuff(ctx.sourceUnitId, ctx.skillKey, u.id);
+      applyEnemyUnconditionalDebuff(ctx.sourceUnitId, ctx.skillKey, u.id, allowedDebuffIds);
+      applyEnemyToughnessDamageToAlly(ctx.sourceUnitId, ctx.skillKey, u.id);
     }
     if(!evaded && u.ultimateCtReduceOnHit && u.ct.ultimate>0){
       // 全体攻撃を受けた場合は追加で-1（合計-2）
@@ -3634,8 +3803,12 @@ function confirmAoeEvade(){
     }
     // ★挑戦：攻撃したボスが該当段階なら、被弾した味方にデバフを自動付与（確率100%のもののみ自動適用）
     if(!evaded && bleedEff && (bleedEff.chance==null || bleedEff.chance>=100)){
-      u.buffs.push({name:bleedEff.name||"出血", turns:bleedEff.turns||2, type:"debuff", dot:true});
-      logAction(u, "被弾判定", `🩸 ★挑戦(段階${attackerForStar.starStage})：被弾により${bleedEff.name||"出血"}(${bleedEff.turns||2}T)付与`, "-", false, "");
+      if(allowedDebuffIds.has("bleed")){
+        u.buffs.push({name:bleedEff.name||"出血", turns:bleedEff.turns||2, type:"debuff", dot:true});
+        logAction(u, "被弾判定", `🩸 ★挑戦(段階${attackerForStar.starStage})：被弾により${bleedEff.name||"出血"}(${bleedEff.turns||2}T)付与`, "-", false, "");
+      } else {
+        logAction(u, "被弾判定", `🚫 ★挑戦の${bleedEff.name||"出血"}は付与されなかった（プレイヤー判断）`, "-", false, "");
+      }
     }
     const barrierCb = document.getElementById("aoeBarrierBreak_" + u.id);
     if(barrierCb && barrierCb.checked){
@@ -3846,6 +4019,10 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
     else if(!evaded && !s.targetsAlly && s.target==="all" && target.wrongClockStackName && target.buffs.some(b=>b.name===target.timeParadoxName)){
       target.wrongClockStacks = Math.min(target.wrongClockStackMax||3, (target.wrongClockStacks||0) + 1);
       logAction(target, "被弾判定", `⏱ ${target.timeParadoxName}中に全体攻撃を受けたため${target.wrongClockStackName}+1(${target.wrongClockStacks}/${target.wrongClockStackMax||3})`, "-", false, "");
+    }
+    // カネリア（ボス）：安息の為の祈り関連の被弾時反応（祈り・念願・仮面・運命否定）
+    if(!evaded && !s.targetsAlly && target.prayerGimmick){
+      attackerGaugeGainFromDebuff += applyPrayerHitReactions(target, u, s.target==="all");
     }
     // オルベロス：既に魂の亀裂状態の相手を攻撃した場合、攻撃者(u)自身のゲージが増える（発生前の状態を見るため英雄の魂消費判定より先。
     // 末尾でu.gaugeが0リセット＋再計算されるため、ここでは直接加算せずattackerGaugeGainFromDebuffに積み立てる）
@@ -4460,6 +4637,7 @@ function renderBattle(){
         <div class="checkline"><input type="checkbox" id="hitEvadeCheck"> EVADE（回避）成立：この味方は回避に成功した</div>
         <div class="checkline"><input type="checkbox" id="hitBarrierBreakCheck"> 🛡バリアが破壊された（この味方がバリアを持っている場合のみ有効）</div>
         ${gaugeReducePct>0 ? `<div class="checkline"><input type="checkbox" id="hitGaugeReduceCheck" checked> 対象の行動ゲージ-${gaugeReducePct}%を適用（EVADE時は自動的に不適用）</div>` : ""}
+        ${getEnemyHitDebuffOptions(attacker, ctx.skillKey).map(o=>`<div class="checkline"><input type="checkbox" id="hitDebuff_${o.id}" checked> ☠ ${o.label}が付与された（実際の画面で確認。EVADE時は自動的に不適用）</div>`).join("")}
         <div class="skillbtn-row">${buttons}</div>
         <button class="btn-secondary btn-small" style="margin-top:4px;" onclick="dismissTriggerContext()">確認せず続ける</button>`;
     } else if(ctx.targetType==="selectHitAoe"){
@@ -4468,7 +4646,10 @@ function renderBattle(){
       const attackerNote = findAccuracyRelatedDebuffNote(attacker);
       panel.innerHTML = `<h3>${ctx.sourceLabel}：味方それぞれのEVADE（回避）判定</h3>
         <div class="smallnote" style="margin-bottom:8px;">全体攻撃のため、味方ひとりひとりに回避判定があります。回避に成功した味方はチェックしてください。バリアを持つ味方は、そのバリアが破壊されたかも合わせてチェックしてください。${attackerNote ? `<br><span style="color:var(--warn);">（参考：${attacker.name}に${attackerNote}）</span>` : ""}</div>
-        ${aliveAllies.map(u=>`<div class="checkline"><input type="checkbox" id="aoeEvade_${u.id}"> ${u.name}${u.evasionRatePct?`（回避率${u.evasionRatePct}%）`:""}${u.buffs.some(b=>b.name.includes("潜伏"))?" 🌙潜伏中":""}：EVADE成立${u.buffs.some(b=>b.name.includes("バリア"))?` ｜ <input type="checkbox" id="aoeBarrierBreak_${u.id}"> 🛡バリア破壊`:""}</div>`).join("")}
+        ${(function(){
+          const debuffOpts = getEnemyHitDebuffOptions(attacker, ctx.skillKey);
+          return aliveAllies.map(u=>`<div class="checkline"><input type="checkbox" id="aoeEvade_${u.id}"> ${u.name}${u.evasionRatePct?`（回避率${u.evasionRatePct}%）`:""}${u.buffs.some(b=>b.name.includes("潜伏"))?" 🌙潜伏中":""}：EVADE成立${u.buffs.some(b=>b.name.includes("バリア"))?` ｜ <input type="checkbox" id="aoeBarrierBreak_${u.id}"> 🛡バリア破壊`:""}</div>${debuffOpts.length ? `<div class="smallnote" style="margin:0 0 6px 26px;">☠付与された：${debuffOpts.map(o=>`<label style="margin-right:12px;"><input type="checkbox" id="aoeDebuff_${u.id}_${o.id}" checked> ${o.label}</label>`).join("")}</div>` : ""}`).join("");
+        })()}
         <div class="btn-row">
           <button class="btn-primary btn-small" onclick="confirmAoeEvade()">決定してトリガー確認</button>
           <button class="btn-secondary btn-small" onclick="dismissTriggerContext()">確認せず続ける</button>
