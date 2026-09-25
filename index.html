@@ -721,8 +721,19 @@ const BREAK_SKILL_TYPES = {
   starpiercer:  { hasHitJudgement:true,  hasToughnessBonus:false, label:"スターピアサー", note:"会心ダメ+10%（ストライカー/レンジャーは+20%）" },
   cubeoverload: { hasHitJudgement:false, hasToughnessBonus:false, label:"キューブオーバーロード", note:"速度+10%（ディフェンダー/サポーターは+20%）／即時2T攻撃力+15%" },
   jigenkyoshu:  { hasHitJudgement:true,  hasToughnessBonus:true,  label:"次元強襲", note:"攻撃力+15%／強靭+1" },
-  wakuseijoka:  { hasHitJudgement:true,  hasToughnessBonus:true,  label:"惑星の浄化", note:"強靭+1のみ（ステータスバフなし）" }
+  wakuseijoka:  { hasHitJudgement:true,  hasToughnessBonus:true,  label:"惑星の浄化", note:"強靭+1／攻撃を1回与えるたびノヴァフォース+1（ステータスバフなし）" }
 };
+// 惑星の浄化（ブレイクスキル）：効果中、味方が攻撃を1回与えるたびにノヴァフォース+1（スキル1回・トリガー1回・EX1回につき1。回避された攻撃・味方対象・非攻撃スキルは対象外）
+function planetBreakSkillNovaGain(u, s, evaded){
+  if(!state || state.breakSkillType!=="wakuseijoka" || state.breakSkillTurnsLeft<=0) return 0;
+  if(evaded || s.targetsAlly || s.nonAttackSkill) return 0;
+  const before = state.teamBurst;
+  state.teamBurst = Math.min(12, state.teamBurst + 1);
+  const gained = state.teamBurst - before;
+  logAction(u, "ブレイクスキル効果", `🪐 惑星の浄化：攻撃によりノヴァフォース+1${gained?"":"（上限）"}`, "-", false, `ノヴァフォース:${state.teamBurst}`);
+  return gained;
+}
+
 function syncBreakSkillTypeDefaults(){
   renderBattle();
 }
@@ -1929,6 +1940,7 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
   // 愛の行進（花嫁カルメン専用潜在）：特殊または究極スキル使用後、ノヴァフォース+2（basic以外）
   const carmenArcanaBurstBonus = (u.relics && u.relics.CARMEN_ARCANA && (skillKey==="special"||skillKey==="ultimate")) ? 2 : 0;
   state.teamBurst = Math.min(12, state.teamBurst + s.burstGain + carmenArcanaBurstBonus);
+  planetBreakSkillNovaGain(u, s, evaded);
 
   // リン専用：変則効果発動時は、通常の自己バフ・対象デバフ（幻影剣舞の攻撃力アップ等）は適用しない
   // （変則時の効果＝星属性への跳躍付与等は、すでに上のrinVariantActiveブロックで個別処理済み）
@@ -3493,6 +3505,7 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
   }
 
   state.teamBurst = Math.min(12, state.teamBurst + s.burstGain);
+  planetBreakSkillNovaGain(u, s, false);
 
   let stackMemo = "";
   if(s.selfStackGain > 0){
@@ -3914,6 +3927,7 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
   // ※以前はここでs.burstGainがteamBurstに一切加算されておらず（ログ表示のみで実際には未加算）、
   //   トリガー発動でノヴァフォースを得るはずのスキル（フェイの反撃等）がすべて対象漏れになっていた
   state.teamBurst = Math.min(12, state.teamBurst + s.burstGain + carmenArcanaBurstBonus);
+  planetBreakSkillNovaGain(u, s, evaded);
 
   if(s.triggerCtMode==="hasCT"){
     // triggerIgnoresOwnCt：発動してもこのスキル自身はCTに入らない（バニークレア等）
@@ -4416,7 +4430,7 @@ function applyBreakSkillTeamBuff(){
         atkModPct = 15;
         break;
       case "wakuseijoka":
-        buffName = null; // 魔女の恩恵はステータスバフなし（強靭ボーナス+ノヴァフォース獲得のみ）
+        buffName = null; // 魔女の恩恵はステータスバフなし（強靭ボーナス+攻撃ごとのノヴァフォース獲得のみ。planetBreakSkillNovaGain）
         break;
     }
     if(buffName){
