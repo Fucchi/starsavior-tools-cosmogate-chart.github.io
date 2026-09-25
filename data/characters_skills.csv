@@ -155,6 +155,10 @@ professor_m,passive,,探究対象：白黒論理(基本)使用後、挟撃可能
 professor_m,basic,白黒論理,,0,0,1,0,FALSE,none,hasCT,0,20,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1}"
 professor_m,special,悪から悪へ,攻撃時、敵が強靭度ブレイク状態の場合、自身のダメージ+30%(本ツールはダメージ計算非対応のため未実装)。自身を最後に攻撃した敵を優先攻撃する(本ツールでは対象選択は手動),0,1,0,0,FALSE,afterAnyAlly,hasCT,15,0,FALSE,FALSE,FALSE,,"{""triggerRequiresSelfStackMaxAfterAction"": true, ""selfStackConsumeAll"": true}"
 professor_m,ultimate,魔弾の射手,,4,2,1,1,FALSE,none,hasCT,50,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 3, ""targetEffect"": {""name"": ""標的刻印（特殊から受けるダメージ+20%）"", ""turns"": 2}}"
+lydia,passive,,空虚の探求者：最大HP+15%(3凸)。攻撃時、激動スタックに比例して効果命中+6%ずつ(最大5、本ツール未実装)。攻撃後、敵が弱体化状態なら自身の攻撃力+6%スタック(最大5回、本ツール未実装)。基本「空虚の手」使用後、敵が弱体化状態なら道の呪文を1ターン付与(実装済み：targetEffectIfTargetDebuffed)。未知の呪文＝効果耐性-20%・速度-10%(重複不可、速度のみ反映)。特殊の未知の呪文は60%・究極の速度ダウンは85%の確率付与(本ツールは付与前提、外れた場合は手動で解除),,,,,,,,,,,,,,
+lydia,basic,空虚の手,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1, ""burstEnemyGaugeReductionAdd"": 15, ""targetEffectIfTargetDebuffed"": {""name"": ""道の呪文"", ""turns"": 1}}"
+lydia,special,星座の彼方からの招待,,3,0,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,"{""target"": ""all"", ""selfStackGain"": 1, ""targetEffect"": {""name"": ""未知の呪文（効果耐性-20%・速度-10%）"", ""turns"": 2, ""speedModPct"": -10}, ""enemyGaugeReductionIfTargetDebuffName"": {""name"": ""未知の呪文"", ""pct"": 15}}"
+lydia,ultimate,書物の空虚間,,5,2,1,1,FALSE,none,hasCT,30,0,FALSE,FALSE,FALSE,,"{""selfStackGain"": 1, ""targetEffect"": [{""name"": ""速度ダウン（-20%）"", ""turns"": 2, ""speedModPct"": -20}, {""name"": ""未知の呪文（効果耐性-20%・速度-10%）"", ""turns"": 2, ""speedModPct"": -10}]}"
 custom,passive,,,,,,,,,,,,,,,,"{""effectiveAtk"": null, ""critDmgPct"": 50}"
 custom,basic,基本スキル,,0,0,1,0,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,
 custom,special,特殊スキル,,3,0,1,1,FALSE,none,hasCT,0,0,FALSE,FALSE,FALSE,,

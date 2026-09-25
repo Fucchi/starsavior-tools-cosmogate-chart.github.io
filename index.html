@@ -282,6 +282,12 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
     // targetEffectIfSelfStackMax: 自身の属性スタックが最大（ELEMENT_STACK_MAX）の場合のみ、対象（target:"all"なら敵全体）に
     // 追加で付与するデバフ（ミュリエルの究極：自身点火が最大なら敵全体に燃焼付与、等）
     targetEffectIfSelfStackMax: extraEffects.targetEffectIfSelfStackMax || null,
+    // enemyGaugeReductionIfTargetDebuffName: {name, pct} 対象が指定名（部分一致）のデバフ状態であれば、対象の行動ゲージをさらにpct%減らす。
+    // 判定は攻撃「前」＝このスキル自身のデバフ付与より前の状態で行う（リディアの特殊：対象が未知の呪文状態なら行動ゲージ-15%）
+    enemyGaugeReductionIfTargetDebuffName: extraEffects.enemyGaugeReductionIfTargetDebuffName || null,
+    // targetEffectIfTargetDebuffed: {name, turns} スキル使用後、対象が何らかの弱体化（type:"debuff"）状態であれば追加で付与するデバフ
+    // （リディアの固有パッシブ：空虚の手使用後、敵が弱体化状態なら道の呪文を1ターン付与）
+    targetEffectIfTargetDebuffed: extraEffects.targetEffectIfTargetDebuffed || null,
     // nonAttackSkill: targetsAlly:falseだが実質的に攻撃ではない（teamBuff等で味方全体を強化するだけの）スキルであることを示すフラグ。
     // オルトロスの「味方が攻撃ではないスキルを使った時に自身へ竜の逆鱗」等、s.targetsAllyを「非攻撃判定」に使っている
     // 既存ギミックが、targetsAlly:falseかつtarget:"all"で組んだ団体バフスキル（バニーシャルルの特殊等）でも
@@ -2127,10 +2133,12 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       // 敵の行動ゲージ減少（★開幕免疫中は無効。潜伏中限定等の条件付き効果はapplyGaugeReductionチェックボックスで手動制御）
       let reductionText = "";
       if(!isEvaded && !target.immune && applyGaugeReduction){
-        const reduction = (s.enemyGaugeReductionPct||0) + (burstOn?(s.burstEnemyGaugeReductionAdd||0):0) + ((u.elementStack||0)*(s.enemyGaugeReductionPerStack||0));
+        const cond = s.enemyGaugeReductionIfTargetDebuffName;
+        const condHit = !!(cond && target.buffs.some(b=>b.type==="debuff" && b.name.includes(cond.name)));
+        const reduction = (s.enemyGaugeReductionPct||0) + (burstOn?(s.burstEnemyGaugeReductionAdd||0):0) + ((u.elementStack||0)*(s.enemyGaugeReductionPerStack||0)) + (condHit ? cond.pct : 0);
         if(reduction > 0){
           target.gauge = Math.max(0, target.gauge - reduction);
-          reductionText = `／ゲージ-${reduction}%`;
+          reductionText = `／ゲージ-${reduction}%${condHit?`（${cond.name}状態分-${cond.pct}%含む）`:""}`;
         }
       } else if(!isEvaded && target.immune && ((s.enemyGaugeReductionPct||0)>0)){
         reductionText = `／ゲージ減少は免疫中のため無効`;
@@ -2211,6 +2219,14 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
           if(eff.dot){ target.buffs.push({name:eff.name, turns:eff.turns, type:"debuff", dot:true}); }
           else { applyBuffWithMaxDuration(target.buffs, {name:eff.name, turns:eff.turns, type:"debuff"}); }
           effText += `／自身${stackNameForAttribute(u.attribute)}最大のため対象に${eff.name}(${eff.turns}T)付与`;
+        }
+      }
+      // リディアの固有パッシブ等：スキル使用後、対象が弱体化状態なら追加デバフを付与する
+      if(s.targetEffectIfTargetDebuffed && autoApplyBuffs !== false && !isEvaded && target.buffs.some(b=>b.type==="debuff")){
+        const eff = s.targetEffectIfTargetDebuffed;
+        if(!(target.kind==="enemy" && isBossImmuneDebuffName(eff.name)) && !(target.immune && !eff.ignoresImmune)){
+          const applied = applyBuffWithMaxDuration(target.buffs, {name:eff.name, turns:eff.turns, type:"debuff", speedModPct:eff.speedModPct||0});
+          effText += `／対象が弱体化状態のため${applied.name}(残${applied.turns}T)付与`;
         }
       }
 

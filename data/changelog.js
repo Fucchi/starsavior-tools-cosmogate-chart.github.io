@@ -1,7 +1,7 @@
 // ===================== 動作確認済みステータス・更新履歴データ =====================
 // index.html から分離したデータです。versionBadge 要素が既に存在している必要があるため、
 // このファイルは <body> 内、DOM構築後に読み込まれる想定です。
-const TOOL_VERSION = "v0.7.11";
+const TOOL_VERSION = "v0.7.12";
 document.getElementById("versionBadge").textContent = TOOL_VERSION;
 const VERIFIED_STATUS = {
   lastUpdated: "2026-09-03",
@@ -154,7 +154,8 @@ const DATED_LOG = [
   { date:"2026-09-03", version:"v0.7.8", text:"動作確認済みリスト（VERIFIED_STATUS）を全面更新。kamigame.jp/appmedia.jpとのクロスチェックが完了した37キャラ全員を確認済みに追加（一部、実装が複雑な仕様のうち一部分のみ本ツール未対応のキャラには注釈付きで掲載：セレス・水着ルナ・バニーフレイ・ロザリア・リン・ヤナギ・ミナ）" },
   { date:"2026-09-03", version:"v0.7.9", text:"新規キャラ「アモラママ」（秩序・アサシン）を実装。①パッシブ「ストラニスの主」：弱体化状態で被弾すると洞察スタック+3（新設gainStackOnHitIfDebuffed、被弾判定の単体・全体両方に対応）。本人のターン開始時、洞察が最大なら全消費して自身の弱体化を全解除し、攻撃力アップ2T・夜に咲く花（解除不可、速度+10%）2Tを付与（新設turnStartStackMaxCleanseAndBuff、マルシルの壊れたナット/ヘキサナットと同じ「ターン開始時スタック最大判定」パターンをキャラ非依存の汎用形に一般化）。攻撃時に弱体化状態でなければダメージ+30%は本ツールのダメージ計算非対応方針により注記のみ。②特殊「貫く星」：自身が夜に咲く花状態なら使用後にこのスキル自身のCTがさらに1短縮される新設フィールドctReduceIfSelfBuffNameを追加（マルシルのburstSelfCtReduceTurnsのバフ版）。③究極「光を磨き上げた執行」：敵全体に命中率ダウン、自身に夜に咲く花(3T)付与、追加ターン発生。全スキルをシミュレーターで実際に動かして動作確認済み" },
   { date:"2026-09-03", version:"v0.7.10", text:"アモラママを動作確認済みリスト（VERIFIED_STATUS）に追加" },
-  { date:"2026-09-22", version:"v0.7.11", text:"「星の挑戦」の段階別新規効果が、実は全ボス共通ではなくボスごとに異なる（ユーザー提供のEXテーブル画像で判明）ことに対応。ボスプリセットにstarStageEffects（段階→効果タイプの配列）を新設し、未設定のボスは旧仕様のDEFAULT_STAR_STAGE_EFFECTSを仮の値として使うフォールバック方式に変更。applyStarStage・renderStarStageInfo、および与ダメ+5%スタック／攻撃者最大HP-5%スタックの各判定箇所（useAllySkill・fireTrigger・EX誘発/挟撃の複数ヒット処理）をhasStarStageEffect/getStarStageEffectヘルパー経由に置き換え、段階の固定値（3/6/9/12/15）ではなくボスごとのテーブルを参照するよう修正。新規タイプとしてtoughnessDmgUp（攻撃時の強靭ダメージ+X、被ダメ計算非対応のため参考表示のみ）・removeNovaForce（スキル使用後、味方ノヴァフォースをX除去）・removeSelfDebuffs（スキル使用後、自身の弱体化をX個除去）・bleedOnAttack（攻撃後、対象に確率でデバフを自動付与、confirmHitAlly・confirmAoeEvadeに実装）を追加。デモライギス：アルファ・乖離の2ボスにユーザー提供のEXテーブルを反映（カネリアはボスプリセットとして未実装のため保留。残り6ボス分のテーブルは未提供のため仮の値のまま）" }
+  { date:"2026-09-22", version:"v0.7.11", text:"「星の挑戦」の段階別新規効果が、実は全ボス共通ではなくボスごとに異なる（ユーザー提供のEXテーブル画像で判明）ことに対応。ボスプリセットにstarStageEffects（段階→効果タイプの配列）を新設し、未設定のボスは旧仕様のDEFAULT_STAR_STAGE_EFFECTSを仮の値として使うフォールバック方式に変更。applyStarStage・renderStarStageInfo、および与ダメ+5%スタック／攻撃者最大HP-5%スタックの各判定箇所（useAllySkill・fireTrigger・EX誘発/挟撃の複数ヒット処理）をhasStarStageEffect/getStarStageEffectヘルパー経由に置き換え、段階の固定値（3/6/9/12/15）ではなくボスごとのテーブルを参照するよう修正。新規タイプとしてtoughnessDmgUp（攻撃時の強靭ダメージ+X、被ダメ計算非対応のため参考表示のみ）・removeNovaForce（スキル使用後、味方ノヴァフォースをX除去）・removeSelfDebuffs（スキル使用後、自身の弱体化をX個除去）・bleedOnAttack（攻撃後、対象に確率でデバフを自動付与、confirmHitAlly・confirmAoeEvadeに実装）を追加。デモライギス：アルファ・乖離の2ボスにユーザー提供のEXテーブルを反映（カネリアはボスプリセットとして未実装のため保留。残り6ボス分のテーブルは未提供のため仮の値のまま）" },
+  { date:"2026-09-25", version:"v0.7.12", text:"新規キャラ「リディア」（混沌）を上方修正後のスキル内容で実装。①基本「空虚の手」：激動+1、バースト時に敵の行動ゲージ-15%（burstEnemyGaugeReductionAdd）。固有パッシブの「空虚の手使用後、敵が弱体化状態なら道の呪文を1ターン付与」を新設targetEffectIfTargetDebuffedで実装。②特殊「星座の彼方からの招待」：敵全体・激動+1・未知の呪文（効果耐性-20%・速度-10%、重複不可）を2ターン付与。「対象が未知の呪文状態なら行動ゲージ-15%」を新設enemyGaugeReductionIfTargetDebuffNameで実装（この攻撃自身による付与より前の状態で判定）。③究極「書物の空虚間」：激動+1・自身の行動ゲージ+30%・速度ダウン2ターン・未知の呪文2ターン。確率付与（未知の呪文60%・速度ダウン85%）は付与前提で扱う。効果命中・攻撃力スタック等のダメージ系パッシブは本ツール未実装" }
 ];
 
 // ===================== 更新履歴 =====================

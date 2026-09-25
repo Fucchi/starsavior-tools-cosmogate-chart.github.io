@@ -1,4 +1,4 @@
-id,name,speed,toughnessMax,evasionRatePct,attribute,role,order
+﻿id,name,speed,toughnessMax,evasionRatePct,attribute,role,order
 asera,アセラ,180,3,0,月,ストライカー,22
 dress_asera,ドレスアセラ,180,5,0,秩序,サポーター,30
 roberta,ロベルタ,180,3,0,星,ストライカー,11
@@ -38,4 +38,5 @@ rosaria,ロザリア,180,5,0,混沌,レンジャー,35
 rin,リン,180,3,0,星,ストライカー,20
 muriel,ミュリエル,180,3,0,太陽,キャスター,36
 professor_m,プロフェッサーM,180,3,0,月,レンジャー,37
+lydia,リディア,180,5,0,混沌,キャスター,36
 custom,新規味方,180,3,0,太陽,ストライカー,
