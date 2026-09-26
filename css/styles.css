@@ -108,7 +108,29 @@ th{ color:var(--text-dim); font-weight:normal; font-size:11px;}
 .smallnote{ font-size:11px; color:var(--text-dim); line-height:1.6;}
 .checkline{display:flex; align-items:center; gap:6px; font-size:12px; margin:6px 0;}
 .tie-choice{display:flex; gap:8px; flex-wrap:wrap;}
-.logwrap{ max-height:340px; overflow:auto; }
+.logwrap{ max-height:560px; overflow:auto; }
+.logwrap thead th{ position:sticky; top:0; background:var(--bg-panel); z-index:2; }
+.logFilterBar{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:8px; }
+.logFilterBar .checkline{ margin:0; }
+.logFilterBar select, .logFilterBar input[type="text"]{ font-size:11px; padding:3px 6px; }
+#logTable.hideGauge th:nth-child(8), #logTable.hideGauge td.gaugeCol{ display:none; }
+#logTable td.gaugeCol{ font-size:11px; white-space:normal; max-width:220px; }
+#logTable td.logSkill, #logTable td.logMemo{ white-space:normal; min-width:160px; }
+.logTurnHead td{ cursor:pointer; padding-top:9px; padding-bottom:9px; border-top:2px solid var(--line); background:var(--bg-panel-2); }
+.logTurnHead.allyTurn td{ border-left:4px solid var(--ally); }
+.logTurnHead.enemyTurn td{ border-left:4px solid var(--enemy); }
+.logTurnHead .turnCaret{ display:inline-block; width:14px; color:var(--text-dim); font-size:10px; }
+.logTurnHead .turnSummary{ margin-left:8px; color:var(--text-dim); font-size:11px; white-space:normal; }
+.logRow.logMain td:first-child{ font-weight:bold; }
+.logRow.allyRow td:first-child{ border-left:4px solid var(--ally); }
+.logRow.enemyRow td:first-child{ border-left:4px solid var(--enemy); }
+.logRow.logDetail td{ font-size:11px; color:var(--text-dim); border-bottom-style:dashed; }
+.logRow.logDetail td:first-child{ border-left:4px solid var(--line); }
+.logRow.logDetail td:nth-child(3){ padding-left:18px; }
+.logChip{ display:inline-block; font-size:10px; padding:1px 7px; border-radius:100px; border:1px solid var(--line); background:var(--bg-panel); color:var(--text-dim); white-space:nowrap; }
+.logChip.chip-hit{ color:#ffcf6e; border-color:#7a6230; }
+.logChip.chip-trig{ color:#c9a4ff; border-color:#5d4a8a; }
+.logChip.chip-brk{ color:#ff9f6e; border-color:#8a5030; }
 .empty{ color:var(--text-dim); font-size:12px; padding:12px 0; text-align:center;}
 .topbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;}
 .topbar-wrap{ margin-bottom:14px; }
@@ -161,3 +183,7 @@ select{ background:#0d1024; color:var(--text); border:1px solid var(--line); bor
   .topbar-wrap .statusRow, .toolSection{ font-size:11px; }
   .toolSection select, .toolSection input[type="number"]{ font-size:12px; }
 }
+
+.logBadge{ display:inline-block; font-size:10px; font-weight:700; padding:1px 8px; margin-left:6px; border-radius:100px; white-space:nowrap; }
+.logBadge.badge-burst{ color:#1b1200; background:#ffb84d; }
+.logBadge.badge-brkskill{ color:#1b0a00; background:#ff7a59; }

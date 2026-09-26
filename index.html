@@ -136,6 +136,15 @@
 
     <div class="panel">
       <h2>行動ログ（攻略チャート）</h2>
+      <div class="logFilterBar">
+        <label class="checkline"><input type="checkbox" id="logShowDetail" checked onchange="renderLog()">効果・被弾判定などの詳細行を表示</label>
+        <label class="checkline"><input type="checkbox" id="logShowGauge" onchange="renderLog()">行動ゲージ列を表示</label>
+        <label class="checkline"><input type="checkbox" id="logOldestFirst" onchange="renderLog()">古い順</label>
+        <select id="logActorFilter" onchange="renderLog()"><option value="">全員</option></select>
+        <input type="text" id="logSearch" placeholder="ログ内検索（スキル名・メモ）" oninput="renderLog()" style="width:200px;">
+        <button class="btn-secondary btn-small" onclick="toggleAllLogTurns(true)">全て閉じる</button>
+        <button class="btn-secondary btn-small" onclick="toggleAllLogTurns(false)">全て開く</button>
+      </div>
       <div class="logwrap">
         <table id="logTable">
           <thead><tr><th>ターン</th><th>#</th><th>行動者</th><th>行動種別</th><th>使用スキル</th><th>強靭削り</th><th>ブレイク</th><th>行動ゲージ（全ユニット）</th><th>メモ</th></tr></thead>
@@ -5010,22 +5019,88 @@ function confirmAllySkill(unitId, skillKey){
   renderLog();
 }
 
+// ログ区分：詳細行（被弾判定・ブレイクスキル効果など）は行動そのものと区別して表示する
+const LOG_DETAIL_ARRIVALS = { "被弾判定":"hit", "被弾トリガー":"trig", "ブレイクスキル効果":"brk", "ブレイクスキル発動":"brk" };
+const logCollapsedTurns = new Set();
+function toggleLogTurn(turn){
+  if(logCollapsedTurns.has(turn)) logCollapsedTurns.delete(turn); else logCollapsedTurns.add(turn);
+  renderLog();
+}
+function toggleAllLogTurns(collapse){
+  logCollapsedTurns.clear();
+  if(collapse && state) state.log.forEach(l=>logCollapsedTurns.add(l.turn));
+  renderLog();
+}
 function renderLog(){
   const body = document.getElementById("logBody");
-  if(state.log.length===0){ body.innerHTML = `<tr><td colspan="9" class="empty">まだ行動がありません</td></tr>`; return; }
-  body.innerHTML = state.log.slice().reverse().map(l=>`
-    <tr>
-      <td>${l.turn}</td>
+  if(!state || state.log.length===0){ body.innerHTML = `<tr><td colspan="9" class="empty">まだ行動がありません</td></tr>`; return; }
+  const showDetail = document.getElementById("logShowDetail").checked;
+  const showGauge = document.getElementById("logShowGauge").checked;
+  const oldestFirst = document.getElementById("logOldestFirst").checked;
+  const actorSel = document.getElementById("logActorFilter");
+  const q = (document.getElementById("logSearch").value||"").trim().toLowerCase();
+  document.getElementById("logTable").classList.toggle("hideGauge", !showGauge);
+  // 行動者の選択肢を更新（現在の選択は維持）
+  const names = Array.from(new Set(state.log.map(l=>l.actor)));
+  const cur = actorSel.value;
+  if(actorSel.options.length-1 !== names.length || names.some((n,i)=>actorSel.options[i+1] && actorSel.options[i+1].value!==n)){
+    actorSel.innerHTML = `<option value="">全員</option>` + names.map(n=>`<option value="${n}">${n}</option>`).join("");
+    actorSel.value = names.includes(cur) ? cur : "";
+  }
+  const actorFilter = actorSel.value;
+  const matches = l => !q || (String(l.skill)+" "+String(l.memo)+" "+l.actor).toLowerCase().includes(q);
+
+  // ターンごとにまとめる（同じターン番号の連続行＝1回の行動チェーン）
+  const groups = [];
+  state.log.forEach(l=>{
+    const last = groups[groups.length-1];
+    if(last && last.turn===l.turn) last.rows.push(l); else groups.push({ turn:l.turn, rows:[l] });
+  });
+  if(!oldestFirst) groups.reverse();
+
+  const html = groups.map(g=>{
+    const main = g.rows.find(l=>!LOG_DETAIL_ARRIVALS[l.arrival]) || g.rows[0];
+    // 行動者フィルタは「そのターンの行動者」で絞る（相手側の被弾判定などの詳細行も同じターンとして残す）
+    if(actorFilter && main.actor!==actorFilter) return "";
+    const rows = g.rows.filter(l=> matches(l) && (showDetail || !LOG_DETAIL_ARRIVALS[l.arrival]));
+    if(rows.length===0) return "";
+    const collapsed = logCollapsedTurns.has(g.turn);
+    const detailCount = g.rows.filter(l=>LOG_DETAIL_ARRIVALS[l.arrival]).length;
+    const brokeAny = g.rows.some(l=>l.broke);
+    // 折りたたんだ状態でも分かるよう、バースト使用・ブレイクスキル発動はバッジで見出しに表示する
+    const burstUsed = g.rows.some(l=>l.kind==="ally" && String(l.skill).includes("（バースト）"));
+    const breakSkillUsed = g.rows.some(l=>l.arrival==="ブレイクスキル発動");
+    const badges = (burstUsed?'<span class="logBadge badge-burst">🔥バースト</span>':"") + (breakSkillUsed?'<span class="logBadge badge-brkskill">💥ブレイクスキル</span>':"");
+    const head = `
+    <tr class="logTurnHead ${main.kind==='enemy'?'enemyTurn':'allyTurn'}" onclick="toggleLogTurn(${g.turn})">
+      <td colspan="9">
+        <span class="turnCaret">${collapsed?"▶":"▼"}</span>
+        <b>ターン ${g.turn}</b>
+        <span style="color:${main.kind==='enemy'?'var(--enemy)':'var(--ally)'}">${main.actor}</span>
+        <span class="logChip">${main.arrival}</span>${badges}
+        <span class="turnSummary">${main.skill}${brokeAny?' <span class="tag break">ブレイク</span>':""}${detailCount?` ／ 詳細${detailCount}件`:""}</span>
+      </td>
+    </tr>`;
+    if(collapsed) return head;
+    const body = rows.map(l=>{
+      const cat = LOG_DETAIL_ARRIVALS[l.arrival];
+      const gaugeCell = (cat && !showGauge) ? "" : (cat ? "" : `${(l.gaugeSnapshot||[]).map(x=>`<span style="color:${x.kind==='enemy'?'var(--enemy)':'var(--ally)'}">${x.name}:${x.gauge}%</span>`).join(" / ")}`);
+      return `
+    <tr class="logRow ${cat?('logDetail logCat-'+cat):('logMain '+(l.kind==='enemy'?'enemyRow':'allyRow'))}">
+      <td>${cat?"":l.turn}</td>
       <td>${l.n}</td>
       <td style="color:${l.kind==='enemy'?'var(--enemy)':'var(--ally)'}">${l.actor}</td>
-      <td>${l.arrival}</td>
-      <td>${l.skill}</td>
+      <td><span class="logChip ${cat?('chip-'+cat):''}">${l.arrival}</span></td>
+      <td class="logSkill">${l.skill}</td>
       <td>${l.toughness}</td>
       <td>${l.broke ? '<span class="tag break">ブレイク</span>' : "-"}</td>
-      <td style="font-size:11px; white-space:normal; max-width:220px;">${(l.gaugeSnapshot||[]).map(g=>`<span style="color:${g.kind==='enemy'?'var(--enemy)':'var(--ally)'}">${g.name}:${g.gauge}%</span>`).join(" / ")}</td>
-      <td>${l.memo}</td>
-    </tr>
-  `).join("");
+      <td class="gaugeCol">${gaugeCell}</td>
+      <td class="logMemo">${l.memo}</td>
+    </tr>`;
+    }).join("");
+    return head + body;
+  }).join("");
+  body.innerHTML = html || `<tr><td colspan="9" class="empty">条件に一致するログがありません</td></tr>`;
 }
 
 // 行動確定のたびにログも更新されるようrenderBattle内でも呼ぶ
