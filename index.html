@@ -301,7 +301,12 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
     // オルトロスの「味方が攻撃ではないスキルを使った時に自身へ竜の逆鱗」等、s.targetsAllyを「非攻撃判定」に使っている
     // 既存ギミックが、targetsAlly:falseかつtarget:"all"で組んだ団体バフスキル（バニーシャルルの特殊等）でも
     // 正しく反応できるようにするための専用フラグ
-    nonAttackSkill: !!extraEffects.nonAttackSkill};
+    nonAttackSkill: !!extraEffects.nonAttackSkill,
+    // グウェン専用：
+    //   selfStackBuffGain: {name,count,max} 自身に指定名の独立スタックバフ（解除不可・永続）を指定数付与する（究極：電気衝撃+2）
+    //   gwenUltimateAutoReveal: true の場合、この攻撃の後に敵へ「真実を暴く光！」の追加発動候補（pendingGwenReveal）を出す
+    selfStackBuffGain: extraEffects.selfStackBuffGain || null,
+    gwenUltimateAutoReveal: !!extraEffects.gwenUltimateAutoReveal};
 }
 
 function defaultEnemySkill(name, ct, note, target, selfGaugeGainPct, targetEffectIfNoBarrier, selfBuffIfTwistedWill, targetEffect, selfClearAllDebuffs, targetGaugeReductionPct, selfBuff, extra){
@@ -1400,6 +1405,13 @@ function startBattle(){
       analysisAssignOnBasic: a.analysisAssignOnBasic || null,
       gainsSolarStackOnAllyTurnStart: a.gainsSolarStackOnAllyTurnStart || 0,
       gainsSolarStackOnAllyAction: a.gainsSolarStackOnAllyAction || 0,
+      // グウェン「張り込み」：自身を除く味方の攻撃時、現場待機状態なら電気衝撃+1/+2を得る設定
+      gwenElectricShockGain: a.gwenElectricShockGain || null,
+      // グウェン「張り込み」：自身を除く味方・敵のターン開始時、現場待機状態でなければ跳躍スタック比例でゲージ増加
+      gaugeRegenOnOthersTurnStart: a.gaugeRegenOnOthersTurnStart || null,
+      // グウェン専用：自身が攻撃した最後の敵のIDを記録する（電気衝撃5+の追加発動が優先攻撃する対象）
+      tracksLastAttackedEnemy: !!a.tracksLastAttackedEnemy,
+      lastAttackedEnemyId: null,
       skills:{ basic: {...a.basic}, special:{...a.special}, ultimate:{...a.ultimate} },
       ct:{ special:0, ultimate: 0 },
       onceUsed:{ basic:false, special:false, ultimate:false },
@@ -1533,7 +1545,8 @@ function startBattle(){
     pendingPincerFire: null,  // {allyId}
     pendingChosenOneAssign: null, // {ownerId, buffName, candidateIds:[id,...]}（オルベロス「選ばれし者」の付与先選択待ち）
     pendingTauntConfirm: null, // {sourceUnitId, targetUnitId, debuff:{name,turns,speedZeroLock}}（オルベロス「挑発」が実際についたかの確認待ち）
-    pendingAnalysisAssign: null // {ownerId, buffName, turns, candidateIds:[id,...]}（プロフェッサーM「見本行動分析」の付与先選択待ち）
+    pendingAnalysisAssign: null, // {ownerId, buffName, turns, candidateIds:[id,...]}（プロフェッサーM「見本行動分析」の付与先選択待ち）
+    pendingGwenReveal: null // {gwenId, targetEnemyId}（グウェン「真実を暴く光！」の追加発動候補）
   };
 
   // 戦闘開始時、特定の味方スキルが持つ「最速の敵に自動でデバフ付与（免疫貫通）」処理
@@ -1862,6 +1875,18 @@ function openActionFor(unitId, arrivalType){
   if(u.kind==="ally" && u.attribute==="太陽"){
     epindelGainSolarStack("gainsSolarStackOnAllyTurnStart");
   }
+
+  // グウェン「張り込み」：自身を除く味方・敵のターン開始時、自身が現場待機状態でなければ
+  // 跳躍スタック数に比例して自身の行動ゲージを増やす
+  state.units.filter(x=>x.kind==="ally" && x.alive && x.id!==u.id && x.gaugeRegenOnOthersTurnStart).forEach(al=>{
+    const cfg = al.gaugeRegenOnOthersTurnStart;
+    if(hasBuffNamed(al, cfg.stakeoutBuffName)) return;
+    const pct = (al.elementStack||0) * (cfg.pctPerStack||0);
+    if(pct>0){
+      al.gauge = Math.min(100, al.gauge + pct);
+      logAction(al, "被弾判定", `⏱ ${u.name}のターン開始時、非・現場待機状態のため跳躍${al.elementStack}スタック分で自身ゲージ+${pct}%`, "-", false, `残ゲージ:${al.gauge.toFixed(1)}%`);
+    }
+  });
 
   state.pendingActor = unitId;
   state.pendingArrivalType = arrivalType;
@@ -2298,6 +2323,14 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       if((s.selfStackConsumeAll || stackMaxConsumedForExtraTurn || stackMaxConsumedNoExtraTurn || stackMaxConsumedSkipCt) && (u.elementStack||0)>0){ stackMemo += `／自身${stackName}を全消費(${u.elementStack}→0)${stackMaxConsumedSkipCt?"／スタック最大消費のためCTに入らない":""}`; u.elementStack = 0; }
       if(s.selfStackGain > 0){ u.elementStack = Math.min(ELEMENT_STACK_MAX, (u.elementStack||0)+s.selfStackGain); stackMemo += `／自身${stackName}+${s.selfStackGain}(${u.elementStack}/${ELEMENT_STACK_MAX})`; }
     if(s.selfSenkohanabiGain > 0){ u.senkohanabiStacks = Math.min(3, (u.senkohanabiStacks||0) + s.selfSenkohanabiGain); stackMemo += `／自身線香花火+${s.selfSenkohanabiGain}(${u.senkohanabiStacks})`; }
+      // グウェン「犯人はあなただ！」等：自身に指定名の独立スタックバフを指定数付与する（電気衝撃+2等）
+      if(s.selfStackBuffGain){
+        const cfg = s.selfStackBuffGain;
+        const beforeCount = u.buffs.filter(b=>b.name===cfg.name).length;
+        const gainCount = Math.min(cfg.count||1, Math.max(0, (cfg.max||99) - beforeCount));
+        for(let i=0;i<gainCount;i++){ u.buffs.push({name:cfg.name, turns:9999, type:"buff", permanent:true, undispellable:true}); }
+        if(gainCount>0){ stackMemo += `／自身に${cfg.name}+${gainCount}(${beforeCount+gainCount}${cfg.max?`/${cfg.max}`:""})`; }
+      }
       // マルシル「会心が発生した場合、壊れたナット+1」（本ツールは会心発生前提のため常時適用）
       if(s.brokenNutGainOnUse > 0 && u.brokenNutStackName){
         u.brokenNutStacks = Math.min(u.brokenNutMax||99, (u.brokenNutStacks||0) + s.brokenNutGainOnUse);
@@ -2366,6 +2399,15 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
           al.elementStack = Math.min(ELEMENT_STACK_MAX, (al.elementStack||0) + (cfg.bonusStackAmount||0));
         }
       });
+    }
+    // グウェン：自身の攻撃を「最後に攻撃した敵」として記録／自身を除く味方の攻撃に反応して電気衝撃を得る
+    trackLastAttackedEnemyIfNeeded(u, isEvaded, targets);
+    applyGwenStakeoutReaction(u, skillKey, isEvaded);
+    // グウェン「犯人はあなただ！」：攻撃後、敵に「真実を暴く光！」を追加発動する
+    if(s.gwenUltimateAutoReveal && !isEvaded && !state.pendingGwenReveal){
+      const revealTarget = (u.lastAttackedEnemyId && state.units.find(x=>x.id===u.lastAttackedEnemyId && x.kind==="enemy" && x.alive))
+        || targets[targets.length-1];
+      state.pendingGwenReveal = { gwenId: u.id, targetEnemyId: revealTarget ? revealTarget.id : null };
     }
 
     // セレスの特殊等：命中した敵の数に応じて自身ゲージ+X%ずつ（EVADE時は0体扱い、selfGaugeGainPerHitMaxPctで上限）
@@ -2705,6 +2747,39 @@ function applyPrayerHitReactions(target, attacker, isAoe){
     }
   }
   return attackerGaugeBonus;
+}
+
+// グウェン専用：自身の攻撃が命中した場合、その敵を「最後に攻撃した敵」として記録する
+// （電気衝撃5+による「真実を暴く光！」追加発動が優先攻撃する対象の判定に使う）
+function trackLastAttackedEnemyIfNeeded(attacker, isEvaded, targets){
+  if(!attacker.tracksLastAttackedEnemy || isEvaded || !targets || targets.length===0) return;
+  attacker.lastAttackedEnemyId = targets[targets.length-1].id;
+}
+
+// グウェン「張り込み」：自身を除く味方が攻撃した時、自身が現場待機状態なら電気衝撃（解除不可）+1
+// （攻撃が特殊スキルならさらに+1＝合計+2）を付与する。電気衝撃が5以上になったら5つ消去し、
+// 敵への追加発動（真実を暴く光！）の候補パネルを表示する（本ツールでは自動発動せずプレイヤーが確認する）
+function applyGwenStakeoutReaction(attacker, skillKey, isEvaded){
+  if(!state || isEvaded) return;
+  state.units.filter(x=>x.kind==="ally" && x.alive && x.id!==attacker.id && x.gwenElectricShockGain).forEach(al=>{
+    const cfg = al.gwenElectricShockGain;
+    if(!hasBuffNamed(al, cfg.stakeoutBuffName)) return;
+    const gain = (skillKey==="special") ? 2 : 1;
+    const before = al.buffs.filter(b=>b.name===cfg.stackName).length;
+    const actualGain = Math.min(gain, Math.max(0, (cfg.max||10) - before));
+    for(let i=0;i<actualGain;i++){ al.buffs.push({name:cfg.stackName, turns:9999, type:"buff", permanent:true, undispellable:true}); }
+    const afterCount = before + actualGain;
+    if(actualGain>0){
+      logAction(al, "被弾判定", `⚡ ${attacker.name}の攻撃（${skillKey==="special"?"特殊":skillKey==="ultimate"?"究極":"通常"}）により自身に${cfg.stackName}+${actualGain}(${afterCount}/${cfg.max||10})`, "-", false, "");
+    }
+    if(afterCount >= (cfg.revealThreshold||5) && !state.pendingGwenReveal){
+      for(let i=0;i<(cfg.revealConsume||5);i++){ const idx = al.buffs.findIndex(b=>b.name===cfg.stackName); if(idx>=0) al.buffs.splice(idx,1); }
+      const lastEnemy = (al.lastAttackedEnemyId && state.units.find(x=>x.id===al.lastAttackedEnemyId && x.kind==="enemy" && x.alive))
+        || state.units.find(x=>x.kind==="enemy" && x.alive);
+      state.pendingGwenReveal = { gwenId: al.id, targetEnemyId: lastEnemy ? lastEnemy.id : null };
+      logAction(al, "被弾判定", `⚡ ${cfg.stackName}が${cfg.revealThreshold||5}以上に達したため5つ消去。「真実を暴く光！」の追加発動候補が出ました（下部パネルで確認してください）`, "-", false, "");
+    }
+  });
 }
 
 // オルベロスの手先「破壊されたときに倒された場合は発動しない」：撃破確認パネルで討伐されなかったと確定した時点で、
@@ -3354,6 +3429,21 @@ function dismissEnemySelfTrigger(){
   renderBattle();
 }
 
+// グウェン「張り込み」：電気衝撃5+消化、または究極命中後の追加発動候補（真実を暴く光！）を実際に発動する
+function confirmGwenReveal(){
+  const sel = document.getElementById("gwenRevealTargetSelect");
+  const ctx = state.pendingGwenReveal;
+  state.pendingGwenReveal = null;
+  if(!ctx) { renderBattle(); return; }
+  const targetId = sel ? sel.value : ctx.targetEnemyId;
+  if(!targetId){ renderBattle(); return; }
+  fireTrigger(ctx.gwenId, "special", targetId, false, false, true);
+}
+function dismissGwenReveal(){
+  state.pendingGwenReveal = null;
+  renderBattle();
+}
+
 // ===================== 水爆弾リアクト攻撃（例：水着スマイル、他の味方が水爆弾状態の敵を攻撃後・跳躍2以上で反応攻撃） =====================
 function computeWaterBombReactCandidates(attackerUnitId, targetEnemyId){
   const target = state.units.find(x=>x.id===targetEnemyId);
@@ -3556,6 +3646,9 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
       al.elementStack = Math.min(ELEMENT_STACK_MAX, (al.elementStack||0) + (cfg.bonusStackAmount||0));
     }
   });
+  // グウェン：自身の攻撃を「最後に攻撃した敵」として記録／自身を除く味方の攻撃に反応して電気衝撃を得る
+  trackLastAttackedEnemyIfNeeded(u, false, targets);
+  applyGwenStakeoutReaction(u, "basic", false);
 
   logAction(u, arrivalLabel, "通常：" + s.name + skillLabelSuffix, String(toughnessDmgSum), brokeAny,
     `${perTargetMemo.join(" ｜ ")}／BP+${s.burstGain}（BP残${state.teamBurst}）${stackMemo}`);
@@ -4256,6 +4349,11 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
       }
     });
   }
+  // グウェン：自身の攻撃を「最後に攻撃した敵」として記録／自身を除く味方の攻撃に反応して電気衝撃を得る
+  if(!s.targetsAlly){
+    trackLastAttackedEnemyIfNeeded(u, evaded, targets);
+    applyGwenStakeoutReaction(u, skillKey, evaded);
+  }
 
   logAction(u, "トリガー発動", skillCategoryLabel(skillKey) + "：" + s.name + (burstOn&&!evaded?"（バースト）":"") + (evaded?"（EVADE）":""), String(toughnessDmgSum), brokeAny,
     `${perTargetMemo.join(" ｜ ")}${hasAdvantageAny?"／属性有利+1":""}${evaded?"／EVADE成立のため強靭ダメージ0・会心扱いなし":""}${gaugeGain>0?`／自身ゲージ+${gaugeGain}%`:""}${burstOn?"／BP-4":""}${s.burstGain>0?`／BP+${s.burstGain}`:""}${carmenArcanaBurstBonus>0?`／愛の行進でBP+${carmenArcanaBurstBonus}`:""}（BP残${state.teamBurst}）${buffMemo}${stackMemo}${tenthLaborMemo}`);
@@ -4810,6 +4908,26 @@ function renderBattle(){
         <div class="name">🌀 ${src?src.name:""} の追加スキル発動</div>
       </button></div>
       <button class="btn-secondary" style="margin-top:6px;" onclick="dismissEnemySelfTrigger()">発動しなかった・続ける</button>`;
+    area.appendChild(panel);
+    return;
+  }
+
+  if(state.pendingGwenReveal){
+    const ctx = state.pendingGwenReveal;
+    const src = state.units.find(x=>x.id===ctx.gwenId);
+    const enemyOptions = state.units.filter(x=>x.kind==="enemy" && x.alive)
+      .map(x=>`<option value="${x.id}" ${x.id===ctx.targetEnemyId?"selected":""}>${x.name}（強靭${x.toughness}/${x.toughnessMax}）</option>`).join("");
+    const panel = document.createElement("div");
+    panel.className = "actionPanel";
+    panel.innerHTML = `<h3>グウェン「真実を暴く光！」追加発動</h3>
+      <div class="smallnote">${src?src.name:""}の電気衝撃が規定数に達した、または究極命中後のため、特殊の追加発動候補です（自身が最後に攻撃した敵を優先攻撃）。</div>
+      <div class="field grow" style="margin-bottom:10px;"><label>対象の敵</label>
+        <select id="gwenRevealTargetSelect">${enemyOptions}</select>
+      </div>
+      <div class="skillbtn-row"><button class="skillbtn" onclick="confirmGwenReveal()">
+        <div class="name">⚡ 真実を暴く光！ 追加発動</div>
+      </button></div>
+      <button class="btn-secondary" style="margin-top:6px;" onclick="dismissGwenReveal()">発動しなかった・続ける</button>`;
     area.appendChild(panel);
     return;
   }
