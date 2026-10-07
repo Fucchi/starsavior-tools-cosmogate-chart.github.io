@@ -30,6 +30,13 @@ const BOSS_PRESETS = {
         {name:"鉄血の鱗甲（防御+50%）", turns:5, type:"buff", decrementOnAnyTurn:true}),
       ultimate: defaultEnemySkill("叙情詩の終幕", 4, "強靭削り2／自身に2T攻撃力アップ／自身の弱体化全解除／対象が第十の課業状態ならダメ+30%", "all", 0, null, null, null, true) },
     "giere": { name:"ギーレ", speed:180, toughnessMax:15, breakDmgPct:15, attribute:"混沌", role:"キャスター",
+      starStageEffects: [
+        { stage:3,  type:"gaugeGainOnHitIfNoDebuff", pct:10, label:"敵ボスが攻撃を受けた時、自身が弱体化状態でない場合、行動ゲージを10%増やす" },
+        { stage:6,  type:"hpDownStack", label:"敵ボスが攻撃を受けた後、攻撃者の最大HPを5%ずつ下げる（最大10回スタック）" },
+        { stage:9,  type:"speedBonus", pct:30, label:"ボスの速度が30%上がる" },
+        { stage:12, type:"toughnessMaxUp", amount:5, label:"敵ボスの強靭度最大値が5上がる" },
+        { stage:15, type:"damageTakenDownIfFewDebuffs", pct:30, maxDebuffs:3, label:"敵ボスが攻撃を受けた時、自身が持つ弱体化が3つ以下の場合、被ダメージが30%下がる（ダメージ計算非対応のため注記のみ）" }
+      ],
       togglesDayNightCycle:true, cyclePreceptName:"周期戒律（基本スキル被ダメ+30%）", cyclePreceptMax:4,
       reactsToUltimateHitIfNightCycle:{ctReduce:1, gaugeGainPct:30},
       passiveNote:"周期の循環：戦闘開始時、自身に昼の周期（解除不可・効果耐性0固定）を発生させる。以降、自身がスキルを使用するたびに昼⇔夜が自動で入れ替わる（実装済み：togglesDayNightCycle、useEnemySkillの末尾でトグル。スキル自身の条件付き効果は、このスキル使用『前』の周期状態を見て判定）。昼の周期＝効果耐性0固定（デバフが入りやすい）／夜の周期＝効果耐性100%固定（ほぼデバフが入らない、本ツールでは効果耐性の数値自体は非対応のため、夜の周期中の弱体化付与は基本的にプレイヤーの手動判断に委ねる）。／厳重な戒律：自身のターン開始時、周期戒律をすべて解除（実装済み）。スキル使用後、自身の弱体化数（周期戒律・周期マーカー自体は含めない）に応じて周期戒律を追加（最大4個、実装済み：出血等と同じ独立スタック型）。究極スキルを受けた時、自身が夜の周期状態なら自身の究極CTを1短縮しゲージ+30%（実装済み：reactsToUltimateHitIfNightCycle、useAllySkill・fireTrigger両方の被弾処理で判定）",
@@ -42,10 +49,10 @@ const BOSS_PRESETS = {
     "kairi": { name:"乖離", speed:180, toughnessMax:15, breakDmgPct:15, attribute:"秩序", role:"キャスター",
       starStageEffects: [
         { stage:3,  type:"hpDownStack", label:"敵ボスが攻撃を受けた後、攻撃者の最大HPを5%ずつ下げる（最大10回スタック）" },
-        { stage:6,  type:"toughnessDmgUp", amount:1, label:"敵ボスが攻撃時、与える強靭度ダメージが1上がる" },
+        { stage:6,  type:"dmgUpPerDebuff", pct:10, max:10, label:"敵ボスが持つ弱体化1つにつき、ダメージが10%ずつ上がる（最大10回スタック。ダメージ計算非対応のため注記のみ）" },
         { stage:9,  type:"speedBonus", pct:30, label:"ボスの速度が30%上がる" },
-        { stage:12, type:"toughnessMaxUp", amount:5, label:"敵ボスの強靭度最大値が5上がる" },
-        { stage:15, type:"immuneOnBattleStart", turns:3, label:"戦闘開始時に、ボスが自身に3ターン、免疫（解除不可）を発生させる" }
+        { stage:12, type:"targetUltCtExtend", amount:1, label:"敵ボスが攻撃後、対象の究極スキルのクールタイムを1ターン延長する" },
+        { stage:15, type:"gaugeGainOnHit", pct:5, label:"敵ボスが攻撃を受けた後、行動ゲージを5%増やす" }
       ],
       battleStartGaugeGainPct:100, battleStartUltimateReady:true, gaugeGainOnHitIfSelfDebuffed:20,
       reactsToSpecialOrUltimateHit:{ctReduceAllAlliesSkills:1},
@@ -77,11 +84,18 @@ const BOSS_PRESETS = {
       ultimate: defaultEnemySkill("バスター・オーバードライブ", 4, "強靭削り2／自身に2T速度アップ(+20%)／行動ゲージ最高の敵に100%で2T挑発", "all") },
     "tyria_boss": { name:"ティリア（ボス）", speed:180, toughnessMax:15, breakDmgPct:15, attribute:"太陽", role:"ストライカー",
       starImmunityTurns:0, starSpeedBonusPct:0, starDamageReductionPct:0,
+      starStageEffects: [
+        { stage:3,  type:"basicExtraGaugeReduce", pct:20, label:"敵ボスが基本スキルで攻撃後、対象の行動ゲージをさらに20%減らす" },
+        { stage:6,  type:"hpDownStack", label:"敵ボスが攻撃を受けた後、攻撃者の最大HPを5%ずつ下げる（最大10回スタック）" },
+        { stage:9,  type:"speedBonus", pct:30, label:"ボスの速度が30%上がる" },
+        { stage:12, type:"gaugeGainOnHitIfParadox", pct:8, label:"敵ボスが攻撃を受けた時、自身がタイム・パラドックス状態の場合、自身の行動ゲージを8%増やす" },
+        { stage:15, type:"immuneOnBattleStart", turns:3, label:"戦闘開始時に、ボスが自身に3ターン、免疫（解除不可）を発生させる" }
+      ],
       summonsEscortsAfterOwnAction:true, escortMax:2, escortName:"ティリアの取り巻き", escortSpeed:0, escortToughnessMax:3,
       wrongClockStackName:"歪んだ時計針（解除不可）", wrongClockStackMax:3,
       timeParadoxName:"タイムパラドックス（解除不可・速度0固定・被ダメ+100%）", timeParadoxTurns:4,
       passiveNote:"ギミック：ティリアが行動した後、取り巻きが2体になるように召喚（既に1体いれば1体のみ追加、速度0）。取り巻きを撃破すると、ティリアに歪んだ時計針（解除不可）+1（最大3、攻撃直後の確認パネルで自動記録。下部デバッグ欄の「取り巻き撃破」ボタンでも手動記録可）。歪んだ時計針が3スタックの状態で攻撃を受けると、全消費して自身に4Tタイムパラドックス（解除不可・速度0固定・被ダメ+100%、実装済み：与ダメ計算に反映）を発動。タイムパラドックス中に全体攻撃を受けると歪んだ時計針が再度発生。特殊「惨劇のレクイエム」使用後、自身の取り巻き全体の行動ゲージ+25%（実装済み）。同時に行動ゲージ最高の味方に3Tタイムパラドックスを付与（速度0固定は実装済み、被ダメ+100%は本ツールの被ダメ計算非対応方針により注記のみ）",
-      basic: defaultEnemySkill("終焉のプレリュード", 0, "強靭削り1／100%で敵ゲージ-30%", "single"),
+      basic: defaultEnemySkill("終焉のプレリュード", 0, "強靭削り1／100%で敵ゲージ-30%", "single", 0, null, null, null, false, 30),
       special: defaultEnemySkill("惨劇のレクイエム", 3, "強靭削り2／自身の取り巻き全体の行動ゲージ+25%(実装済み)／行動ゲージ最高の味方に100%で3Tタイム・パラドックス付与(速度0固定は実装済み。被ダメ+100%は本ツールの被ダメ計算非対応方針のため注記のみ)", "single", 0, null, null, null, false, 0, null,
         { escortGaugeGainPct:25, targetHighestGaugeAllyDebuff:{name:"タイムパラドックス（速度0固定・被ダメ+100%は本ツール非対応のため注記のみ）", turns:3, speedZeroLock:true} }),
       ultimate: defaultEnemySkill("悲嘆のクレッシェンド", 4, "強靭削り1／自身に2T速度アップ(+20%)・行動ゲージ+30%／自身の弱体化を全解除", "all", 0, null, null, null, true) },

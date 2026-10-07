@@ -436,6 +436,22 @@ function checkGaugeOnHitIfAllyDebuffGimmick(target){
   return { debuffName, gainPct };
 }
 
+// ★挑戦：ボスが攻撃を受けた時の行動ゲージ増加系の新規効果（星の挑戦EX：乖離／ギーレ／ティリアの段階効果）。
+// その攻撃自身のデバフ付与・タイムパラドックス発動より前＝被弾した瞬間の状態で判定する
+function applyStarStageOnHitGauge(target){
+  if(!target || target.kind!=="enemy" || !target.starStage) return;
+  getActiveStarStageEffects(target).forEach(e=>{
+    let gain = 0, why = "";
+    if(e.type==="gaugeGainOnHit"){ gain = e.pct||0; why = "攻撃を受けたため"; }
+    else if(e.type==="gaugeGainOnHitIfNoDebuff" && !target.buffs.some(b=>b.type==="debuff")){ gain = e.pct||0; why = "弱体化状態でないため"; }
+    else if(e.type==="gaugeGainOnHitIfParadox" && target.timeParadoxName && target.buffs.some(b=>b.name===target.timeParadoxName)){ gain = e.pct||0; why = "タイム・パラドックス状態のため"; }
+    if(gain>0){
+      target.gauge = Math.min(100, target.gauge + gain);
+      logAction(target, "被弾判定", `⭐ ★挑戦(段階${target.starStage})：${why}自身の行動ゲージ+${gain}%`, "-", false, "");
+    }
+  });
+}
+
 // ===================== 環境バフの速度ボーナス計算 =====================
 function computeEnvSpeedBonus(unitAttribute, unitRole){
   let total = 0;
@@ -2084,6 +2100,7 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       if(!isEvaded && target.isEscort) hitEscortIds.push(target.id);
       // ★挑戦：ボス（対象）を攻撃した時、攻撃した味方自身の最大HP-5%スタック（被弾側ではなく行動した側、参考表示のみ）
       let starHpText = "";
+      if(!isEvaded){ applyStarStageOnHitGauge(target); }
       if(!isEvaded && hasStarStageEffect(target, "hpDownStack")){
         u.starHpDownStacks = Math.min(10, (u.starHpDownStacks||0) + 1);
         starHpText = `／💢★挑戦(段階${target.starStage})：攻撃により自身の最大HP-5%スタック(${u.starHpDownStacks}/10)`;
@@ -2284,6 +2301,7 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       for(let i=0; i<extraCount; i++){
         if(extraTarget.toughness<=0) break;
         // ギミック判定は各追加ヒット自身のデバフ付与より前＝被弾した瞬間の状態で判定（通常のヒットと同じ扱い）
+        applyStarStageOnHitGauge(extraTarget);
         const g1 = checkGaugeOnHitGimmick(extraTarget);
         const g2 = checkGaugeOnHitIfAllyDebuffGimmick(extraTarget);
         if(g1) extraGimmickTexts.push(`${i+1}撃目:デバフ${g1.debuffCount}個以下→自ゲージ+${g1.gainPct}%`);
@@ -3607,6 +3625,7 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
       + (gimmickResult2 ? `／${target.name}のギミック発動:味方が${gimmickResult2.debuffName}状態のため自ゲージ+${gimmickResult2.gainPct}%` : "");
 
     // ★挑戦：ボス（対象）を攻撃した時、攻撃した味方自身の最大HP-5%スタック（被弾側ではなく行動した側、参考表示のみ）
+    applyStarStageOnHitGauge(target);
     let starHpText = "";
     if(hasStarStageEffect(target, "hpDownStack")){
       u.starHpDownStacks = Math.min(10, (u.starHpDownStacks||0) + 1);
@@ -3776,6 +3795,26 @@ function applyEnemyToughnessDamageToAlly(sourceUnitId, skillKey, allyId){
   logAction(ally, "被弾判定", text, "-", false, "");
 }
 
+// ★挑戦の新規効果のうち、敵ボスの攻撃が命中した味方（EVADEされなかった味方）に作用するもの
+//   targetUltCtExtend：攻撃後、対象の究極スキルのCTを延長する（星の挑戦EX：乖離）
+//   basicExtraGaugeReduce：基本スキルでの攻撃後、対象の行動ゲージをさらに減らす（星の挑戦EX：ティリア）
+function applyStarStageHitEffectsToAlly(sourceUnitId, skillKey, allyId, opts){
+  opts = opts || {};
+  const attacker = state.units.find(x=>x.id===sourceUnitId);
+  const ally = state.units.find(x=>x.id===allyId);
+  if(!attacker || !ally || ally.kind!=="ally" || !attacker.starStage) return;
+  const ctEff = getStarStageEffect(attacker, "targetUltCtExtend");
+  if(ctEff && ally.skills && ally.skills.ultimate && opts.ultCtExtend!==false){
+    ally.ct.ultimate = (ally.ct.ultimate||0) + (ctEff.amount||1);
+    logAction(ally, "被弾判定", `⭐ ★挑戦(段階${attacker.starStage})：${ally.name}の究極CTを${ctEff.amount||1}ターン延長`, "-", false, `残CT:${ally.ct.ultimate}`);
+  }
+  const gaugeEff = getStarStageEffect(attacker, "basicExtraGaugeReduce");
+  if(gaugeEff && skillKey==="basic" && opts.extraGaugeReduce!==false){
+    ally.gauge = Math.max(0, ally.gauge - (gaugeEff.pct||0));
+    logAction(ally, "被弾判定", `⭐ ★挑戦(段階${attacker.starStage})：基本スキルのため${ally.name}の行動ゲージをさらに-${gaugeEff.pct||0}%`, "-", false, `残ゲージ:${ally.gauge.toFixed(1)}%`);
+  }
+}
+
 // 敵スキルの「対象に無条件でデバフを付与」を実際に適用する（オルトロスの第十の課業等、バリア判定を伴わないもの）
 // allowedIds：付与するtargetEffectの添字（文字列）の集合。nullなら全て付与
 function applyEnemyUnconditionalDebuff(sourceUnitId, skillKey, targetAllyId, allowedIds){
@@ -3833,6 +3872,11 @@ function confirmHitAlly(allyId){
     applyEnemyNoBarrierDebuff(ctx.sourceUnitId, ctx.skillKey, allyId);
     applyEnemyUnconditionalDebuff(ctx.sourceUnitId, ctx.skillKey, allyId, allowedDebuffIds);
     applyEnemyToughnessDamageToAlly(ctx.sourceUnitId, ctx.skillKey, allyId);
+    const starGaugeCb = document.getElementById("hitStarGaugeReduceCheck");
+    const starUltCtCb = document.getElementById("hitStarUltCtCheck");
+    applyStarStageHitEffectsToAlly(ctx.sourceUnitId, ctx.skillKey, allyId, {
+      extraGaugeReduce: starGaugeCb ? starGaugeCb.checked : true,
+      ultCtExtend: starUltCtCb ? starUltCtCb.checked : true });
   }
   if(triggerExtraActivation){
     const atk1 = state.units.find(x=>x.id===ctx.sourceUnitId);
@@ -3915,6 +3959,8 @@ function confirmAoeEvade(){
       applyEnemyNoBarrierDebuff(ctx.sourceUnitId, ctx.skillKey, u.id);
       applyEnemyUnconditionalDebuff(ctx.sourceUnitId, ctx.skillKey, u.id, allowedDebuffIds);
       applyEnemyToughnessDamageToAlly(ctx.sourceUnitId, ctx.skillKey, u.id);
+      const aoeUltCtCb = document.getElementById("aoeStarUltCt_" + u.id);
+      applyStarStageHitEffectsToAlly(ctx.sourceUnitId, ctx.skillKey, u.id, { ultCtExtend: aoeUltCtCb ? aoeUltCtCb.checked : true });
     }
     if(!evaded && u.ultimateCtReduceOnHit && u.ct.ultimate>0){
       // 全体攻撃を受けた場合は追加で-1（合計-2）
@@ -4095,6 +4141,7 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
     if(!evaded && !s.targetsAlly && target.isEscort) hitEscortIds.push(target.id);
     // ★挑戦：ボス（対象）を攻撃した時、攻撃した味方自身の最大HP-5%スタック（被弾側ではなく行動した側、参考表示のみ）
     let starHpText = "";
+    if(!evaded && !s.targetsAlly){ applyStarStageOnHitGauge(target); }
     if(!evaded && !s.targetsAlly && hasStarStageEffect(target, "hpDownStack")){
       u.starHpDownStacks = Math.min(10, (u.starHpDownStacks||0) + 1);
       starHpText = `／💢★挑戦(段階${target.starStage})：攻撃により自身の最大HP-5%スタック(${u.starHpDownStacks}/10)`;
@@ -4774,6 +4821,8 @@ function renderBattle(){
         <div class="checkline"><input type="checkbox" id="hitEvadeCheck"> EVADE（回避）成立：この味方は回避に成功した</div>
         <div class="checkline"><input type="checkbox" id="hitBarrierBreakCheck"> 🛡バリアが破壊された（この味方がバリアを持っている場合のみ有効）</div>
         ${gaugeReducePct>0 ? `<div class="checkline"><input type="checkbox" id="hitGaugeReduceCheck" checked> 対象の行動ゲージ-${gaugeReducePct}%を適用（EVADE時は自動的に不適用）</div>` : ""}
+        ${(ctx.skillKey==="basic" && getStarStageEffect(attacker, "basicExtraGaugeReduce")) ? `<div class="checkline"><input type="checkbox" id="hitStarGaugeReduceCheck" checked> ⭐ ★挑戦：行動ゲージをさらに-${getStarStageEffect(attacker, "basicExtraGaugeReduce").pct}%を適用（EVADE時は自動的に不適用）</div>` : ""}
+        ${getStarStageEffect(attacker, "targetUltCtExtend") ? `<div class="checkline"><input type="checkbox" id="hitStarUltCtCheck" checked> ⭐ ★挑戦：対象の究極CTを+${getStarStageEffect(attacker, "targetUltCtExtend").amount||1}延長（実際の画面で確認。EVADE時は自動的に不適用）</div>` : ""}
         ${getEnemyHitDebuffOptions(attacker, ctx.skillKey).map(o=>`<div class="checkline"><input type="checkbox" id="hitDebuff_${o.id}" checked> ☠ ${o.label}が付与された（実際の画面で確認。EVADE時は自動的に不適用）</div>`).join("")}
         <div class="skillbtn-row">${buttons}</div>
         <button class="btn-secondary btn-small" style="margin-top:4px;" onclick="dismissTriggerContext()">確認せず続ける</button>`;
@@ -4785,7 +4834,8 @@ function renderBattle(){
         <div class="smallnote" style="margin-bottom:8px;">全体攻撃のため、味方ひとりひとりに回避判定があります。回避に成功した味方はチェックしてください。バリアを持つ味方は、そのバリアが破壊されたかも合わせてチェックしてください。${attackerNote ? `<br><span style="color:var(--warn);">（参考：${attacker.name}に${attackerNote}）</span>` : ""}</div>
         ${(function(){
           const debuffOpts = getEnemyHitDebuffOptions(attacker, ctx.skillKey);
-          return aliveAllies.map(u=>`<div class="checkline"><input type="checkbox" id="aoeEvade_${u.id}"> ${u.name}${u.evasionRatePct?`（回避率${u.evasionRatePct}%）`:""}${u.buffs.some(b=>b.name.includes("潜伏"))?" 🌙潜伏中":""}：EVADE成立${u.buffs.some(b=>b.name.includes("バリア"))?` ｜ <input type="checkbox" id="aoeBarrierBreak_${u.id}"> 🛡バリア破壊`:""}</div>${debuffOpts.length ? `<div class="smallnote" style="margin:0 0 6px 26px;">☠付与された：${debuffOpts.map(o=>`<label style="margin-right:12px;"><input type="checkbox" id="aoeDebuff_${u.id}_${o.id}" checked> ${o.label}</label>`).join("")}</div>` : ""}`).join("");
+          const ultCtEff = getStarStageEffect(attacker, "targetUltCtExtend");
+          return aliveAllies.map(u=>`<div class="checkline"><input type="checkbox" id="aoeEvade_${u.id}"> ${u.name}${u.evasionRatePct?`（回避率${u.evasionRatePct}%）`:""}${u.buffs.some(b=>b.name.includes("潜伏"))?" 🌙潜伏中":""}：EVADE成立${u.buffs.some(b=>b.name.includes("バリア"))?` ｜ <input type="checkbox" id="aoeBarrierBreak_${u.id}"> 🛡バリア破壊`:""}</div>${debuffOpts.length ? `<div class="smallnote" style="margin:0 0 6px 26px;">☠付与された：${debuffOpts.map(o=>`<label style="margin-right:12px;"><input type="checkbox" id="aoeDebuff_${u.id}_${o.id}" checked> ${o.label}</label>`).join("")}</div>` : ""}${ultCtEff ? `<div class="smallnote" style="margin:0 0 6px 26px;"><label><input type="checkbox" id="aoeStarUltCt_${u.id}" checked> ⭐ ★挑戦：究極CT+${ultCtEff.amount||1}延長された</label></div>` : ""}`).join("");
         })()}
         <div class="btn-row">
           <button class="btn-primary btn-small" onclick="confirmAoeEvade()">決定してトリガー確認</button>
