@@ -39,7 +39,7 @@ const BOSS_PRESETS = {
       ],
       togglesDayNightCycle:true, cyclePreceptName:"周期戒律（基本スキル被ダメ+30%）", cyclePreceptMax:4,
       reactsToUltimateHitIfNightCycle:{ctReduce:1, gaugeGainPct:30},
-      passiveNote:"周期の循環：戦闘開始時、自身に昼の周期（解除不可・効果耐性0固定）を発生させる。以降、自身がスキルを使用するたびに昼⇔夜が自動で入れ替わる（実装済み：togglesDayNightCycle、useEnemySkillの末尾でトグル。スキル自身の条件付き効果は、このスキル使用『前』の周期状態を見て判定）。昼の周期＝効果耐性0固定（デバフが入りやすい）／夜の周期＝効果耐性100%固定（ほぼデバフが入らない、本ツールでは効果耐性の数値自体は非対応のため、夜の周期中の弱体化付与は基本的にプレイヤーの手動判断に委ねる）。／厳重な戒律：自身のターン開始時、周期戒律をすべて解除（実装済み）。スキル使用後、自身の弱体化数（周期戒律・周期マーカー自体は含めない）に応じて周期戒律を追加（最大4個、実装済み：出血等と同じ独立スタック型）。究極スキルを受けた時、自身が夜の周期状態なら自身の究極CTを1短縮しゲージ+30%（実装済み：reactsToUltimateHitIfNightCycle、useAllySkill・fireTrigger両方の被弾処理で判定）",
+      passiveNote:"周期の循環：戦闘開始時、自身に昼の周期（解除不可・効果耐性0固定）を発生させる。以降、自身がスキルを使用するたびに昼⇔夜が自動で入れ替わり、その際に自身の弱体化を一度リセットする（解除不可デバフ・周期戒律は対象外）（実装済み：togglesDayNightCycle、useEnemySkillの末尾でトグル。スキル自身の条件付き効果は、このスキル使用『前』の周期状態を見て判定）。昼の周期＝効果耐性0固定（デバフが入りやすい）／夜の周期＝効果耐性100%固定（ほぼデバフが入らない、本ツールでは効果耐性の数値自体は非対応のため、夜の周期中の弱体化付与は基本的にプレイヤーの手動判断に委ねる）。／厳重な戒律：自身のターン開始時、周期戒律をすべて解除（実装済み）。スキル使用後、自身の弱体化数（周期戒律・周期マーカー自体は含めない）に応じて周期戒律を追加（最大4個、実装済み：出血等と同じ独立スタック型）。究極スキルを受けた時、自身が夜の周期状態なら自身の究極CTを1短縮しゲージ+30%（実装済み：reactsToUltimateHitIfNightCycle、useAllySkill・fireTrigger両方の被弾処理で判定）",
       basic: defaultEnemySkill("液化", 0, "強靭削り1(未確認・要調整)／自身が昼の周期なら自身ゲージ+20%／自身が夜の周期なら攻撃ダメージ+30%(ダメージ計算非対応のため注記のみ)", "single", 0, null, null, null, false, 0, null,
         { selfGaugeGainIfCycleState:{state:"day", pct:20}, dmgBonusNoteIfCycleState:{state:"night", pct:30} }),
       special: defaultEnemySkill("不完全な断末魔", 3, "強靭削り1(未確認・要調整)／自身に2T攻撃力アップ／敵に100%で1T沈黙", "single", 0, null, null,

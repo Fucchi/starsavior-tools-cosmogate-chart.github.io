@@ -295,7 +295,7 @@ function defaultAllySkill(name, ct, toughness, burstAdd, burstGain, extraTurn, t
     // 判定は攻撃「前」＝このスキル自身のデバフ付与より前の状態で行う（リディアの特殊：対象が未知の呪文状態なら行動ゲージ-15%）
     enemyGaugeReductionIfTargetDebuffName: extraEffects.enemyGaugeReductionIfTargetDebuffName || null,
     // targetEffectIfTargetDebuffed: {name, turns} スキル使用後、対象が何らかの弱体化（type:"debuff"）状態であれば追加で付与するデバフ
-    // （リディアの固有パッシブ：空虚の手使用後、敵が弱体化状態なら道の呪文を1ターン付与）
+    // （リディアの固有パッシブ：空虚の手使用後、敵が弱体化状態なら未知の呪文を1ターン付与）
     targetEffectIfTargetDebuffed: extraEffects.targetEffectIfTargetDebuffed || null,
     // nonAttackSkill: targetsAlly:falseだが実質的に攻撃ではない（teamBuff等で味方全体を強化するだけの）スキルであることを示すフラグ。
     // オルトロスの「味方が攻撃ではないスキルを使った時に自身へ竜の逆鱗」等、s.targetsAllyを「非攻撃判定」に使っている
@@ -772,6 +772,14 @@ function planetBreakSkillNovaGain(u, s, evaded){
 
 function syncBreakSkillTypeDefaults(){
   renderBattle();
+}
+// 攻撃者自身のバフによる強靭度ダメージ加算（ティリアの「破砕」等）。
+// バフ名に「強靭度ダメージ+N」を含むものを合計する（「強靭度ダメージ無効」と同じく名前で判定する方式）
+function selfToughnessBuffBonus(u){
+  return ((u && u.buffs) || []).reduce((sum,b)=>{
+    const m = /強靭度ダメージ\+(\d+)/.exec(b.name||"");
+    return sum + (m ? Number(m[1]) : 0);
+  }, 0);
 }
 function isBreakSkillToughnessBonusActive(){
   if(!state || state.breakSkillTurnsLeft<=0) return false;
@@ -2088,7 +2096,8 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       const breakSkillBonus = (!isEvaded && isBreakSkillToughnessBonusActive()) ? 1 : 0;
       // ギーレの究極「強靭度ダメージ無効」等、名前でマークされた無効化バフを持つ対象は強靭ダメージが常に0になる
       const hasToughnessImmuneBuff = target.buffs && target.buffs.some(b=>b.name.includes("強靭度ダメージ無効"));
-      const nonBurstToughnessDmg = hasDisadvantage ? 0 : (s.toughness + advantageBonus + breakSkillBonus + (rinVariantActive ? (s.variantBonusToughness||0) : 0));
+      const selfBuffBonus = isEvaded ? 0 : selfToughnessBuffBonus(u);
+      const nonBurstToughnessDmg = hasDisadvantage ? 0 : (s.toughness + advantageBonus + breakSkillBonus + selfBuffBonus + (rinVariantActive ? (s.variantBonusToughness||0) : 0));
       const toughnessDmg = (isEvaded || hasToughnessImmuneBuff) ? 0 : nonBurstToughnessDmg + (burstOn?s.burstAdd:0);
       target.toughness = Math.max(0, target.toughness - toughnessDmg);
       if(!isEvaded){
@@ -2293,7 +2302,7 @@ function useAllySkill(unitId, skillKey, burstOn, targetEnemyId, evaded, autoAppl
       // 有利属性+1／不利属性ペナルティ（強靭ダメージが常に0になる）はこの追加ヒットの1発ごとにも適用される
       const extraHasAdvantage = hasElementAdvantage(u.attribute, extraTarget.attribute);
       const extraHasDisadvantage = !extraHasAdvantage && hasElementAdvantage(extraTarget.attribute, u.attribute);
-      const rawExtraToughnessPerHit = ((u.skills.special && u.skills.special.toughness) || 1) + (extraHasAdvantage ? 1 : 0) + (isBreakSkillToughnessBonusActive() ? 1 : 0);
+      const rawExtraToughnessPerHit = ((u.skills.special && u.skills.special.toughness) || 1) + (extraHasAdvantage ? 1 : 0) + (isBreakSkillToughnessBonusActive() ? 1 : 0) + selfToughnessBuffBonus(u);
       const extraToughnessPerHit = extraHasDisadvantage ? 0 : rawExtraToughnessPerHit;
       const extraGimmickTexts = [];
       // ★挑戦：ボス（対象）を攻撃した時、攻撃した味方自身の最大HP-5%スタック（追加ヒット1発ごとに加算）
@@ -2972,15 +2981,8 @@ function useEnemySkill(unitId, skillKey, isExtra){
       assignChosenOne(owner);
     }
   }
-  // ギーレ「周期の循環」：スキル使用後、自身が昼の周期なら夜の周期へ、夜の周期なら昼の周期へ切り替わる（解除不可・自動トグル）
-  if(u.togglesDayNightCycle){
-    const idx = u.buffs.findIndex(b=>b.isCycleMarker);
-    const nextIsDay = cycleBeforeAction!=="day"; // 昼→夜、夜→昼（未設定の場合は一旦昼から開始した扱い）
-    if(idx>=0) u.buffs.splice(idx,1);
-    u.buffs.push({name: nextIsDay ? "昼の周期（解除不可・効果耐性0固定）" : "夜の周期（解除不可・効果耐性100%固定）", turns:9999, type:"buff", permanent:true, undispellable:true, isCycleMarker:true});
-    logAction(u, "被弾判定", `🌗 周期の循環：自身が${nextIsDay?"夜→昼":"昼→夜"}の周期に切り替わった`, "-", false, "");
-  }
   // ギーレ「厳重な戒律」：スキル使用後、自身の弱体化数に応じて周期戒律を発生（周期マーカー・周期戒律自体は弱体化数に含めない、上限あり）
+  // ※下の周期切り替え時の弱体化リセットより先に数える（リセット後に数えると解除不可デバフ以外は常に0になるため）
   if(u.cyclePreceptName){
     const currentPreceptCount = u.buffs.filter(b=>b.name===u.cyclePreceptName).length;
     const debuffCount = u.buffs.filter(b=>b.type==="debuff" && !b.isCycleMarker && b.name!==u.cyclePreceptName).length;
@@ -2990,6 +2992,17 @@ function useEnemySkill(unitId, skillKey, isExtra){
       for(let i=0;i<gain;i++){ u.buffs.push({name:u.cyclePreceptName, turns:9999, type:"debuff", permanent:true}); }
       logAction(u, "被弾判定", `📜 厳重な戒律：自身の弱体化${debuffCount}個に応じて周期戒律+${gain}(${currentPreceptCount+gain}/${u.cyclePreceptMax||4})`, "-", false, "");
     }
+  }
+  // ギーレ「周期の循環」：スキル使用後、自身が昼の周期なら夜の周期へ、夜の周期なら昼の周期へ切り替わる（解除不可・自動トグル）
+  // 切り替わりのタイミングで自身の弱体化を一度リセットする（解除不可＝ティリアの惨劇の棘等、および周期戒律は対象外）
+  if(u.togglesDayNightCycle){
+    const idx = u.buffs.findIndex(b=>b.isCycleMarker);
+    const nextIsDay = cycleBeforeAction!=="day"; // 昼→夜、夜→昼（未設定の場合は一旦昼から開始した扱い）
+    if(idx>=0) u.buffs.splice(idx,1);
+    const clearedDebuffs = u.buffs.filter(b=>b.type==="debuff" && !b.undispellable && b.name!==u.cyclePreceptName);
+    u.buffs = u.buffs.filter(b=>!clearedDebuffs.includes(b));
+    u.buffs.push({name: nextIsDay ? "昼の周期（解除不可・効果耐性0固定）" : "夜の周期（解除不可・効果耐性100%固定）", turns:9999, type:"buff", permanent:true, undispellable:true, isCycleMarker:true});
+    logAction(u, "被弾判定", `🌗 周期の循環：自身が${nextIsDay?"夜→昼":"昼→夜"}の周期に切り替わった${clearedDebuffs.length>0?`／自身の弱体化をリセット(${clearedDebuffs.map(b=>b.name).join("、")})`:""}`, "-", false, "");
   }
   if(!isExtra){
   state.pendingActor = null;
@@ -3586,7 +3599,7 @@ function fireExAttack(allyId, targetEnemyId, burstOn, arrivalLabel, skillLabelSu
     if(hasAdvantage) hasAdvantageAny = true;
     // 不利属性ペナルティ：バースト加算(burstAdd)以外の分が0になる。詳細はuseAllySkill内の同様の計算のコメントを参照
     const hasDisadvantage = !hasAdvantage && hasElementAdvantage(target.attribute, u.attribute);
-    const nonBurstToughnessDmg = hasDisadvantage ? 0 : (s.toughness + (hasAdvantage ? 1 : 0) + (isBreakSkillToughnessBonusActive() ? 1 : 0));
+    const nonBurstToughnessDmg = hasDisadvantage ? 0 : (s.toughness + (hasAdvantage ? 1 : 0) + (isBreakSkillToughnessBonusActive() ? 1 : 0) + selfToughnessBuffBonus(u));
     const toughnessDmg = nonBurstToughnessDmg + (burstOn ? s.burstAdd : 0);
     target.toughness = Math.max(0, target.toughness - toughnessDmg);
     target.hitCounter = (target.hitCounter||0) + 1;
@@ -4129,7 +4142,8 @@ function fireTrigger(allyId, skillKey, targetEnemyId, burstOn, evaded, applyGaug
     // targetsAlly（花嫁カルメンの守護の騎士等、味方対象のトリガー）は攻撃ではないため強靭ダメージ・被弾カウントの対象外
     // ギーレの究極「強靭度ダメージ無効」等、名前でマークされた無効化バフを持つ対象は強靭ダメージが常に0になる
     const hasToughnessImmuneBuff = target.buffs && target.buffs.some(b=>b.name.includes("強靭度ダメージ無効"));
-    const nonBurstToughnessDmg = hasDisadvantage ? 0 : (s.toughness + advantageBonus + breakSkillBonus);
+    const selfBuffBonus = (!evaded && !s.targetsAlly) ? selfToughnessBuffBonus(u) : 0;
+    const nonBurstToughnessDmg = hasDisadvantage ? 0 : (s.toughness + advantageBonus + breakSkillBonus + selfBuffBonus);
     const toughnessDmg = (evaded || s.targetsAlly || hasToughnessImmuneBuff) ? 0 : nonBurstToughnessDmg + (burstOn ? s.burstAdd : 0);
     target.toughness = Math.max(0, target.toughness - toughnessDmg);
     if(!evaded && !s.targetsAlly){
